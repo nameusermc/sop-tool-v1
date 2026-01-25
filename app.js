@@ -1,3 +1,14 @@
+// Temporary storage for SOPs
+function saveSOP(sopData) {
+    // Get existing SOPs from localStorage
+    const existingSOPs = JSON.parse(localStorage.getItem('sops') || '[]');
+    // Add the new SOP
+    existingSOPs.push(sopData);
+    // Save back
+    localStorage.setItem('sops', JSON.stringify(existingSOPs));
+}
+
+
 const appContainer = document.getElementById('app');
 
 // Load Dashboard
