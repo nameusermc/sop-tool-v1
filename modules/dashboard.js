@@ -143,7 +143,8 @@
                 onDeleteSOP: null,
                 onViewChecklists: null,
                 onRunChecklist: null,
-                onResumeChecklist: null
+                onResumeChecklist: null,
+                onViewCompletedChecklist: null
             };
             
             this._init();
@@ -331,7 +332,7 @@
             
             // Add uncategorized group
             groups['uncategorized'] = {
-                folder: { id: 'uncategorized', name: 'Uncategorized', icon: '📄', color: '#6b7280' },
+                folder: { id: 'uncategorized', name: 'Other', icon: '📄', color: '#6b7280' },
                 sops: []
             };
             
@@ -517,6 +518,9 @@
                         <!-- Recent Checklists Section -->
                         ${this._renderRecentChecklists()}
                         
+                        <!-- Completed Checklists Section -->
+                        ${this._renderCompletedChecklists()}
+                        
                         <!-- Most Used Section -->
                         ${this.options.showMostUsed && this.state.sops.length > 0 ? `
                         <section class="most-used-section" id="most-used-section">
@@ -638,7 +642,7 @@
                          data-folder-id="uncategorized"
                          style="--folder-color: #6b7280">
                         <span class="folder-icon">📄</span>
-                        <span class="folder-name">Uncategorized</span>
+                        <span class="folder-name">Other</span>
                         <span class="folder-count">${uncategorizedCount}</span>
                     </div>
                 `;
@@ -699,7 +703,7 @@
             return `
                 <section class="recent-checklists-section">
                     <div class="section-header">
-                        <h3>📋 In-Progress Checklists</h3>
+                        <h3>📋 Continue Where You Left Off</h3>
                     </div>
                     <div class="checklists-list">
                         ${inProgress.map(checklist => {
@@ -722,6 +726,51 @@
                                         </div>
                                     </div>
                                     <button class="btn-resume" data-checklist-id="${checklist.id}">Resume →</button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </section>
+            `;
+        }
+        
+        /**
+         * Render completed checklists section
+         */
+        _renderCompletedChecklists() {
+            const checklists = this._loadChecklists();
+            const completed = checklists
+                .filter(c => c.status === 'completed')
+                .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+                .slice(0, 5);
+            
+            if (completed.length === 0) return '';
+            
+            return `
+                <section class="completed-checklists-section">
+                    <div class="section-header">
+                        <h3>✅ Recently Completed</h3>
+                    </div>
+                    <div class="checklists-list">
+                        ${completed.map(checklist => {
+                            const completedDate = checklist.completedAt 
+                                ? new Date(checklist.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                : 'Unknown';
+                            const completedTime = checklist.completedAt
+                                ? new Date(checklist.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : '';
+                            return `
+                                <div class="checklist-card completed-checklist-card" data-completed-checklist-id="${checklist.id}">
+                                    <div class="checklist-card-main">
+                                        <span class="checklist-complete-icon">✓</span>
+                                        <div class="checklist-info">
+                                            <h4>${this._escapeHtml(checklist.sopTitle)}</h4>
+                                            <div class="checklist-completed-date">
+                                                <span>Completed ${completedDate} at ${completedTime}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn-view-completed" data-completed-checklist-id="${checklist.id}">View →</button>
                                 </div>
                             `;
                         }).join('')}
@@ -853,13 +902,13 @@
                     </div>
                     
                     <div class="sop-card-actions">
-                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Run as Checklist">
-                            ✅ Run
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
                         </button>
-                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit">
+                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
                             ✏️ Edit
                         </button>
-                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete">
+                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
                             🗑️
                         </button>
                     </div>
@@ -1034,8 +1083,8 @@
                 });
             });
             
-            // Checklist card click (also resumes)
-            document.querySelectorAll('.checklist-card').forEach(card => {
+            // In-progress checklist card click (resumes)
+            document.querySelectorAll('.checklist-card[data-checklist-id]').forEach(card => {
                 card.addEventListener('click', () => {
                     const checklistId = card.dataset.checklistId;
                     if (!checklistId) {
@@ -1046,6 +1095,39 @@
                         this.callbacks.onResumeChecklist(checklistId);
                     } else {
                         console.warn('Dashboard: onResumeChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // View completed checklist buttons
+            document.querySelectorAll('.btn-view-completed').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const checklistId = btn.dataset.completedChecklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: View completed button missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onViewCompletedChecklist) {
+                        this.callbacks.onViewCompletedChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onViewCompletedChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // Completed checklist card click (views)
+            document.querySelectorAll('.completed-checklist-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const checklistId = card.dataset.completedChecklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: Completed checklist card missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onViewCompletedChecklist) {
+                        this.callbacks.onViewCompletedChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onViewCompletedChecklist callback not registered');
                     }
                 });
             });
@@ -1095,7 +1177,7 @@
                     break;
                     
                 case 'delete':
-                    if (confirm(`Delete "${sop.title}"?`)) {
+                    if (confirm(`Permanently delete "${sop.title}"?\n\nThis cannot be undone.`)) {
                         this.state.sops = this.state.sops.filter(s => s.id !== sopId);
                         delete this.state.sopUsage[sopId];
                         this._saveSops();
@@ -1855,6 +1937,55 @@
                     background: #4f46e5;
                 }
                 
+                /* Completed Checklists Section */
+                .completed-checklists-section {
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .completed-checklist-card {
+                    background: #f9fafb;
+                }
+                
+                .completed-checklist-card:hover {
+                    background: #f3f4f6;
+                }
+                
+                .checklist-complete-icon {
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #22c55e;
+                    color: #fff;
+                    border-radius: 50%;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                }
+                
+                .checklist-completed-date {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                }
+                
+                .btn-view-completed {
+                    padding: 0.375rem 0.75rem;
+                    background: #e5e7eb;
+                    color: #374151;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                
+                .btn-view-completed:hover {
+                    background: #d1d5db;
+                }
+                
                 /* Empty State */
                 .empty-state {
                     text-align: center;
@@ -2054,7 +2185,7 @@
         // ====================================================================
         
         on(event, callback) {
-            const valid = ['onCreateSOP', 'onViewSOP', 'onEditSOP', 'onDeleteSOP', 'onViewChecklists', 'onRunChecklist', 'onResumeChecklist'];
+            const valid = ['onCreateSOP', 'onViewSOP', 'onEditSOP', 'onDeleteSOP', 'onViewChecklists', 'onRunChecklist', 'onResumeChecklist', 'onViewCompletedChecklist'];
             if (valid.includes(event)) {
                 this.callbacks[event] = callback;
             }

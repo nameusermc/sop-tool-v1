@@ -204,7 +204,7 @@
                                 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="sop-folder">Folder / Category</label>
+                                        <label for="sop-folder">Category</label>
                                         <select id="sop-folder" class="form-select">
                                             ${this._renderFolderOptions()}
                                         </select>
@@ -221,9 +221,9 @@
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label for="sop-tags">Tags (comma-separated)</label>
+                                    <label for="sop-tags">Keywords</label>
                                     <input type="text" id="sop-tags" class="form-input"
-                                        placeholder="e.g., onboarding, hr, training"
+                                        placeholder="e.g., training, safety, weekly"
                                         value="${this.formState.tags.join(', ')}" />
                                 </div>
                             </section>
@@ -672,7 +672,7 @@
                 console.warn('SOPCreate: _handleDelete called but no currentSOP');
                 return;
             }
-            if (!confirm(`Delete "${this.currentSOP.title}"?`)) return;
+            if (!confirm(`Permanently delete "${this.currentSOP.title}"?\n\nThis cannot be undone.`)) return;
             
             const sops = this._loadSOPs().filter(s => s.id !== this.currentSOP.id);
             this._saveSOPs(sops);

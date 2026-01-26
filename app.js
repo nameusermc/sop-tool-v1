@@ -221,6 +221,54 @@
         }
     }
 
+    /**
+     * Show a completed checklist in read-only view mode
+     * @param {string} checklistId - ID of the completed checklist to view
+     */
+    function showCompletedChecklist(checklistId) {
+        // Validate input
+        if (!checklistId || typeof checklistId !== 'string') {
+            console.error('showCompletedChecklist: Invalid checklist ID:', checklistId);
+            showDashboard();
+            return;
+        }
+        
+        console.log('👁️ Switching to Checklist view (read-only)');
+        
+        AppState.previousView = AppState.currentView;
+        AppState.currentView = 'checklist';
+        
+        // Check if Checklist class exists
+        if (typeof Checklist !== 'function') {
+            console.error('Checklist module not loaded!');
+            AppState.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #dc2626;">
+                    <h2>Error: Checklist module not found</h2>
+                    <p>Make sure <code>checklist.js</code> is included before <code>app.js</code></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create Checklist instance if not exists
+        if (!AppState.modules.checklist) {
+            console.log('Creating new Checklist instance');
+            AppState.modules.checklist = new Checklist(AppState.container, {
+                autoSave: true,
+                showNotes: true,
+                showTimestamps: true
+            });
+            
+            // Register Checklist callbacks
+            setupChecklistCallbacks();
+        }
+        
+        // View completed checklist in read-only mode
+        console.log('Viewing completed checklist:', checklistId);
+        AppState.currentChecklistId = checklistId;
+        AppState.modules.checklist.viewCompleted(checklistId);
+    }
+
     // ========================================================================
     // CALLBACK SETUP
     // ========================================================================
@@ -285,6 +333,12 @@
         dashboard.on('onResumeChecklist', (checklistId) => {
             console.log('▶️ Resume Checklist clicked:', checklistId);
             showChecklist(checklistId, true);
+        });
+        
+        // Handle View Completed Checklist
+        dashboard.on('onViewCompletedChecklist', (checklistId) => {
+            console.log('👁️ View Completed Checklist clicked:', checklistId);
+            showCompletedChecklist(checklistId);
         });
         
         console.log('✅ Dashboard callbacks registered');
@@ -417,6 +471,7 @@
         showDashboard: showDashboard,
         showEditor: showEditor,
         showChecklist: showChecklist,
+        showCompletedChecklist: showCompletedChecklist,
         
         // State access (read-only)
         getState: () => ({ ...AppState }),

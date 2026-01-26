@@ -9,10 +9,18 @@
  * - Track completion timestamps
  * - Notes per step
  * 
+ * SNAPSHOT RULE:
+ * Checklists are immutable snapshots of SOPs at creation time.
+ * - When a checklist is created, it captures the SOP's steps at that exact moment
+ * - Subsequent edits to the SOP do NOT affect existing checklists
+ * - Each checklist stores `sopSnapshotAt` to track when it was captured
+ * - "Restart" creates a NEW checklist from the CURRENT SOP (with warning if SOP changed)
+ * - If the source SOP is deleted, existing checklists remain functional
+ * 
  * STORAGE KEY: 'sop_tool_checklists'
  * 
  * @module Checklist
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 (function(global) {
@@ -55,6 +63,7 @@
             this.currentSOP = null;
             this.folders = [];
             this.saveTimer = null;
+            this.readOnly = false;  // True when viewing completed checklists
             
             this.callbacks = {
                 onComplete: null,
@@ -106,10 +115,13 @@
                 return null;
             }
             
+            // SNAPSHOT RULE: Checklists capture SOP state at creation time.
+            // Subsequent edits to the SOP do not affect this checklist.
             const checklist = {
                 id: 'checklist_' + Date.now(),
                 sopId: sop.id,
                 sopTitle: sop.title,
+                sopSnapshotAt: sop.updatedAt || sop.createdAt || Date.now(), // Track SOP version
                 folderId: sop.folderId,
                 status: CHECKLIST_STATUS.IN_PROGRESS,
                 steps: sop.steps.map((step, i) => ({
@@ -207,6 +219,7 @@
                 return;
             }
             
+            this.readOnly = false;  // New checklists are editable
             this._render();
             this._attachEventListeners();
         }
@@ -237,11 +250,41 @@
                 return;
             }
             
+            this.readOnly = false;  // Resuming allows editing
             this.currentChecklist = checklist;
             this.currentSOP = this._getSOP(checklist.sopId);
             // Note: currentSOP may be null if original SOP was deleted - that's okay for resuming
             
             this._loadFolders(); // Refresh folders in case they changed
+            this._render();
+            this._attachEventListeners();
+        }
+        
+        /**
+         * View a completed checklist in read-only mode
+         * @param {string} checklistId - ID of the completed checklist
+         */
+        viewCompleted(checklistId) {
+            if (!checklistId) {
+                console.error('Checklist: viewCompleted called without checklistId');
+                return;
+            }
+            
+            const checklist = this.getChecklist(checklistId);
+            if (!checklist) {
+                console.warn('Checklist: Checklist not found:', checklistId);
+                this._showNotification('Checklist not found', 'error');
+                if (this.callbacks.onBack) {
+                    this.callbacks.onBack();
+                }
+                return;
+            }
+            
+            this.readOnly = true;  // View mode - no editing
+            this.currentChecklist = checklist;
+            this.currentSOP = this._getSOP(checklist.sopId);
+            
+            this._loadFolders();
             this._render();
             this._attachEventListeners();
         }
@@ -262,6 +305,49 @@
             const totalSteps = checklist.totalSteps || 1;
             const progress = Math.round((checklist.completedSteps / totalSteps) * 100);
             const isComplete = checklist.status === CHECKLIST_STATUS.COMPLETED;
+            const isReadOnly = this.readOnly;
+            
+            // Determine status badge text
+            let statusBadgeText = isComplete ? '✅ Completed' : '🔄 In Progress';
+            if (isReadOnly) {
+                statusBadgeText = '👁️ Viewing';
+            }
+            
+            // Build completion banner (different for read-only)
+            let completionBanner = '';
+            if (isComplete) {
+                completionBanner = '<div class="completion-banner">' +
+                    '<span class="completion-icon">🎉</span>' +
+                    '<div class="completion-text">' +
+                        '<strong>Checklist Complete!</strong>' +
+                        '<p>Completed on ' + new Date(checklist.completedAt).toLocaleString() + '</p>' +
+                    '</div>' +
+                    (isReadOnly ? '' : '<button class="btn btn-primary" id="btn-restart">🔄 Start New</button>') +
+                '</div>';
+            }
+            
+            // Build footer (simpler for read-only)
+            let footer = '';
+            if (isReadOnly) {
+                footer = '<footer class="checklist-footer">' +
+                    '<div class="footer-left"></div>' +
+                    '<div class="footer-right">' +
+                        '<button class="btn btn-primary" id="btn-done">← Back to Dashboard</button>' +
+                    '</div>' +
+                '</footer>';
+            } else {
+                footer = '<footer class="checklist-footer">' +
+                    '<div class="footer-left">' +
+                        '<button class="btn btn-secondary" id="btn-reset">↩️ Clear Progress</button>' +
+                    '</div>' +
+                    '<div class="footer-right">' +
+                        (!isComplete ?
+                            '<button class="btn btn-secondary" id="btn-save-exit">✓ Done</button>' +
+                            '<button class="btn btn-primary" id="btn-mark-all"' + (checklist.completedSteps === checklist.totalSteps ? ' disabled' : '') + '>✅ Complete All</button>'
+                            : '<button class="btn btn-primary" id="btn-done">✓ Done</button>') +
+                    '</div>' +
+                '</footer>';
+            }
             
             this.container.innerHTML = '<div class="checklist-layout">' +
                 '<header class="checklist-header">' +
@@ -273,8 +359,8 @@
                                 '<span class="folder-badge" style="background: ' + (folder?.color || '#6b7280') + '20; color: ' + (folder?.color || '#6b7280') + '">' +
                                     (folder?.icon || '📁') + ' ' + this._escapeHtml(folder?.name || 'General') +
                                 '</span>' +
-                                '<span class="status-badge status-' + checklist.status + '">' +
-                                    (isComplete ? '✅ Completed' : '🔄 In Progress') +
+                                '<span class="status-badge status-' + checklist.status + (isReadOnly ? ' readonly' : '') + '">' +
+                                    statusBadgeText +
                                 '</span>' +
                             '</div>' +
                         '</div>' +
@@ -289,31 +375,13 @@
                         '</div>' +
                     '</div>' +
                 '</header>' +
-                (isComplete ? 
-                    '<div class="completion-banner">' +
-                        '<span class="completion-icon">🎉</span>' +
-                        '<div class="completion-text">' +
-                            '<strong>Checklist Complete!</strong>' +
-                            '<p>Completed on ' + new Date(checklist.completedAt).toLocaleString() + '</p>' +
-                        '</div>' +
-                        '<button class="btn btn-primary" id="btn-restart">🔄 Start New</button>' +
-                    '</div>' : '') +
+                completionBanner +
                 '<main class="checklist-main">' +
                     '<div class="steps-checklist" id="steps-checklist">' +
                         this._renderSteps() +
                     '</div>' +
                 '</main>' +
-                '<footer class="checklist-footer">' +
-                    '<div class="footer-left">' +
-                        '<button class="btn btn-secondary" id="btn-reset">🔄 Reset All</button>' +
-                    '</div>' +
-                    '<div class="footer-right">' +
-                        (!isComplete ?
-                            '<button class="btn btn-secondary" id="btn-save-exit">💾 Save & Exit</button>' +
-                            '<button class="btn btn-primary" id="btn-mark-all"' + (checklist.completedSteps === checklist.totalSteps ? ' disabled' : '') + '>✅ Mark All Complete</button>'
-                            : '<button class="btn btn-primary" id="btn-done">✓ Done</button>') +
-                    '</div>' +
-                '</footer>' +
+                footer +
                 '<div class="notification-toast" id="notification-toast" style="display: none;">' +
                     '<span class="notification-message"></span>' +
                 '</div>' +
@@ -325,25 +393,47 @@
                 return '<div class="empty-state"><p>No steps in this checklist</p></div>';
             }
             
+            const isReadOnly = this.readOnly;
+            
             return this.currentChecklist.steps.map((step, index) => {
                 const isCompleted = step.completed;
                 
-                return '<div class="checklist-step' + (isCompleted ? ' completed' : '') + '" data-step-index="' + index + '">' +
-                    '<div class="step-checkbox">' +
+                // In read-only mode, show static checkmark; otherwise show interactive checkbox
+                let checkboxHtml;
+                if (isReadOnly) {
+                    checkboxHtml = '<div class="step-checkbox readonly">' +
+                        '<span class="checkbox-static' + (isCompleted ? ' checked' : '') + '">' +
+                            (isCompleted ? '✓' : '') +
+                        '</span>' +
+                    '</div>';
+                } else {
+                    checkboxHtml = '<div class="step-checkbox">' +
                         '<input type="checkbox" id="step-' + index + '" class="step-check" data-step-index="' + index + '"' + (isCompleted ? ' checked' : '') + ' />' +
                         '<label for="step-' + index + '" class="checkbox-label">' +
                             '<span class="checkbox-custom"></span>' +
                         '</label>' +
-                    '</div>' +
+                    '</div>';
+                }
+                
+                // User notes input (only show when not read-only)
+                let userNoteHtml = '';
+                if (!isReadOnly && this.options.showNotes) {
+                    userNoteHtml = '<div class="step-user-note">' +
+                        '<input type="text" class="user-note-input" data-step-index="' + index + '" placeholder="Your notes..." value="' + this._escapeHtml(step.userNote || '') + '" />' +
+                    '</div>';
+                } else if (isReadOnly && step.userNote) {
+                    // Show user note as static text in read-only mode
+                    userNoteHtml = '<p class="step-user-note-readonly">📝 ' + this._escapeHtml(step.userNote) + '</p>';
+                }
+                
+                return '<div class="checklist-step' + (isCompleted ? ' completed' : '') + (isReadOnly ? ' readonly' : '') + '" data-step-index="' + index + '">' +
+                    checkboxHtml +
                     '<div class="step-content">' +
                         '<div class="step-number">' + (index + 1) + '</div>' +
                         '<div class="step-text-container">' +
                             '<p class="step-text">' + this._escapeHtml(step.text) + '</p>' +
                             (step.note ? '<p class="step-note">💡 ' + this._escapeHtml(step.note) + '</p>' : '') +
-                            (this.options.showNotes ? 
-                                '<div class="step-user-note">' +
-                                    '<input type="text" class="user-note-input" data-step-index="' + index + '" placeholder="Add a note..." value="' + this._escapeHtml(step.userNote || '') + '" />' +
-                                '</div>' : '') +
+                            userNoteHtml +
                         '</div>' +
                     '</div>' +
                     '<div class="step-status">' +
@@ -359,20 +449,30 @@
         }
         
         _attachEventListeners() {
+            // Back and Done buttons always work
             document.getElementById('btn-back')?.addEventListener('click', () => this._handleBack());
+            document.getElementById('btn-done')?.addEventListener('click', () => this._handleBack());
             
+            // Skip interactive handlers in read-only mode
+            if (this.readOnly) {
+                return;
+            }
+            
+            // Step checkbox changes
             document.getElementById('steps-checklist')?.addEventListener('change', (e) => {
                 if (e.target.classList.contains('step-check')) {
                     this._toggleStep(parseInt(e.target.dataset.stepIndex), e.target.checked);
                 }
             });
             
+            // User note input
             document.getElementById('steps-checklist')?.addEventListener('input', (e) => {
                 if (e.target.classList.contains('user-note-input')) {
                     this._updateStepNote(parseInt(e.target.dataset.stepIndex), e.target.value);
                 }
             });
             
+            // Step row click (toggles checkbox)
             document.getElementById('steps-checklist')?.addEventListener('click', (e) => {
                 const stepEl = e.target.closest('.checklist-step');
                 if (stepEl && !e.target.closest('.step-checkbox') && !e.target.closest('.user-note-input')) {
@@ -385,24 +485,60 @@
                 }
             });
             
+            // Reset button
             document.getElementById('btn-reset')?.addEventListener('click', () => {
-                if (confirm('Reset all steps?')) this._resetAll();
+                if (confirm('Clear all progress on this checklist?\n\nThis cannot be undone.')) this._resetAll();
             });
             
+            // Other action buttons
             document.getElementById('btn-mark-all')?.addEventListener('click', () => this._markAllComplete());
             document.getElementById('btn-save-exit')?.addEventListener('click', () => this._saveAndExit());
-            document.getElementById('btn-done')?.addEventListener('click', () => this._handleBack());
             document.getElementById('btn-restart')?.addEventListener('click', () => {
-                if (this.currentSOP && this.currentSOP.id) {
-                    this.startFromSOP(this.currentSOP.id);
-                } else if (this.currentChecklist && this.currentChecklist.sopId) {
-                    // Try to use sopId from checklist if currentSOP is missing
-                    this.startFromSOP(this.currentChecklist.sopId);
-                } else {
-                    console.warn('Checklist: Cannot restart - no SOP reference available');
-                    this._showNotification('Cannot restart - original SOP not found', 'error');
-                }
+                this._handleRestart();
             });
+        }
+        
+        /**
+         * Handle Restart button - creates new checklist from current SOP
+         * SNAPSHOT RULE: Warns user if SOP has changed since checklist was created
+         */
+        _handleRestart() {
+            const checklist = this.currentChecklist;
+            if (!checklist) {
+                console.warn('Checklist: Cannot restart - no current checklist');
+                return;
+            }
+            
+            const sopId = this.currentSOP?.id || checklist.sopId;
+            if (!sopId) {
+                console.warn('Checklist: Cannot restart - no SOP reference');
+                this._showNotification('Cannot restart - original SOP not found', 'error');
+                return;
+            }
+            
+            // Check if SOP still exists
+            const currentSOP = this._getSOP(sopId);
+            if (!currentSOP) {
+                this._showNotification('Cannot restart - SOP has been deleted', 'error');
+                return;
+            }
+            
+            // Check if SOP has been modified since this checklist was created
+            const sopLastModified = currentSOP.updatedAt || currentSOP.createdAt || 0;
+            const snapshotTime = checklist.sopSnapshotAt || checklist.createdAt;
+            const sopChanged = sopLastModified > snapshotTime;
+            
+            if (sopChanged) {
+                // SOP was edited - confirm with user
+                const confirmed = confirm(
+                    'The SOP has been updated since this checklist was created.\n\n' +
+                    'Start a new checklist with the updated steps?'
+                );
+                if (!confirmed) return;
+            }
+            
+            // Create new checklist from current SOP
+            this.startFromSOP(sopId);
         }
         
         _toggleStep(index, completed) {
@@ -526,13 +662,20 @@
         }
         
         _saveAndExit() {
-            this._saveProgress();
+            if (this.currentChecklist) this._saveProgress();
             this._showNotification('Progress saved', 'success');
-            setTimeout(() => this._handleBack(), 500);
+            setTimeout(() => this._navigateBack(), 300);
         }
         
         _handleBack() {
-            if (this.currentChecklist) this._saveProgress();
+            // Back button now behaves same as Done - save and show confirmation
+            this._saveAndExit();
+        }
+        
+        /**
+         * Navigate back to dashboard (internal)
+         */
+        _navigateBack() {
             if (this.callbacks.onBack) {
                 this.callbacks.onBack();
             } else {
@@ -580,7 +723,7 @@
             
             const styles = document.createElement('style');
             styles.id = 'checklist-styles';
-            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e5e7eb}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .75rem;background:none;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap}.btn-back:hover{background:#f3f4f6}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.3}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .5rem;border-radius:4px;font-size:.75rem;font-weight:500}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46}.completion-text p{margin:.25rem 0 0;font-size:.8rem;color:#047857}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.75rem}.checklist-step{display:flex;align-items:flex-start;gap:.75rem;padding:1rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .15s}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .15s;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.75rem;min-width:0}.step-number{min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.4;transition:all .15s}.step-note{margin:.375rem 0 0;font-size:.8rem;color:#6b7280}.step-user-note{margin-top:.5rem}.user-note-input{width:100%;padding:.375rem .5rem;border:1px solid #e5e7eb;border-radius:4px;font-size:.8rem;background:#f9fafb;box-sizing:border-box}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e5e7eb}.footer-left,.footer-right{display:flex;gap:.5rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .15s}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff}.btn-primary:hover:not(:disabled){background:#4f46e5}.btn-secondary{background:#e5e7eb;color:#374151}.btn-secondary:hover:not(:disabled){background:#d1d5db}.empty-state{text-align:center;padding:3rem;color:#6b7280}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}';
+            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e5e7eb}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .75rem;background:none;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap}.btn-back:hover{background:#f3f4f6}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.3}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .5rem;border-radius:4px;font-size:.75rem;font-weight:500}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.status-badge.readonly{background:#e0e7ff;color:#4338ca}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46}.completion-text p{margin:.25rem 0 0;font-size:.8rem;color:#047857}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.75rem}.checklist-step{display:flex;align-items:flex-start;gap:.75rem;padding:1rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .15s}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.readonly{cursor:default}.checklist-step.readonly:hover{border-color:#e5e7eb;box-shadow:none}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-checkbox.readonly{cursor:default}.checkbox-static{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;font-size:14px;color:#fff}.checkbox-static.checked{background:#22c55e;border-color:#22c55e}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .15s;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.75rem;min-width:0}.step-number{min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.4;transition:all .15s}.step-note{margin:.375rem 0 0;font-size:.8rem;color:#6b7280}.step-user-note{margin-top:.5rem}.step-user-note-readonly{margin:.375rem 0 0;font-size:.8rem;color:#4b5563;font-style:italic}.user-note-input{width:100%;padding:.375rem .5rem;border:1px solid #e5e7eb;border-radius:4px;font-size:.8rem;background:#f9fafb;box-sizing:border-box}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e5e7eb}.footer-left,.footer-right{display:flex;gap:.5rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .15s}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff}.btn-primary:hover:not(:disabled){background:#4f46e5}.btn-secondary{background:#e5e7eb;color:#374151}.btn-secondary:hover:not(:disabled){background:#d1d5db}.empty-state{text-align:center;padding:3rem;color:#6b7280}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}';
             document.head.appendChild(styles);
         }
     }
