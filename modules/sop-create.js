@@ -6,13 +6,14 @@
  * - Step editor with add, edit, remove, reorder
  * - Folder/category selection (integrates with Dashboard folders)
  * - Tags and status management
- * - AI-powered step generation placeholders
+ * - AI-powered step generation via Anthropic API
+ * - AI-powered clarity improvement with before/after preview
  * - Auto-save drafts
  * 
  * STORAGE KEY: 'sop_tool_sops' - Must match Dashboard module
  * 
  * @module SOPCreate
- * @version 2.0.0
+ * @version 2.2.0
  */
 
 (function(global) {
@@ -236,13 +237,18 @@
                                 </div>
                                 
                                 ${this.options.enableAIFeatures ? `
-                                <div class="ai-steps-panel">
-                                    <p>Let AI help you draft steps based on your title and description</p>
+                                <div class="ai-steps-panel" id="ai-steps-panel">
+                                    <p>✨ Let AI help you with your SOP steps</p>
                                     <div class="ai-steps-actions">
-                                        <button type="button" class="ai-btn" data-ai-action="draft-steps">
-                                            ✨ AI: Draft Steps
+                                        <button type="button" class="ai-btn" id="btn-ai-generate" data-ai-action="draft-steps">
+                                            🤖 Generate Steps
+                                        </button>
+                                        <button type="button" class="ai-btn ai-btn-secondary" id="btn-ai-improve" data-ai-action="improve-clarity"
+                                            ${this.formState.steps.length === 0 ? 'disabled' : ''}>
+                                            ✏️ Improve Clarity
                                         </button>
                                     </div>
+                                    <p class="ai-hint">Generate: Create steps from title | Improve: Simplify existing steps</p>
                                 </div>
                                 ` : ''}
                                 
@@ -278,6 +284,22 @@
                                 <button class="btn-close" id="btn-close-preview">✕</button>
                             </div>
                             <div class="preview-body" id="preview-body"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Clarity Preview Modal -->
+                    <div class="clarity-modal" id="clarity-modal" style="display: none;">
+                        <div class="clarity-content">
+                            <div class="clarity-header">
+                                <h3>✏️ Review Improved Steps</h3>
+                                <button class="btn-close" id="btn-close-clarity">✕</button>
+                            </div>
+                            <p class="clarity-description">AI has simplified your steps for clarity. Review the changes below:</p>
+                            <div class="clarity-comparison" id="clarity-comparison"></div>
+                            <div class="clarity-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-reject-clarity">Keep Original</button>
+                                <button type="button" class="btn btn-primary" id="btn-accept-clarity">✓ Accept Changes</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -542,6 +564,7 @@
             const list = document.getElementById('steps-list');
             const count = document.getElementById('step-count');
             const addBtn = document.getElementById('btn-add-step');
+            const improveBtn = document.getElementById('btn-ai-improve');
             
             if (list) {
                 list.innerHTML = this._renderStepsList();
@@ -549,6 +572,7 @@
             }
             if (count) count.textContent = `${this.formState.steps.length} / ${this.options.maxSteps}`;
             if (addBtn) addBtn.disabled = this.formState.steps.length >= this.options.maxSteps;
+            if (improveBtn) improveBtn.disabled = this.formState.steps.length === 0;
         }
         
         // ====================================================================
@@ -557,18 +581,439 @@
         
         _handleAIAction(action) {
             if (action === 'draft-steps') {
-                this._showNotification('Generating steps...', 'info');
-                setTimeout(() => {
-                    const samples = [
-                        { text: 'Review prerequisites and gather materials', note: '' },
-                        { text: 'Complete initial setup', note: '' },
-                        { text: 'Execute main procedure', note: '' },
-                        { text: 'Verify and document results', note: '' }
-                    ];
-                    if (confirm('AI generated 4 steps. Add them?')) {
-                        samples.forEach(s => this._addStep(s.text));
-                    }
-                }, 1000);
+                this._generateStepsWithAI();
+            } else if (action === 'improve-clarity') {
+                this._improveStepsWithAI();
+            }
+        }
+        
+        /**
+         * Generate SOP steps using AI
+         * Calls Anthropic API to generate steps based on title and description
+         */
+        async _generateStepsWithAI() {
+            // Collect current form data
+            this._collectFormData();
+            
+            const title = this.formState.title?.trim();
+            const description = this.formState.description?.trim();
+            
+            // Validate input
+            if (!title) {
+                this._showNotification('Please enter a title first', 'error');
+                document.getElementById('sop-title')?.focus();
+                return;
+            }
+            
+            // Check if steps already exist
+            if (this.formState.steps.length > 0) {
+                if (!confirm('This will replace your existing steps. Continue?')) {
+                    return;
+                }
+            }
+            
+            // Show loading state
+            const aiBtn = document.getElementById('btn-ai-generate');
+            const aiPanel = document.getElementById('ai-steps-panel');
+            const originalBtnText = aiBtn?.textContent;
+            
+            if (aiBtn) {
+                aiBtn.disabled = true;
+                aiBtn.textContent = '⏳ Generating...';
+            }
+            if (aiPanel) {
+                aiPanel.classList.add('loading');
+            }
+            
+            this._showNotification('AI is drafting steps...', 'info');
+            
+            try {
+                const steps = await this._callAIForSteps(title, description);
+                
+                if (steps && steps.length > 0) {
+                    // Clear existing steps
+                    this.formState.steps = [];
+                    
+                    // Add AI-generated steps
+                    steps.forEach((stepText, index) => {
+                        this.formState.steps.push({
+                            id: `step_ai_${Date.now()}_${index}`,
+                            text: stepText,
+                            note: '',
+                            order: index + 1,
+                            aiGenerated: true  // Mark as AI-generated
+                        });
+                    });
+                    
+                    this._updateStepsList();
+                    this._showNotification(`✨ AI generated ${steps.length} draft steps. Review and edit as needed.`, 'success');
+                    
+                    // Show draft notice
+                    this._showAIDraftNotice();
+                } else {
+                    this._showNotification('AI could not generate steps. Try adding more detail to your title.', 'error');
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                this._handleAIError(error);
+            } finally {
+                // Restore button state
+                if (aiBtn) {
+                    aiBtn.disabled = false;
+                    aiBtn.textContent = originalBtnText || '🤖 Generate Steps with AI';
+                }
+                if (aiPanel) {
+                    aiPanel.classList.remove('loading');
+                }
+            }
+        }
+        
+        /**
+         * Call Anthropic API to generate steps
+         */
+        async _callAIForSteps(title, description) {
+            const prompt = `You are helping create a Standard Operating Procedure (SOP) for a small business.
+
+Title: ${title}
+${description ? `Description: ${description}` : ''}
+
+Generate 4-8 clear, actionable steps for this SOP. Requirements:
+- Use simple, non-technical language
+- Each step should be a single, concrete action
+- Start each step with an action verb
+- Keep steps brief (under 15 words each)
+- Focus on practical execution
+
+Respond with ONLY a JSON array of step strings, nothing else. Example:
+["Step one text", "Step two text", "Step three text"]`;
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 1000,
+                    messages: [
+                        { role: 'user', content: prompt }
+                    ]
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Extract text from response
+            const textContent = data.content?.find(block => block.type === 'text');
+            if (!textContent?.text) {
+                throw new Error('No text in API response');
+            }
+            
+            // Parse JSON array from response
+            const responseText = textContent.text.trim();
+            
+            // Handle potential markdown code blocks
+            let jsonText = responseText;
+            if (responseText.startsWith('```')) {
+                jsonText = responseText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+            }
+            
+            const steps = JSON.parse(jsonText);
+            
+            if (!Array.isArray(steps)) {
+                throw new Error('Response is not an array');
+            }
+            
+            // Validate and clean steps
+            return steps
+                .filter(step => typeof step === 'string' && step.trim().length > 0)
+                .map(step => step.trim())
+                .slice(0, this.options.maxSteps);
+        }
+        
+        /**
+         * Handle AI errors gracefully
+         */
+        _handleAIError(error) {
+            let message = 'AI generation failed. Please try again or add steps manually.';
+            
+            if (error.message?.includes('API request failed')) {
+                message = 'Could not connect to AI service. Please try again later.';
+            } else if (error.message?.includes('JSON')) {
+                message = 'AI response was unclear. Please try again with a more specific title.';
+            }
+            
+            this._showNotification(message, 'error');
+        }
+        
+        /**
+         * Show notice that steps are AI-generated drafts
+         */
+        _showAIDraftNotice() {
+            // Remove existing notice if present
+            document.getElementById('ai-draft-notice')?.remove();
+            
+            const notice = document.createElement('div');
+            notice.id = 'ai-draft-notice';
+            notice.className = 'ai-draft-notice';
+            notice.innerHTML = `
+                <span class="notice-icon">📝</span>
+                <span class="notice-text">These steps are AI-generated drafts. Please review and edit before saving.</span>
+                <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
+            `;
+            
+            const stepsList = document.getElementById('steps-list');
+            if (stepsList) {
+                stepsList.parentNode.insertBefore(notice, stepsList);
+            }
+        }
+        
+        /**
+         * Improve clarity of existing steps using AI
+         */
+        async _improveStepsWithAI() {
+            // Collect current form data
+            this._collectFormData();
+            
+            // Validate steps exist
+            if (this.formState.steps.length === 0) {
+                this._showNotification('Add some steps first before improving them', 'error');
+                return;
+            }
+            
+            // Store original steps for comparison
+            this._originalSteps = this.formState.steps.map(s => ({ ...s }));
+            
+            // Show loading state
+            const aiBtn = document.getElementById('btn-ai-improve');
+            const aiPanel = document.getElementById('ai-steps-panel');
+            const originalBtnText = aiBtn?.textContent;
+            
+            if (aiBtn) {
+                aiBtn.disabled = true;
+                aiBtn.textContent = '⏳ Improving...';
+            }
+            if (aiPanel) {
+                aiPanel.classList.add('loading');
+            }
+            
+            this._showNotification('AI is improving your steps...', 'info');
+            
+            try {
+                const improvedSteps = await this._callAIForClarity(this._originalSteps);
+                
+                if (improvedSteps && improvedSteps.length > 0) {
+                    this._improvedSteps = improvedSteps;
+                    this._showClarityPreview();
+                } else {
+                    this._showNotification('AI could not improve the steps. They may already be clear!', 'info');
+                }
+            } catch (error) {
+                console.error('AI clarity error:', error);
+                this._handleAIError(error);
+            } finally {
+                // Restore button state
+                if (aiBtn) {
+                    aiBtn.disabled = false;
+                    aiBtn.textContent = originalBtnText || '✏️ Improve Clarity';
+                }
+                if (aiPanel) {
+                    aiPanel.classList.remove('loading');
+                }
+            }
+        }
+        
+        /**
+         * Call Anthropic API to improve step clarity
+         */
+        async _callAIForClarity(steps) {
+            const stepsText = steps.map((s, i) => `${i + 1}. ${s.text}`).join('\n');
+            
+            const prompt = `You are helping improve a Standard Operating Procedure (SOP) for non-technical employees.
+
+Current steps:
+${stepsText}
+
+Rewrite each step to be:
+- Shorter (under 12 words if possible)
+- Clearer and more direct
+- Easy for non-technical employees to understand
+- Starting with a simple action verb
+
+IMPORTANT: Preserve the original meaning of each step. Do not add or remove steps.
+
+Respond with ONLY a JSON array of the improved step strings, in the same order. Example:
+["Improved step one", "Improved step two", "Improved step three"]`;
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 1000,
+                    messages: [
+                        { role: 'user', content: prompt }
+                    ]
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Extract text from response
+            const textContent = data.content?.find(block => block.type === 'text');
+            if (!textContent?.text) {
+                throw new Error('No text in API response');
+            }
+            
+            // Parse JSON array from response
+            const responseText = textContent.text.trim();
+            
+            // Handle potential markdown code blocks
+            let jsonText = responseText;
+            if (responseText.startsWith('```')) {
+                jsonText = responseText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+            }
+            
+            const improvedSteps = JSON.parse(jsonText);
+            
+            if (!Array.isArray(improvedSteps)) {
+                throw new Error('Response is not an array');
+            }
+            
+            // Validate we got the same number of steps
+            if (improvedSteps.length !== steps.length) {
+                console.warn('AI returned different number of steps, adjusting...');
+            }
+            
+            return improvedSteps
+                .filter(step => typeof step === 'string' && step.trim().length > 0)
+                .map(step => step.trim());
+        }
+        
+        /**
+         * Show before/after clarity preview modal
+         */
+        _showClarityPreview() {
+            const modal = document.getElementById('clarity-modal');
+            const comparison = document.getElementById('clarity-comparison');
+            
+            if (!modal || !comparison) return;
+            
+            // Build comparison HTML
+            const comparisonHtml = this._originalSteps.map((original, index) => {
+                const improved = this._improvedSteps[index] || original.text;
+                const hasChanged = original.text.trim() !== improved.trim();
+                
+                return `
+                    <div class="clarity-step ${hasChanged ? 'changed' : 'unchanged'}">
+                        <div class="step-number">${index + 1}</div>
+                        <div class="step-comparison">
+                            <div class="step-original">
+                                <span class="comparison-label">Before:</span>
+                                <span class="comparison-text">${this._escapeHtml(original.text)}</span>
+                            </div>
+                            <div class="step-improved">
+                                <span class="comparison-label">After:</span>
+                                <span class="comparison-text ${hasChanged ? 'highlight' : ''}">${this._escapeHtml(improved)}</span>
+                            </div>
+                        </div>
+                        ${hasChanged ? '<span class="change-badge">Changed</span>' : '<span class="unchanged-badge">No change</span>'}
+                    </div>
+                `;
+            }).join('');
+            
+            comparison.innerHTML = comparisonHtml;
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach modal event listeners
+            this._attachClarityModalListeners();
+        }
+        
+        /**
+         * Attach event listeners for clarity modal
+         */
+        _attachClarityModalListeners() {
+            const modal = document.getElementById('clarity-modal');
+            const closeBtn = document.getElementById('btn-close-clarity');
+            const rejectBtn = document.getElementById('btn-reject-clarity');
+            const acceptBtn = document.getElementById('btn-accept-clarity');
+            
+            const closeModal = () => {
+                modal.style.display = 'none';
+                this._originalSteps = null;
+                this._improvedSteps = null;
+            };
+            
+            closeBtn?.addEventListener('click', closeModal);
+            rejectBtn?.addEventListener('click', () => {
+                closeModal();
+                this._showNotification('Changes discarded. Original steps kept.', 'info');
+            });
+            
+            acceptBtn?.addEventListener('click', () => {
+                this._acceptClarityChanges();
+                closeModal();
+            });
+            
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+        }
+        
+        /**
+         * Accept clarity improvements and update steps
+         */
+        _acceptClarityChanges() {
+            if (!this._improvedSteps || !this._originalSteps) return;
+            
+            // Update each step with improved text
+            this.formState.steps.forEach((step, index) => {
+                if (this._improvedSteps[index]) {
+                    step.text = this._improvedSteps[index];
+                    step.aiImproved = true;  // Mark as AI-improved
+                }
+            });
+            
+            this._updateStepsList();
+            this._showNotification('✨ Steps updated with improved clarity!', 'success');
+            
+            // Show notice that steps were improved
+            this._showAIImprovedNotice();
+        }
+        
+        /**
+         * Show notice that steps were AI-improved
+         */
+        _showAIImprovedNotice() {
+            // Remove existing notices
+            document.getElementById('ai-draft-notice')?.remove();
+            document.getElementById('ai-improved-notice')?.remove();
+            
+            const notice = document.createElement('div');
+            notice.id = 'ai-improved-notice';
+            notice.className = 'ai-draft-notice ai-improved-notice';
+            notice.innerHTML = `
+                <span class="notice-icon">✨</span>
+                <span class="notice-text">Steps improved for clarity. Review and save when ready.</span>
+                <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
+            `;
+            
+            const stepsList = document.getElementById('steps-list');
+            if (stepsList) {
+                stepsList.parentNode.insertBefore(notice, stepsList);
             }
         }
         
@@ -971,6 +1416,237 @@
                 
                 .ai-btn:hover {
                     background: linear-gradient(135deg, #bbf7d0, #a5f3fc);
+                }
+                
+                .ai-btn:disabled {
+                    opacity: 0.7;
+                    cursor: wait;
+                }
+                
+                .ai-hint {
+                    font-size: 0.7rem !important;
+                    color: #6b7280 !important;
+                    margin-top: 0.5rem !important;
+                    margin-bottom: 0 !important;
+                }
+                
+                .ai-steps-panel.loading {
+                    opacity: 0.7;
+                    pointer-events: none;
+                }
+                
+                .ai-draft-notice {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.75rem 1rem;
+                    background: #fef3c7;
+                    border: 1px solid #fcd34d;
+                    border-radius: 8px;
+                    margin-bottom: 1rem;
+                    font-size: 0.8rem;
+                    color: #92400e;
+                }
+                
+                .ai-draft-notice .notice-icon {
+                    font-size: 1rem;
+                }
+                
+                .ai-draft-notice .notice-text {
+                    flex: 1;
+                }
+                
+                .ai-draft-notice .notice-dismiss {
+                    background: none;
+                    border: none;
+                    color: #92400e;
+                    cursor: pointer;
+                    padding: 0.25rem;
+                    font-size: 0.9rem;
+                    opacity: 0.7;
+                }
+                
+                .ai-draft-notice .notice-dismiss:hover {
+                    opacity: 1;
+                }
+                
+                .ai-improved-notice {
+                    background: #ecfdf5;
+                    border-color: #6ee7b7;
+                    color: #065f46;
+                }
+                
+                .ai-btn-secondary {
+                    background: linear-gradient(135deg, #f3f4f6, #e5e7eb) !important;
+                    border-color: #d1d5db !important;
+                    color: #374151 !important;
+                }
+                
+                .ai-btn-secondary:hover {
+                    background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+                }
+                
+                .ai-btn-secondary:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                
+                /* Clarity Preview Modal */
+                .clarity-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 1rem;
+                }
+                
+                .clarity-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    max-width: 700px;
+                    width: 100%;
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+                
+                .clarity-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .clarity-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                }
+                
+                .clarity-description {
+                    padding: 0.75rem 1.25rem;
+                    margin: 0;
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    background: #f9fafb;
+                }
+                
+                .clarity-comparison {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1rem 1.25rem;
+                }
+                
+                .clarity-step {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.75rem;
+                    padding: 0.875rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    margin-bottom: 0.75rem;
+                }
+                
+                .clarity-step.changed {
+                    border-color: #6366f1;
+                    background: #f5f3ff;
+                }
+                
+                .clarity-step .step-number {
+                    min-width: 28px;
+                    height: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #e5e7eb;
+                    border-radius: 50%;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    color: #6b7280;
+                }
+                
+                .clarity-step.changed .step-number {
+                    background: #6366f1;
+                    color: #fff;
+                }
+                
+                .step-comparison {
+                    flex: 1;
+                    min-width: 0;
+                }
+                
+                .step-original, .step-improved {
+                    margin-bottom: 0.5rem;
+                }
+                
+                .step-improved {
+                    margin-bottom: 0;
+                }
+                
+                .comparison-label {
+                    display: block;
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    color: #9ca3af;
+                    margin-bottom: 0.125rem;
+                }
+                
+                .comparison-text {
+                    font-size: 0.875rem;
+                    line-height: 1.4;
+                }
+                
+                .step-original .comparison-text {
+                    color: #6b7280;
+                    text-decoration: line-through;
+                }
+                
+                .step-improved .comparison-text.highlight {
+                    color: #4f46e5;
+                    font-weight: 500;
+                }
+                
+                .clarity-step.unchanged .step-original .comparison-text {
+                    text-decoration: none;
+                    color: #374151;
+                }
+                
+                .change-badge {
+                    font-size: 0.65rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #6366f1;
+                    color: #fff;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+                
+                .unchanged-badge {
+                    font-size: 0.65rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #e5e7eb;
+                    color: #6b7280;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+                
+                .clarity-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.75rem;
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                    border-radius: 0 0 12px 12px;
                 }
                 
                 /* Steps */

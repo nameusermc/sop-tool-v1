@@ -4,12 +4,13 @@
  * Features:
  * - SOP listing grouped by folders/categories
  * - Folder management (create, edit, delete, reorder)
- * - Sorting by title, date created, date updated
- * - Filtering by folder, search term, status
+ * - Sorting by date created (toggle: newest/oldest)
+ * - Filtering by folder, search term, status, hashtag
+ * - Clickable hashtags in SOP titles for quick filtering
  * - Recently edited SOP highlighting
  * - Collapsible folder sections
  * - Most Used SOPs tracking
- * - AI touchpoint placeholders
+ * - In-progress and completed checklists display
  * 
  * STORAGE KEYS:
  * - 'sop_tool_sops' - All SOP documents
@@ -18,7 +19,7 @@
  * - 'sop_tool_dashboard_prefs' - User preferences (collapsed folders, sort, etc.)
  * 
  * @module Dashboard
- * @version 2.0.0
+ * @version 2.2.0
  */
 
 (function(global) {
@@ -64,15 +65,11 @@
     ];
 
     /**
-     * Sort options
+     * Sort options (simplified: creation date only)
      */
     const SORT_OPTIONS = {
-        TITLE_ASC: 'title_asc',
-        TITLE_DESC: 'title_desc',
-        CREATED_DESC: 'created_desc',
-        CREATED_ASC: 'created_asc',
-        UPDATED_DESC: 'updated_desc',
-        UPDATED_ASC: 'updated_asc'
+        CREATED_DESC: 'created_desc',  // Newest first (default)
+        CREATED_ASC: 'created_asc'     // Oldest first
     };
 
     /**
@@ -126,8 +123,9 @@
                 // Filtering & Sorting
                 selectedFolderId: null,      // null = all folders
                 searchQuery: '',
-                sortBy: SORT_OPTIONS.UPDATED_DESC,
+                sortBy: SORT_OPTIONS.CREATED_DESC,  // Default: newest first
                 statusFilter: null,          // null = all statuses
+                hashtagFilter: null,         // null = no hashtag filter
                 
                 // UI state
                 collapsedFolders: new Set(),
@@ -201,7 +199,15 @@
             if (prefs) {
                 const parsed = JSON.parse(prefs);
                 this.state.collapsedFolders = new Set(parsed.collapsedFolders || []);
-                this.state.sortBy = parsed.sortBy || SORT_OPTIONS.UPDATED_DESC;
+                
+                // Handle legacy sort values - migrate to creation-based sorting
+                const savedSort = parsed.sortBy;
+                if (savedSort === SORT_OPTIONS.CREATED_DESC || savedSort === SORT_OPTIONS.CREATED_ASC) {
+                    this.state.sortBy = savedSort;
+                } else {
+                    // Legacy sort value - default to newest first
+                    this.state.sortBy = SORT_OPTIONS.CREATED_DESC;
+                }
             }
         }
         
@@ -271,6 +277,11 @@
                 filtered = filtered.filter(sop => sop.status === this.state.statusFilter);
             }
             
+            // Filter by hashtag
+            if (this.state.hashtagFilter) {
+                filtered = filtered.filter(sop => this._sopHasHashtag(sop, this.state.hashtagFilter));
+            }
+            
             // Apply sorting
             filtered = this._sortSops(filtered);
             
@@ -278,33 +289,77 @@
         }
         
         /**
-         * Sort SOPs based on current sort setting
+         * Sort SOPs based on current sort setting (creation date only)
          */
         _sortSops(sops) {
             const sorted = [...sops];
             
-            switch (this.state.sortBy) {
-                case SORT_OPTIONS.TITLE_ASC:
-                    sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-                    break;
-                case SORT_OPTIONS.TITLE_DESC:
-                    sorted.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
-                    break;
-                case SORT_OPTIONS.CREATED_DESC:
-                    sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    break;
-                case SORT_OPTIONS.CREATED_ASC:
-                    sorted.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-                    break;
-                case SORT_OPTIONS.UPDATED_DESC:
-                    sorted.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-                    break;
-                case SORT_OPTIONS.UPDATED_ASC:
-                    sorted.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
-                    break;
+            if (this.state.sortBy === SORT_OPTIONS.CREATED_ASC) {
+                // Oldest first
+                sorted.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            } else {
+                // Newest first (default)
+                sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             }
             
             return sorted;
+        }
+        
+        /**
+         * Extract hashtags from text
+         * @param {string} text - Text to search for hashtags
+         * @returns {string[]} Array of hashtags (without # prefix)
+         */
+        _extractHashtags(text) {
+            if (!text) return [];
+            const matches = text.match(/#[a-zA-Z0-9_]+/g);
+            return matches ? matches.map(tag => tag.substring(1).toLowerCase()) : [];
+        }
+        
+        /**
+         * Check if SOP contains a specific hashtag
+         * @param {Object} sop - SOP object
+         * @param {string} hashtag - Hashtag to search for (without #)
+         * @returns {boolean}
+         */
+        _sopHasHashtag(sop, hashtag) {
+            const hashtagLower = hashtag.toLowerCase();
+            
+            // Check title
+            const titleHashtags = this._extractHashtags(sop.title);
+            if (titleHashtags.includes(hashtagLower)) return true;
+            
+            // Check steps
+            if (sop.steps) {
+                for (const step of sop.steps) {
+                    const stepHashtags = this._extractHashtags(step.text);
+                    if (stepHashtags.includes(hashtagLower)) return true;
+                    
+                    // Also check step notes
+                    const noteHashtags = this._extractHashtags(step.note);
+                    if (noteHashtags.includes(hashtagLower)) return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        /**
+         * Render text with clickable hashtags
+         * @param {string} text - Text to render
+         * @returns {string} HTML with clickable hashtag spans
+         */
+        _renderWithHashtags(text) {
+            if (!text) return '';
+            
+            const escaped = this._escapeHtml(text);
+            const activeHashtag = this.state.hashtagFilter?.toLowerCase();
+            
+            // Replace hashtags with clickable spans
+            return escaped.replace(/#([a-zA-Z0-9_]+)/g, (match, tag) => {
+                const isActive = activeHashtag === tag.toLowerCase();
+                return `<span class="hashtag${isActive ? ' active' : ''}" data-hashtag="${this._escapeHtml(tag.toLowerCase())}">${match}</span>`;
+            });
         }
         
         /**
@@ -487,22 +542,9 @@
                             </div>
                             
                             ${this.options.enableSorting ? `
-                            <div class="sort-container">
-                                <select id="sort-select" class="sort-select">
-                                    <option value="${SORT_OPTIONS.UPDATED_DESC}" ${this.state.sortBy === SORT_OPTIONS.UPDATED_DESC ? 'selected' : ''}>
-                                        Recently Updated
-                                    </option>
-                                    <option value="${SORT_OPTIONS.CREATED_DESC}" ${this.state.sortBy === SORT_OPTIONS.CREATED_DESC ? 'selected' : ''}>
-                                        Recently Created
-                                    </option>
-                                    <option value="${SORT_OPTIONS.TITLE_ASC}" ${this.state.sortBy === SORT_OPTIONS.TITLE_ASC ? 'selected' : ''}>
-                                        Title A-Z
-                                    </option>
-                                    <option value="${SORT_OPTIONS.TITLE_DESC}" ${this.state.sortBy === SORT_OPTIONS.TITLE_DESC ? 'selected' : ''}>
-                                        Title Z-A
-                                    </option>
-                                </select>
-                            </div>
+                            <button class="sort-toggle-btn" id="btn-sort-toggle" title="Toggle sort order">
+                                ${this.state.sortBy === SORT_OPTIONS.CREATED_DESC ? '↓ Newest' : '↑ Oldest'}
+                            </button>
                             ` : ''}
                             
                             <div class="quick-actions">
@@ -676,12 +718,20 @@
                 });
             }
             
+            if (this.state.hashtagFilter) {
+                filters.push({
+                    type: 'hashtag',
+                    label: `#${this.state.hashtagFilter}`,
+                    value: this.state.hashtagFilter
+                });
+            }
+            
             if (filters.length === 0) return '';
             
             return `
                 <div class="active-filters">
                     ${filters.map(f => `
-                        <span class="filter-badge" data-filter-type="${f.type}">
+                        <span class="filter-badge${f.type === 'hashtag' ? ' filter-badge-hashtag' : ''}" data-filter-type="${f.type}">
                             ${this._escapeHtml(f.label)}
                             <button class="filter-remove" data-filter-type="${f.type}">✕</button>
                         </span>
@@ -886,7 +936,7 @@
                             <span class="sop-status status-${sop.status || 'draft'}">${sop.status || 'draft'}</span>
                         </div>
                         
-                        <h4 class="sop-title">${this._escapeHtml(sop.title)}</h4>
+                        <h4 class="sop-title">${this._renderWithHashtags(sop.title)}</h4>
                         <p class="sop-description">${this._escapeHtml(sop.description || 'No description')}</p>
                         
                         <div class="sop-meta">
@@ -943,9 +993,21 @@
                 this._updateSopList();
             });
             
-            // Sort
-            document.getElementById('sort-select')?.addEventListener('change', (e) => {
-                this.state.sortBy = e.target.value;
+            // Sort toggle button
+            document.getElementById('btn-sort-toggle')?.addEventListener('click', () => {
+                // Toggle between newest and oldest
+                if (this.state.sortBy === SORT_OPTIONS.CREATED_DESC) {
+                    this.state.sortBy = SORT_OPTIONS.CREATED_ASC;
+                } else {
+                    this.state.sortBy = SORT_OPTIONS.CREATED_DESC;
+                }
+                
+                // Update button text
+                const btn = document.getElementById('btn-sort-toggle');
+                if (btn) {
+                    btn.textContent = this.state.sortBy === SORT_OPTIONS.CREATED_DESC ? '↓ Newest' : '↑ Oldest';
+                }
+                
                 this._savePreferences();
                 this._applyFiltersAndSort();
                 this._updateSopList();
@@ -1008,8 +1070,27 @@
                 this._openFolderModal();
             });
             
-            // SOP groups (collapse, edit, delete)
+            // SOP groups (collapse, edit, delete, hashtag clicks)
             document.getElementById('sop-groups')?.addEventListener('click', (e) => {
+                // Hashtag clicks
+                const hashtagEl = e.target.closest('.hashtag');
+                if (hashtagEl) {
+                    e.stopPropagation();
+                    const hashtag = hashtagEl.dataset.hashtag;
+                    if (!hashtag) return;
+                    
+                    // Toggle: if same hashtag clicked, clear filter; otherwise set filter
+                    if (this.state.hashtagFilter === hashtag) {
+                        this.state.hashtagFilter = null;
+                    } else {
+                        this.state.hashtagFilter = hashtag;
+                    }
+                    
+                    this._applyFiltersAndSort();
+                    this.refresh();
+                    return;
+                }
+                
                 // Collapse toggle
                 const collapseBtn = e.target.closest('[data-action="toggle-collapse"]');
                 if (collapseBtn) {
@@ -1062,6 +1143,7 @@
             document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
                 this.state.selectedFolderId = null;
                 this.state.searchQuery = '';
+                this.state.hashtagFilter = null;
                 this._applyFiltersAndSort();
                 this.refresh();
             });
@@ -1138,6 +1220,7 @@
                     const type = e.target.dataset.filterType;
                     if (type === 'folder') this.state.selectedFolderId = null;
                     if (type === 'search') this.state.searchQuery = '';
+                    if (type === 'hashtag') this.state.hashtagFilter = null;
                     this._applyFiltersAndSort();
                     this.refresh();
                 });
@@ -1488,18 +1571,20 @@
                     opacity: 0.4;
                 }
                 
-                .sort-container {
-                    min-width: 160px;
-                }
-                
-                .sort-select {
-                    width: 100%;
-                    padding: 0.625rem 0.75rem;
+                .sort-toggle-btn {
+                    padding: 0.625rem 1rem;
                     border: 1px solid #d1d5db;
                     border-radius: 8px;
                     font-size: 0.875rem;
                     background: #fff;
                     cursor: pointer;
+                    transition: all 0.15s;
+                    white-space: nowrap;
+                }
+                
+                .sort-toggle-btn:hover {
+                    background: #f3f4f6;
+                    border-color: #9ca3af;
                 }
                 
                 .quick-actions {
@@ -1798,6 +1883,30 @@
                 .tag {
                     color: #6366f1;
                     font-size: 0.7rem;
+                }
+                
+                /* Hashtag styling */
+                .hashtag {
+                    color: #6366f1;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    border-radius: 3px;
+                    padding: 0 2px;
+                }
+                
+                .hashtag:hover {
+                    background: #e0e7ff;
+                    color: #4338ca;
+                }
+                
+                .hashtag.active {
+                    background: #6366f1;
+                    color: #fff;
+                }
+                
+                .filter-badge-hashtag {
+                    background: #e0e7ff !important;
+                    color: #4338ca !important;
                 }
                 
                 .sop-card-actions {
