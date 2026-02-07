@@ -50,10 +50,16 @@
         - SOPCreate: Create/edit SOPs with folder assignment
     -->
     
+    <!-- Storage Layer (MUST load first) -->
+    <script src="lib/storage-adapter.js"></script>
+    
     <!-- Module Scripts -->
     <script src="modules/dashboard.js"></script>
     <script src="modules/sop-create.js"></script>
     <script src="modules/checklist.js"></script>
+    
+    <!-- Module Integration (patches localStorage, loads after modules) -->
+    <script src="lib/module-integration.js"></script>
     
     <!-- Main Application Script (MUST be loaded last) -->
     <script src="app.js"></script>
