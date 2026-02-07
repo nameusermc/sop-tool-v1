@@ -50,8 +50,26 @@
         - SOPCreate: Create/edit SOPs with folder assignment
     -->
     
+    <!-- Supabase SDK (for cloud sync - optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Supabase Config (set your project credentials here) -->
+    <script>
+        // IMPORTANT: Replace these with your Supabase project credentials
+        // Get these from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api
+        window.SUPABASE_CONFIG = {
+            url: '',      // e.g., 'https://xxxx.supabase.co'
+            anonKey: ''   // e.g., 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        };
+        
+        // If config is empty, cloud sync is disabled and app runs in local-only mode
+    </script>
+    
     <!-- Storage Layer (MUST load first) -->
     <script src="lib/storage-adapter.js"></script>
+    
+    <!-- Supabase Client (after storage-adapter, before modules) -->
+    <script src="lib/supabase-client.js"></script>
     
     <!-- Module Scripts -->
     <script src="modules/dashboard.js"></script>

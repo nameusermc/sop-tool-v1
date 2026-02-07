@@ -398,7 +398,7 @@
      * Initialize the application
      * Called when DOM is ready
      */
-    function initApp() {
+    async function initApp() {
         console.log('🚀 Initializing SOP Tool Application');
         
         // Get the main container
@@ -430,11 +430,319 @@
             console.warn('⚠️ Checklist module not loaded');
         }
         
+        // Initialize auth state (check for existing session)
+        if (typeof StorageAdapter !== 'undefined' && StorageAdapter.Auth) {
+            console.log('🔐 Checking auth session...');
+            await StorageAdapter.Auth.init();
+            
+            if (StorageAdapter.Auth.isAuthenticated()) {
+                const user = StorageAdapter.Auth.getUser();
+                console.log('✅ Logged in as:', user?.email);
+            } else {
+                console.log('👤 Running in local-only mode');
+            }
+        }
+        
         // Start with Dashboard view
         showDashboard();
         
+        // Inject auth UI
+        injectAuthUI();
+        
         AppState.initialized = true;
         console.log('✅ SOP Tool Application initialized');
+    }
+
+    // ========================================================================
+    // AUTH UI
+    // ========================================================================
+
+    /**
+     * Inject auth UI elements (login button, user indicator, auth modal)
+     */
+    function injectAuthUI() {
+        // Add styles for auth UI
+        if (!document.getElementById('auth-ui-styles')) {
+            const style = document.createElement('style');
+            style.id = 'auth-ui-styles';
+            style.textContent = `
+                .auth-indicator {
+                    position: fixed;
+                    top: 12px;
+                    right: 16px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    z-index: 1000;
+                }
+                .auth-indicator button {
+                    padding: 6px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    background: #fff;
+                    cursor: pointer;
+                    font-size: 13px;
+                }
+                .auth-indicator button:hover {
+                    background: #f3f4f6;
+                }
+                .auth-indicator .user-email {
+                    color: #6b7280;
+                    max-width: 150px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .auth-modal-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 9999;
+                }
+                .auth-modal {
+                    background: #fff;
+                    border-radius: 12px;
+                    padding: 24px;
+                    width: 100%;
+                    max-width: 360px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                }
+                .auth-modal h2 {
+                    margin: 0 0 20px 0;
+                    font-size: 1.25rem;
+                }
+                .auth-modal .tabs {
+                    display: flex;
+                    gap: 4px;
+                    margin-bottom: 20px;
+                }
+                .auth-modal .tab {
+                    flex: 1;
+                    padding: 8px;
+                    border: none;
+                    background: #f3f4f6;
+                    cursor: pointer;
+                    border-radius: 6px;
+                    font-weight: 500;
+                }
+                .auth-modal .tab.active {
+                    background: #4f46e5;
+                    color: #fff;
+                }
+                .auth-modal input {
+                    width: 100%;
+                    padding: 10px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    margin-bottom: 12px;
+                    font-size: 14px;
+                }
+                .auth-modal input:focus {
+                    outline: none;
+                    border-color: #4f46e5;
+                }
+                .auth-modal .btn-primary {
+                    width: 100%;
+                    padding: 10px;
+                    background: #4f46e5;
+                    color: #fff;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+                .auth-modal .btn-primary:hover {
+                    background: #4338ca;
+                }
+                .auth-modal .btn-primary:disabled {
+                    background: #9ca3af;
+                    cursor: not-allowed;
+                }
+                .auth-modal .error {
+                    color: #dc2626;
+                    font-size: 13px;
+                    margin-bottom: 12px;
+                }
+                .auth-modal .close-btn {
+                    position: absolute;
+                    top: 12px;
+                    right: 12px;
+                    background: none;
+                    border: none;
+                    font-size: 20px;
+                    cursor: pointer;
+                    color: #6b7280;
+                }
+                .sync-status {
+                    position: fixed;
+                    bottom: 12px;
+                    left: 16px;
+                    padding: 6px 12px;
+                    background: #1f2937;
+                    color: #fff;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    z-index: 1000;
+                    display: none;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Create auth indicator container
+        const indicator = document.createElement('div');
+        indicator.className = 'auth-indicator';
+        indicator.id = 'auth-indicator';
+        updateAuthIndicator(indicator);
+        document.body.appendChild(indicator);
+
+        // Create sync status indicator
+        const syncStatus = document.createElement('div');
+        syncStatus.className = 'sync-status';
+        syncStatus.id = 'sync-status';
+        document.body.appendChild(syncStatus);
+
+        // Listen for auth changes
+        if (StorageAdapter?.Auth?.onAuthStateChange) {
+            StorageAdapter.Auth.onAuthStateChange((isAuth, user) => {
+                updateAuthIndicator(document.getElementById('auth-indicator'));
+                if (isAuth) {
+                    // Refresh dashboard to show synced data
+                    if (AppState.modules.dashboard) {
+                        AppState.modules.dashboard.refresh();
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Update the auth indicator based on current state
+     */
+    function updateAuthIndicator(container) {
+        if (!container) return;
+
+        const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
+        const user = StorageAdapter?.Auth?.getUser?.();
+        const hasSupabase = StorageAdapter?.hasSupabase?.() || false;
+
+        if (!hasSupabase) {
+            // No Supabase config - show nothing or "local mode"
+            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Local Mode</span>`;
+            return;
+        }
+
+        if (isAuth && user) {
+            container.innerHTML = `
+                <span class="user-email">☁️ ${user.email}</span>
+                <button onclick="SOPToolApp.signOut()">Sign Out</button>
+            `;
+        } else {
+            container.innerHTML = `
+                <button onclick="SOPToolApp.showAuthModal()">Sign In</button>
+            `;
+        }
+    }
+
+    /**
+     * Show the auth modal
+     */
+    function showAuthModal() {
+        // Remove existing modal if any
+        const existing = document.getElementById('auth-modal-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'auth-modal-overlay';
+        overlay.id = 'auth-modal-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        overlay.innerHTML = `
+            <div class="auth-modal" style="position:relative;">
+                <button class="close-btn" onclick="document.getElementById('auth-modal-overlay').remove()">×</button>
+                <h2>Sign In to Sync</h2>
+                <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">
+                    Your SOPs are saved locally. Sign in to sync across devices.
+                </p>
+                <div class="tabs">
+                    <button class="tab active" data-tab="signin">Sign In</button>
+                    <button class="tab" data-tab="signup">Sign Up</button>
+                </div>
+                <div id="auth-error" class="error" style="display:none;"></div>
+                <form id="auth-form">
+                    <input type="email" id="auth-email" placeholder="Email" required />
+                    <input type="password" id="auth-password" placeholder="Password" required minlength="6" />
+                    <button type="submit" class="btn-primary" id="auth-submit">Sign In</button>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Tab switching
+        let currentTab = 'signin';
+        overlay.querySelectorAll('.tab').forEach(tab => {
+            tab.onclick = () => {
+                overlay.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+                document.getElementById('auth-submit').textContent = 
+                    currentTab === 'signin' ? 'Sign In' : 'Sign Up';
+                document.getElementById('auth-error').style.display = 'none';
+            };
+        });
+
+        // Form submission
+        document.getElementById('auth-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const submitBtn = document.getElementById('auth-submit');
+            const errorDiv = document.getElementById('auth-error');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = currentTab === 'signin' ? 'Signing in...' : 'Creating account...';
+            errorDiv.style.display = 'none';
+
+            try {
+                if (currentTab === 'signin') {
+                    await StorageAdapter.Auth.signIn(email, password);
+                } else {
+                    await StorageAdapter.Auth.signUp(email, password);
+                }
+                overlay.remove();
+                
+                // Show sync status briefly
+                const syncStatus = document.getElementById('sync-status');
+                if (syncStatus) {
+                    syncStatus.textContent = '✓ Synced';
+                    syncStatus.style.display = 'block';
+                    setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
+                }
+            } catch (err) {
+                errorDiv.textContent = err.message || 'Authentication failed';
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = currentTab === 'signin' ? 'Sign In' : 'Sign Up';
+            }
+        };
+
+        // Focus email input
+        document.getElementById('auth-email').focus();
+    }
+
+    /**
+     * Sign out the current user
+     */
+    async function signOut() {
+        if (confirm('Sign out? Your data will remain on this device.')) {
+            await StorageAdapter.Auth.signOut();
+            updateAuthIndicator(document.getElementById('auth-indicator'));
+        }
     }
 
     // ========================================================================
@@ -451,9 +759,14 @@
         showChecklist: showChecklist,
         showCompletedChecklist: showCompletedChecklist,
         
+        // Auth
+        showAuthModal: showAuthModal,
+        signOut: signOut,
+        
         // State access (read-only)
         getState: () => ({ ...AppState }),
         getCurrentView: () => AppState.currentView,
+        isAuthenticated: () => StorageAdapter?.Auth?.isAuthenticated?.() || false,
         
         // Module access
         getDashboard: () => AppState.modules.dashboard,
@@ -464,7 +777,7 @@
         reinit: initApp,
         
         // Version
-        version: '2.1.0'
+        version: '3.0.0'
     };
 
     // ========================================================================
