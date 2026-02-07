@@ -8,6 +8,7 @@
  * - Resume partially completed checklists
  * - Track completion timestamps
  * - Notes per step
+ * - View completed checklists in read-only mode
  * 
  * SNAPSHOT RULE:
  * Checklists are immutable snapshots of SOPs at creation time.
@@ -17,10 +18,17 @@
  * - "Restart" creates a NEW checklist from the CURRENT SOP (with warning if SOP changed)
  * - If the source SOP is deleted, existing checklists remain functional
  * 
+ * PERSISTENCE RULE:
+ * Completion status is explicitly persisted, not inferred.
+ * - `status` field is always 'in_progress', 'completed', or 'abandoned'
+ * - `completedAt` timestamp is set when status becomes 'completed'
+ * - Status transitions are saved immediately to localStorage
+ * - Dashboard filters use persisted status directly (no inference)
+ * 
  * STORAGE KEY: 'sop_tool_checklists'
  * 
  * @module Checklist
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 (function(global) {
@@ -84,9 +92,24 @@
             this.folders = stored ? JSON.parse(stored) : [];
         }
         
+        /**
+         * Load checklists from localStorage
+         * Returns raw data - status is persisted explicitly and should not be inferred
+         */
         _loadChecklists() {
             const stored = localStorage.getItem(CHECKLIST_STORAGE_KEYS.CHECKLISTS);
-            return stored ? JSON.parse(stored) : [];
+            if (!stored) return [];
+            
+            const checklists = JSON.parse(stored);
+            
+            // Defensive normalization - add missing fields but don't overwrite existing
+            return checklists.map(c => ({
+                ...c,
+                status: c.status || CHECKLIST_STATUS.IN_PROGRESS,
+                completedSteps: c.completedSteps ?? 0,
+                totalSteps: c.totalSteps ?? (c.steps?.length || 0),
+                completedAt: c.completedAt ?? null
+            }));
         }
         
         _saveChecklists(checklists) {
@@ -151,8 +174,21 @@
             checklist.updatedAt = Date.now();
             checklist.completedSteps = checklist.steps.filter(s => s.completed).length;
             
-            if (checklist.completedSteps === checklist.totalSteps && checklist.status !== CHECKLIST_STATUS.COMPLETED) {
+            // Handle completion state transitions
+            const allComplete = checklist.completedSteps === checklist.totalSteps;
+            
+            if (allComplete && checklist.status !== CHECKLIST_STATUS.COMPLETED) {
+                // Transition TO completed - set both status AND timestamp
                 checklist.status = CHECKLIST_STATUS.COMPLETED;
+                checklist.completedAt = Date.now();
+            } else if (!allComplete && checklist.status === CHECKLIST_STATUS.COMPLETED) {
+                // Transition FROM completed (user unchecked a step) - revert to in_progress
+                checklist.status = CHECKLIST_STATUS.IN_PROGRESS;
+                checklist.completedAt = null;
+            }
+            
+            // Defensive: ensure completedAt is set if status is completed
+            if (checklist.status === CHECKLIST_STATUS.COMPLETED && !checklist.completedAt) {
                 checklist.completedAt = Date.now();
             }
             
@@ -160,9 +196,10 @@
             const index = checklists.findIndex(c => c.id === checklist.id);
             
             if (index !== -1) {
-                checklists[index] = checklist;
+                // IMPORTANT: Replace the entire checklist object to ensure all fields persist
+                checklists[index] = { ...checklist };
             } else {
-                checklists.unshift(checklist);
+                checklists.unshift({ ...checklist });
             }
             
             this._saveChecklists(checklists);
@@ -310,7 +347,19 @@
             // Determine status badge text
             let statusBadgeText = isComplete ? '✅ Completed' : '🔄 In Progress';
             if (isReadOnly) {
-                statusBadgeText = '👁️ Viewing';
+                statusBadgeText = '👁️ View Only';
+            }
+            
+            // Build info banner (autosave or read-only notice)
+            let infoBanner = '';
+            if (isReadOnly) {
+                infoBanner = '<div class="info-banner info-banner-readonly">' +
+                    '<span class="info-text">Viewing completed checklist. No changes can be made.</span>' +
+                '</div>';
+            } else if (!isComplete) {
+                infoBanner = '<div class="info-banner info-banner-autosave">' +
+                    '<span class="info-text">Progress saves automatically to this browser.</span>' +
+                '</div>';
             }
             
             // Build completion banner (different for read-only)
@@ -338,7 +387,7 @@
             } else {
                 footer = '<footer class="checklist-footer">' +
                     '<div class="footer-left">' +
-                        '<button class="btn btn-secondary" id="btn-reset">↩️ Clear Progress</button>' +
+                        '<button class="btn btn-danger-subtle" id="btn-reset">↩️ Clear Progress</button>' +
                     '</div>' +
                     '<div class="footer-right">' +
                         (!isComplete ?
@@ -375,6 +424,7 @@
                         '</div>' +
                     '</div>' +
                 '</header>' +
+                infoBanner +
                 completionBanner +
                 '<main class="checklist-main">' +
                     '<div class="steps-checklist" id="steps-checklist">' +
@@ -487,7 +537,7 @@
             
             // Reset button
             document.getElementById('btn-reset')?.addEventListener('click', () => {
-                if (confirm('Clear all progress on this checklist?\n\nThis cannot be undone.')) this._resetAll();
+                if (confirm('Clear all progress on this checklist?\n\nAll checked steps and notes will be removed. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.')) this._resetAll();
             });
             
             // Other action buttons
@@ -532,7 +582,8 @@
                 // SOP was edited - confirm with user
                 const confirmed = confirm(
                     'The SOP has been updated since this checklist was created.\n\n' +
-                    'Start a new checklist with the updated steps?'
+                    'Start a new checklist with the updated steps?\n\n' +
+                    'Your current progress will be kept as a separate completed record.'
                 );
                 if (!confirmed) return;
             }
@@ -610,11 +661,20 @@
             if (progressText) progressText.textContent = checklist.completedSteps + ' / ' + checklist.totalSteps + ' steps';
             if (progressPercent) progressPercent.textContent = progress + '%';
             
-            if (checklist.completedSteps === checklist.totalSteps && checklist.status !== CHECKLIST_STATUS.COMPLETED) {
+            // Handle completion state transition
+            const allComplete = checklist.completedSteps === checklist.totalSteps;
+            
+            if (allComplete && checklist.status !== CHECKLIST_STATUS.COMPLETED) {
+                // Transition TO completed
                 checklist.status = CHECKLIST_STATUS.COMPLETED;
                 checklist.completedAt = Date.now();
-                this._saveProgress();
+                this._saveProgress();  // Save immediately on completion
                 this._showCompletionCelebration();
+            } else if (!allComplete && checklist.status === CHECKLIST_STATUS.COMPLETED) {
+                // Transition FROM completed (user unchecked a step)
+                checklist.status = CHECKLIST_STATUS.IN_PROGRESS;
+                checklist.completedAt = null;
+                this._saveProgress();  // Save immediately on un-completion
             }
             
             const markAllBtn = document.getElementById('btn-mark-all');
@@ -663,7 +723,7 @@
         
         _saveAndExit() {
             if (this.currentChecklist) this._saveProgress();
-            this._showNotification('Progress saved', 'success');
+            this._showNotification('Progress saved to this browser', 'success');
             setTimeout(() => this._navigateBack(), 300);
         }
         
@@ -723,7 +783,7 @@
             
             const styles = document.createElement('style');
             styles.id = 'checklist-styles';
-            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e5e7eb}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .75rem;background:none;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap}.btn-back:hover{background:#f3f4f6}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.3}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .5rem;border-radius:4px;font-size:.75rem;font-weight:500}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.status-badge.readonly{background:#e0e7ff;color:#4338ca}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46}.completion-text p{margin:.25rem 0 0;font-size:.8rem;color:#047857}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.75rem}.checklist-step{display:flex;align-items:flex-start;gap:.75rem;padding:1rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .15s}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.readonly{cursor:default}.checklist-step.readonly:hover{border-color:#e5e7eb;box-shadow:none}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-checkbox.readonly{cursor:default}.checkbox-static{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;font-size:14px;color:#fff}.checkbox-static.checked{background:#22c55e;border-color:#22c55e}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .15s;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.75rem;min-width:0}.step-number{min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.4;transition:all .15s}.step-note{margin:.375rem 0 0;font-size:.8rem;color:#6b7280}.step-user-note{margin-top:.5rem}.step-user-note-readonly{margin:.375rem 0 0;font-size:.8rem;color:#4b5563;font-style:italic}.user-note-input{width:100%;padding:.375rem .5rem;border:1px solid #e5e7eb;border-radius:4px;font-size:.8rem;background:#f9fafb;box-sizing:border-box}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e5e7eb}.footer-left,.footer-right{display:flex;gap:.5rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .15s}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff}.btn-primary:hover:not(:disabled){background:#4f46e5}.btn-secondary{background:#e5e7eb;color:#374151}.btn-secondary:hover:not(:disabled){background:#d1d5db}.empty-state{text-align:center;padding:3rem;color:#6b7280}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}';
+            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid #e5e7eb}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .875rem;background:#fff;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap;transition:all .2s ease}.btn-back:hover{background:#f5f5f5;border-color:#9ca3af}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.4}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .625rem;border-radius:4px;font-size:.75rem;font-weight:500;line-height:1.4}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.status-badge.readonly{background:#e0e7ff;color:#4338ca}.info-banner{padding:.625rem 1rem;border-radius:8px;margin-bottom:1rem;text-align:center}.info-banner-autosave{background:#f0fdf4;border:1px solid #bbf7d0}.info-banner-readonly{background:#eef2ff;border:1px solid #c7d2fe}.info-text{font-size:.75rem;color:#6b7280;line-height:1.5}.info-banner-readonly .info-text{color:#4338ca}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap;line-height:1.4}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1.125rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46;line-height:1.4}.completion-text p{margin:.375rem 0 0;font-size:.8rem;color:#047857;line-height:1.5}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.875rem}.checklist-step{display:flex;align-items:flex-start;gap:.875rem;padding:1.125rem;background:#fff;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .2s ease}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.readonly{cursor:default}.checklist-step.readonly:hover{border-color:#e5e7eb;box-shadow:none}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-checkbox.readonly{cursor:default}.checkbox-static{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;font-size:14px;color:#fff}.checkbox-static.checked{background:#22c55e;border-color:#22c55e}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .2s ease;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.875rem;min-width:0}.step-number{min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.55;transition:all .15s}.step-note{margin:.5rem 0 0;font-size:.8rem;color:#6b7280;line-height:1.5}.step-user-note{margin-top:.625rem}.step-user-note-readonly{margin:.5rem 0 0;font-size:.8rem;color:#4b5563;font-style:italic;line-height:1.5}.user-note-input{width:100%;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem;line-height:1.5;background:#f9fafb;box-sizing:border-box;transition:all .2s ease}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.1)}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #e5e7eb}.footer-left,.footer-right{display:flex;gap:.625rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s ease;line-height:1.4}.btn:focus{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.15)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff;box-shadow:0 1px 2px rgba(99,102,241,.15)}.btn-primary:hover:not(:disabled){background:#4f46e5;box-shadow:0 2px 4px rgba(99,102,241,.2)}.btn-secondary{background:#f3f4f6;color:#374151;border:1px solid #e5e7eb}.btn-secondary:hover:not(:disabled){background:#e5e7eb;border-color:#d1d5db}.btn-danger-subtle{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.btn-danger-subtle:hover:not(:disabled){background:#fee2e2;border-color:#fca5a5}.empty-state{text-align:center;padding:3rem 2rem;color:#6b7280;line-height:1.5}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;line-height:1.4;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}';
             document.head.appendChild(styles);
         }
     }

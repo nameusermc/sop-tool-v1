@@ -103,7 +103,6 @@
             this.options = {
                 showMostUsed: true,
                 mostUsedLimit: 5,
-                enableAIFeatures: true,
                 enableFolderManagement: true,
                 enableSorting: true,
                 enableFiltering: true,
@@ -129,6 +128,7 @@
                 
                 // UI state
                 collapsedFolders: new Set(),
+                completedCollapsed: false,   // Collapse "Recently Completed" section
                 showFolderModal: false,
                 editingFolder: null
             };
@@ -136,10 +136,8 @@
             // Callbacks
             this.callbacks = {
                 onCreateSOP: null,
-                onViewSOP: null,
                 onEditSOP: null,
                 onDeleteSOP: null,
-                onViewChecklists: null,
                 onRunChecklist: null,
                 onResumeChecklist: null,
                 onViewCompletedChecklist: null
@@ -199,6 +197,7 @@
             if (prefs) {
                 const parsed = JSON.parse(prefs);
                 this.state.collapsedFolders = new Set(parsed.collapsedFolders || []);
+                this.state.completedCollapsed = parsed.completedCollapsed || false;
                 
                 // Handle legacy sort values - migrate to creation-based sorting
                 const savedSort = parsed.sortBy;
@@ -217,6 +216,7 @@
         _savePreferences() {
             const prefs = {
                 collapsedFolders: Array.from(this.state.collapsedFolders),
+                completedCollapsed: this.state.completedCollapsed,
                 sortBy: this.state.sortBy
             };
             localStorage.setItem(STORAGE_KEYS.DASHBOARD_PREFS, JSON.stringify(prefs));
@@ -516,14 +516,6 @@
                         <nav class="folder-list" id="folder-list">
                             ${this._renderFolderList()}
                         </nav>
-                        
-                        ${this.options.enableAIFeatures ? `
-                        <div class="ai-touchpoint">
-                            <button class="ai-btn" data-ai-action="organize-folders">
-                                ✨ AI: Suggest Organization
-                            </button>
-                        </div>
-                        ` : ''}
                     </aside>
                     
                     <!-- Main Content -->
@@ -796,12 +788,17 @@
             
             if (completed.length === 0) return '';
             
+            const isCollapsed = this.state.completedCollapsed;
+            
             return `
-                <section class="completed-checklists-section">
-                    <div class="section-header">
-                        <h3>✅ Recently Completed</h3>
+                <section class="completed-checklists-section ${isCollapsed ? 'collapsed' : ''}">
+                    <div class="section-header section-header-collapsible" id="completed-section-header">
+                        <h3>✅ Recently Completed <span class="completed-count">(${completed.length})</span></h3>
+                        <button class="collapse-arrow ${isCollapsed ? 'collapsed' : ''}" id="btn-toggle-completed" title="${isCollapsed ? 'Expand' : 'Collapse'}">
+                            ▼
+                        </button>
                     </div>
-                    <div class="checklists-list">
+                    <div class="checklists-list ${isCollapsed ? 'hidden' : ''}">
                         ${completed.map(checklist => {
                             const completedDate = checklist.completedAt 
                                 ? new Date(checklist.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
@@ -832,9 +829,26 @@
         /**
          * Load checklists from localStorage
          */
+        /**
+         * Load checklists from localStorage
+         * Returns raw data without recalculating status - status is persisted explicitly
+         */
         _loadChecklists() {
             const stored = localStorage.getItem('sop_tool_checklists');
-            return stored ? JSON.parse(stored) : [];
+            if (!stored) return [];
+            
+            const checklists = JSON.parse(stored);
+            
+            // Defensive: ensure each checklist has required fields
+            // but do NOT recalculate status - respect persisted values
+            return checklists.map(c => ({
+                ...c,
+                // Ensure required fields exist with defaults only if missing
+                status: c.status || 'in_progress',
+                completedSteps: c.completedSteps ?? 0,
+                totalSteps: c.totalSteps ?? (c.steps?.length || 0),
+                completedAt: c.completedAt ?? null
+            }));
         }
         
         /**
@@ -875,12 +889,47 @@
          */
         _renderSopGroups() {
             if (this.state.filteredSops.length === 0) {
+                const isFiltered = this.state.searchQuery || this.state.selectedFolderId || this.state.hashtagFilter;
+                
+                if (isFiltered) {
+                    return `
+                        <div class="empty-state">
+                            <p>📭 No SOPs found matching your filters.</p>
+                            <button class="btn btn-primary" id="btn-create-sop-empty">
+                                ➕ Create New SOP
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                // First-time user empty state
                 return `
-                    <div class="empty-state">
-                        <p>📭 No SOPs found${this.state.searchQuery || this.state.selectedFolderId ? ' matching your filters' : ''}.</p>
-                        <button class="btn btn-primary" id="btn-create-sop-empty">
-                            ➕ Create your first SOP
-                        </button>
+                    <div class="empty-state empty-state-welcome">
+                        <div class="welcome-header">
+                            <p class="welcome-title">No SOPs yet</p>
+                            <p class="welcome-subtitle">A Standard Operating Procedure helps your team follow the same steps every time.</p>
+                        </div>
+                        
+                        <div class="welcome-why">
+                            <p class="why-title">Why create one?</p>
+                            <p class="why-text">SOPs reduce mistakes, save training time, and make handoffs easier. Start with something your team does often.</p>
+                        </div>
+                        
+                        <div class="welcome-actions">
+                            <button class="btn btn-primary" id="btn-create-sop-empty">
+                                ➕ Create your first SOP
+                            </button>
+                        </div>
+                        
+                        <div class="welcome-starter">
+                            <p class="starter-label">Not sure where to start?</p>
+                            <p class="starter-idea">Try documenting something simple: how to submit a request, onboard a new team member, or handle a common question.</p>
+                        </div>
+                        
+                        <div class="trust-notice">
+                            <p>Your SOPs are saved locally in this browser. Nothing is uploaded or shared.</p>
+                            <p>Changes save automatically. Clearing browser data or switching devices will reset your data.</p>
+                        </div>
                     </div>
                 `;
             }
@@ -1181,6 +1230,22 @@
                 });
             });
             
+            // Toggle completed checklists section collapse
+            document.getElementById('btn-toggle-completed')?.addEventListener('click', () => {
+                this.state.completedCollapsed = !this.state.completedCollapsed;
+                this._savePreferences();
+                this.refresh();
+            });
+            
+            // Also allow clicking the header to toggle
+            document.getElementById('completed-section-header')?.addEventListener('click', (e) => {
+                // Don't toggle if clicking the button directly (it has its own handler)
+                if (e.target.id === 'btn-toggle-completed') return;
+                this.state.completedCollapsed = !this.state.completedCollapsed;
+                this._savePreferences();
+                this.refresh();
+            });
+            
             // View completed checklist buttons
             document.querySelectorAll('.btn-view-completed').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -1260,7 +1325,7 @@
                     break;
                     
                 case 'delete':
-                    if (confirm(`Permanently delete "${sop.title}"?\n\nThis cannot be undone.`)) {
+                    if (confirm(`Delete "${sop.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) {
                         this.state.sops = this.state.sops.filter(s => s.id !== sopId);
                         delete this.state.sopUsage[sopId];
                         this._saveSops();
@@ -1600,22 +1665,36 @@
                     font-size: 0.875rem;
                     font-weight: 500;
                     cursor: pointer;
-                    transition: all 0.15s;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
+                }
+                
+                .btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
                 }
                 
                 .btn-primary {
                     background: #6366f1;
                     color: #fff;
+                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
                 }
                 
-                .btn-primary:hover { background: #4f46e5; }
+                .btn-primary:hover { 
+                    background: #4f46e5;
+                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                }
                 
                 .btn-secondary {
-                    background: #e5e7eb;
+                    background: #f3f4f6;
                     color: #374151;
+                    border: 1px solid #e5e7eb;
                 }
                 
-                .btn-secondary:hover { background: #d1d5db; }
+                .btn-secondary:hover { 
+                    background: #e5e7eb;
+                    border-color: #d1d5db;
+                }
                 
                 .btn-link {
                     background: none;
@@ -1800,10 +1879,10 @@
                     display: flex;
                     justify-content: space-between;
                     gap: 1rem;
-                    padding: 1rem;
+                    padding: 1rem 1.25rem;
                     border-bottom: 1px solid #f3f4f6;
                     position: relative;
-                    transition: background 0.15s;
+                    transition: background 0.2s ease;
                 }
                 
                 .sop-card:last-child {
@@ -1811,7 +1890,7 @@
                 }
                 
                 .sop-card:hover {
-                    background: #f9fafb;
+                    background: #fafafa;
                 }
                 
                 .sop-card.recently-edited {
@@ -1853,15 +1932,17 @@
                 .status-archived { background: #e5e7eb; color: #6b7280; }
                 
                 .sop-title {
-                    margin: 0 0 0.25rem;
+                    margin: 0 0 0.375rem;
                     font-size: 0.95rem;
                     font-weight: 600;
+                    line-height: 1.4;
                 }
                 
                 .sop-description {
                     margin: 0 0 0.5rem;
                     color: #6b7280;
                     font-size: 0.8rem;
+                    line-height: 1.5;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
@@ -1872,6 +1953,7 @@
                     gap: 1rem;
                     font-size: 0.75rem;
                     color: #9ca3af;
+                    line-height: 1.4;
                 }
                 
                 .sop-tags {
@@ -1917,16 +1999,20 @@
                 }
                 
                 .action-btn {
-                    padding: 0.375rem 0.625rem;
+                    padding: 0.375rem 0.75rem;
                     border: 1px solid #e5e7eb;
                     border-radius: 6px;
                     background: #fff;
                     cursor: pointer;
                     font-size: 0.75rem;
-                    transition: all 0.15s;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
                 }
                 
-                .action-btn:hover { background: #f3f4f6; }
+                .action-btn:hover { 
+                    background: #f9fafb;
+                    border-color: #d1d5db;
+                }
                 
                 .edit-btn:hover {
                     background: #eff6ff;
@@ -1934,16 +2020,20 @@
                     color: #1d4ed8;
                 }
                 
+                .delete-btn {
+                    color: #6b7280;
+                }
+                
                 .delete-btn:hover {
                     background: #fef2f2;
                     border-color: #fecaca;
-                    color: #dc2626;
+                    color: #b91c1c;
                 }
                 
                 .checklist-btn {
                     background: #f0fdf4;
                     border-color: #bbf7d0;
-                    color: #16a34a;
+                    color: #15803d;
                 }
                 
                 .checklist-btn:hover {
@@ -2053,6 +2143,51 @@
                     border-bottom: 1px solid #e5e7eb;
                 }
                 
+                .completed-checklists-section.collapsed {
+                    padding-bottom: 0.75rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .section-header-collapsible {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                
+                .section-header-collapsible:hover {
+                    opacity: 0.8;
+                }
+                
+                .collapse-arrow {
+                    background: none;
+                    border: none;
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    cursor: pointer;
+                    padding: 0.25rem 0.5rem;
+                    transition: transform 0.2s ease;
+                }
+                
+                .collapse-arrow:hover {
+                    color: #374151;
+                }
+                
+                .collapse-arrow.collapsed {
+                    transform: rotate(-90deg);
+                }
+                
+                .completed-count {
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    color: #6b7280;
+                }
+                
+                .checklists-list.hidden {
+                    display: none;
+                }
+                
                 .completed-checklist-card {
                     background: #f9fafb;
                 }
@@ -2098,15 +2233,108 @@
                 /* Empty State */
                 .empty-state {
                     text-align: center;
-                    padding: 3rem;
+                    padding: 3rem 2rem;
                     background: #fff;
                     border: 2px dashed #e5e7eb;
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }
                 
                 .empty-state p {
                     margin: 0 0 1rem;
                     color: #6b7280;
+                    line-height: 1.5;
+                }
+                
+                .empty-state-welcome {
+                    padding: 2.5rem 2rem;
+                    max-width: 480px;
+                    margin: 0 auto;
+                    border-style: solid;
+                    border-color: #e5e7eb;
+                }
+                
+                .welcome-header {
+                    margin-bottom: 1.75rem;
+                }
+                
+                .welcome-title {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin: 0 0 0.625rem;
+                    line-height: 1.4;
+                }
+                
+                .welcome-subtitle {
+                    font-size: 0.9rem;
+                    color: #6b7280;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .welcome-why {
+                    background: #f9fafb;
+                    border-radius: 8px;
+                    padding: 1.125rem 1.25rem;
+                    margin-bottom: 1.75rem;
+                    text-align: left;
+                }
+                
+                .why-title {
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin: 0 0 0.5rem;
+                    line-height: 1.4;
+                }
+                
+                .why-text {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .welcome-actions {
+                    margin-bottom: 1.75rem;
+                }
+                
+                .welcome-starter {
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .starter-label {
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    color: #6b7280;
+                    margin: 0 0 0.375rem;
+                    line-height: 1.4;
+                }
+                
+                .starter-idea {
+                    font-size: 0.8rem;
+                    color: #9ca3af;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .trust-notice {
+                    margin-top: 0;
+                    padding-top: 0;
+                    border-top: none;
+                }
+                
+                .trust-notice p {
+                    font-size: 0.75rem;
+                    color: #9ca3af;
+                    margin: 0 0 0.5rem;
+                    line-height: 1.4;
+                }
+                
+                .trust-notice p:last-child {
+                    margin-bottom: 0;
                 }
                 
                 .empty-message {
@@ -2232,29 +2460,6 @@
                 .color-option:hover { transform: scale(1.1); }
                 .color-option.selected { border-color: #1f2937; }
                 
-                /* AI Touchpoint */
-                .ai-touchpoint {
-                    padding: 1rem;
-                    border-top: 1px solid #e5e7eb;
-                    margin-top: auto;
-                }
-                
-                .ai-btn {
-                    width: 100%;
-                    padding: 0.625rem;
-                    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                    border: 1px solid #a7f3d0;
-                    border-radius: 8px;
-                    color: #065f46;
-                    font-size: 0.8rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                }
-                
-                .ai-btn:hover {
-                    background: linear-gradient(135deg, #dcfce7, #cffafe);
-                }
-                
                 /* Notification */
                 .notification-toast {
                     position: fixed;
@@ -2294,7 +2499,7 @@
         // ====================================================================
         
         on(event, callback) {
-            const valid = ['onCreateSOP', 'onViewSOP', 'onEditSOP', 'onDeleteSOP', 'onViewChecklists', 'onRunChecklist', 'onResumeChecklist', 'onViewCompletedChecklist'];
+            const valid = ['onCreateSOP', 'onEditSOP', 'onDeleteSOP', 'onRunChecklist', 'onResumeChecklist', 'onViewCompletedChecklist'];
             if (valid.includes(event)) {
                 this.callbacks[event] = callback;
             }

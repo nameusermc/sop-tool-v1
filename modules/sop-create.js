@@ -6,14 +6,19 @@
  * - Step editor with add, edit, remove, reorder
  * - Folder/category selection (integrates with Dashboard folders)
  * - Tags and status management
- * - AI-powered step generation via Anthropic API
- * - AI-powered clarity improvement with before/after preview
+ * - AI-assisted drafting via external tools (paste workflow)
+ * - AI-assisted clarity improvement via external tools
  * - Auto-save drafts
+ * 
+ * AI WORKFLOW NOTE:
+ * This standalone app uses an external-paste workflow for AI features.
+ * Users generate content in Claude/ChatGPT and paste it here.
+ * AI accelerates drafting but is always optional and editable.
  * 
  * STORAGE KEY: 'sop_tool_sops' - Must match Dashboard module
  * 
  * @module SOPCreate
- * @version 2.2.0
+ * @version 2.3.0
  */
 
 (function(global) {
@@ -238,17 +243,22 @@
                                 
                                 ${this.options.enableAIFeatures ? `
                                 <div class="ai-steps-panel" id="ai-steps-panel">
-                                    <p>✨ Let AI help you with your SOP steps</p>
+                                    <div class="ai-panel-header">
+                                        <span class="ai-icon">🤖</span>
+                                        <span class="ai-title">Draft Steps with AI</span>
+                                        <span class="ai-badge">External Paste</span>
+                                    </div>
+                                    <p class="ai-description">Use an external AI tool to draft steps, then paste them here. All pasted steps are drafts you can edit freely.</p>
                                     <div class="ai-steps-actions">
                                         <button type="button" class="ai-btn" id="btn-ai-generate" data-ai-action="draft-steps">
-                                            🤖 Generate Steps
+                                            📋 Paste Draft Steps
                                         </button>
                                         <button type="button" class="ai-btn ai-btn-secondary" id="btn-ai-improve" data-ai-action="improve-clarity"
                                             ${this.formState.steps.length === 0 ? 'disabled' : ''}>
                                             ✏️ Improve Clarity
                                         </button>
                                     </div>
-                                    <p class="ai-hint">Generate: Create steps from title | Improve: Simplify existing steps</p>
+                                    <p class="ai-hint">AI drafts are optional and fully editable. You can always write steps manually.</p>
                                 </div>
                                 ` : ''}
                                 
@@ -294,11 +304,80 @@
                                 <h3>✏️ Review Improved Steps</h3>
                                 <button class="btn-close" id="btn-close-clarity">✕</button>
                             </div>
-                            <p class="clarity-description">AI has simplified your steps for clarity. Review the changes below:</p>
+                            <p class="clarity-description">Review the improved steps below:</p>
                             <div class="clarity-comparison" id="clarity-comparison"></div>
                             <div class="clarity-actions">
                                 <button type="button" class="btn btn-secondary" id="btn-reject-clarity">Keep Original</button>
                                 <button type="button" class="btn btn-primary" id="btn-accept-clarity">✓ Accept Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Paste Steps Modal -->
+                    <div class="ai-modal" id="ai-paste-modal" style="display: none;">
+                        <div class="ai-modal-content">
+                            <div class="ai-modal-header">
+                                <h3>📋 Paste Draft Steps</h3>
+                                <button class="btn-close" id="btn-close-ai-paste">✕</button>
+                            </div>
+                            <div class="ai-modal-body">
+                                <div class="ai-instructions">
+                                    <p><strong>How to use:</strong></p>
+                                    <ol>
+                                        <li>Copy your SOP title: <code id="copy-title-text"></code> <button type="button" class="btn-copy-small" id="btn-copy-title">Copy</button></li>
+                                        <li>Open <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> or <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a></li>
+                                        <li>Ask: "Generate 5-8 simple steps for this SOP: [paste title]"</li>
+                                        <li>Copy the generated steps and paste below</li>
+                                    </ol>
+                                    <p class="ai-draft-reminder">These will be added as draft steps. You can edit or delete any of them.</p>
+                                </div>
+                                <div class="ai-paste-area">
+                                    <label for="ai-steps-input">Paste your draft steps here (one per line):</label>
+                                    <textarea id="ai-steps-input" class="ai-textarea" rows="8" placeholder="1. First step here
+2. Second step here
+3. Third step here
+..."></textarea>
+                                    <p class="ai-paste-hint">Tip: Numbers and bullet points will be automatically removed.</p>
+                                </div>
+                            </div>
+                            <div class="ai-modal-footer">
+                                <button type="button" class="btn btn-secondary" id="btn-cancel-ai-paste">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="btn-apply-ai-paste">Add as Drafts</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Improve Clarity Modal -->
+                    <div class="ai-modal" id="ai-improve-modal" style="display: none;">
+                        <div class="ai-modal-content">
+                            <div class="ai-modal-header">
+                                <h3>✏️ Improve Step Clarity</h3>
+                                <button class="btn-close" id="btn-close-ai-improve">✕</button>
+                            </div>
+                            <div class="ai-modal-body">
+                                <div class="ai-instructions">
+                                    <p><strong>How to use:</strong></p>
+                                    <ol>
+                                        <li>Copy your current steps below</li>
+                                        <li>Open <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> or <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a></li>
+                                        <li>Ask: "Make these steps shorter and clearer for non-technical employees"</li>
+                                        <li>Paste the improved steps in the second box</li>
+                                    </ol>
+                                    <p class="ai-draft-reminder">Improved steps are drafts. You can edit them further or keep your originals.</p>
+                                </div>
+                                <div class="ai-copy-area">
+                                    <label>Your current steps (copy these):</label>
+                                    <div class="ai-current-steps" id="ai-current-steps"></div>
+                                    <button type="button" class="btn btn-secondary btn-copy" id="btn-copy-steps">📋 Copy Steps</button>
+                                </div>
+                                <div class="ai-paste-area">
+                                    <label for="ai-improved-input">Paste improved draft steps here:</label>
+                                    <textarea id="ai-improved-input" class="ai-textarea" rows="6" placeholder="Paste the AI-improved steps here..."></textarea>
+                                </div>
+                            </div>
+                            <div class="ai-modal-footer">
+                                <button type="button" class="btn btn-secondary" id="btn-cancel-ai-improve">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="btn-preview-ai-improve">Preview Changes</button>
                             </div>
                         </div>
                     </div>
@@ -576,193 +655,187 @@
         }
         
         // ====================================================================
-        // AI HANDLERS
+        // AI HANDLERS (External Paste Workflow)
         // ====================================================================
         
+        /**
+         * Handle AI action buttons
+         * Since this is a standalone app without API access, we use an
+         * external-paste workflow where users generate content in external
+         * AI tools and paste it here.
+         */
         _handleAIAction(action) {
             if (action === 'draft-steps') {
-                this._generateStepsWithAI();
+                this._showAIPasteModal();
             } else if (action === 'improve-clarity') {
-                this._improveStepsWithAI();
+                this._showAIImproveModal();
             }
         }
         
         /**
-         * Generate SOP steps using AI
-         * Calls Anthropic API to generate steps based on title and description
+         * Show the AI Paste Steps modal
          */
-        async _generateStepsWithAI() {
-            // Collect current form data
+        _showAIPasteModal() {
             this._collectFormData();
             
-            const title = this.formState.title?.trim();
-            const description = this.formState.description?.trim();
+            const modal = document.getElementById('ai-paste-modal');
+            const titleText = document.getElementById('copy-title-text');
+            const stepsInput = document.getElementById('ai-steps-input');
             
-            // Validate input
-            if (!title) {
-                this._showNotification('Please enter a title first', 'error');
-                document.getElementById('sop-title')?.focus();
+            if (!modal) return;
+            
+            // Set the title for copying
+            const title = this.formState.title?.trim() || 'My SOP';
+            if (titleText) titleText.textContent = `"${title}"`;
+            
+            // Clear previous input
+            if (stepsInput) stepsInput.value = '';
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach listeners
+            this._attachAIPasteModalListeners();
+        }
+        
+        /**
+         * Attach event listeners for AI Paste modal
+         */
+        _attachAIPasteModalListeners() {
+            const modal = document.getElementById('ai-paste-modal');
+            const closeBtn = document.getElementById('btn-close-ai-paste');
+            const cancelBtn = document.getElementById('btn-cancel-ai-paste');
+            const applyBtn = document.getElementById('btn-apply-ai-paste');
+            const copyTitleBtn = document.getElementById('btn-copy-title');
+            
+            const closeModal = () => {
+                modal.style.display = 'none';
+            };
+            
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newCancelBtn = cancelBtn?.cloneNode(true);
+            const newApplyBtn = applyBtn?.cloneNode(true);
+            const newCopyTitleBtn = copyTitleBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            cancelBtn?.parentNode?.replaceChild(newCancelBtn, cancelBtn);
+            applyBtn?.parentNode?.replaceChild(newApplyBtn, applyBtn);
+            copyTitleBtn?.parentNode?.replaceChild(newCopyTitleBtn, copyTitleBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newCancelBtn?.addEventListener('click', closeModal);
+            
+            newApplyBtn?.addEventListener('click', () => {
+                this._applyPastedSteps();
+                closeModal();
+            });
+            
+            newCopyTitleBtn?.addEventListener('click', () => {
+                const title = this.formState.title?.trim() || 'My SOP';
+                navigator.clipboard?.writeText(title).then(() => {
+                    this._showNotification('Title copied!', 'success');
+                }).catch(() => {
+                    this._showNotification('Could not copy. Please select and copy manually.', 'error');
+                });
+            });
+            
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+        }
+        
+        /**
+         * Parse and apply pasted steps from AI
+         */
+        _applyPastedSteps() {
+            const input = document.getElementById('ai-steps-input');
+            const rawText = input?.value?.trim();
+            
+            if (!rawText) {
+                this._showNotification('Please paste some steps first', 'error');
                 return;
             }
             
-            // Check if steps already exist
+            // Parse steps from text
+            const steps = this._parseStepsFromText(rawText);
+            
+            if (steps.length === 0) {
+                this._showNotification('Could not parse any steps. Try one step per line.', 'error');
+                return;
+            }
+            
+            // Confirm if replacing existing steps
             if (this.formState.steps.length > 0) {
-                if (!confirm('This will replace your existing steps. Continue?')) {
+                if (!confirm(`This will replace your ${this.formState.steps.length} existing steps with ${steps.length} new steps. Continue?`)) {
                     return;
                 }
             }
             
-            // Show loading state
-            const aiBtn = document.getElementById('btn-ai-generate');
-            const aiPanel = document.getElementById('ai-steps-panel');
-            const originalBtnText = aiBtn?.textContent;
+            // Apply the steps
+            this.formState.steps = steps.map((text, index) => ({
+                id: `step_pasted_${Date.now()}_${index}`,
+                text: text,
+                note: '',
+                order: index + 1,
+                aiPasted: true
+            }));
             
-            if (aiBtn) {
-                aiBtn.disabled = true;
-                aiBtn.textContent = '⏳ Generating...';
-            }
-            if (aiPanel) {
-                aiPanel.classList.add('loading');
-            }
+            this._updateStepsList();
+            this._showNotification(`✨ Added ${steps.length} steps. Review and edit as needed.`, 'success');
+            this._showAIPastedNotice();
+        }
+        
+        /**
+         * Parse steps from raw text (handles various formats)
+         */
+        _parseStepsFromText(text) {
+            // Split by newlines
+            const lines = text.split(/\r?\n/);
             
-            this._showNotification('AI is drafting steps...', 'info');
-            
-            try {
-                const steps = await this._callAIForSteps(title, description);
+            const steps = [];
+            for (const line of lines) {
+                // Clean up the line
+                let cleaned = line.trim();
                 
-                if (steps && steps.length > 0) {
-                    // Clear existing steps
-                    this.formState.steps = [];
-                    
-                    // Add AI-generated steps
-                    steps.forEach((stepText, index) => {
-                        this.formState.steps.push({
-                            id: `step_ai_${Date.now()}_${index}`,
-                            text: stepText,
-                            note: '',
-                            order: index + 1,
-                            aiGenerated: true  // Mark as AI-generated
-                        });
-                    });
-                    
-                    this._updateStepsList();
-                    this._showNotification(`✨ AI generated ${steps.length} draft steps. Review and edit as needed.`, 'success');
-                    
-                    // Show draft notice
-                    this._showAIDraftNotice();
-                } else {
-                    this._showNotification('AI could not generate steps. Try adding more detail to your title.', 'error');
-                }
-            } catch (error) {
-                console.error('AI generation error:', error);
-                this._handleAIError(error);
-            } finally {
-                // Restore button state
-                if (aiBtn) {
-                    aiBtn.disabled = false;
-                    aiBtn.textContent = originalBtnText || '🤖 Generate Steps with AI';
-                }
-                if (aiPanel) {
-                    aiPanel.classList.remove('loading');
-                }
+                // Skip empty lines
+                if (!cleaned) continue;
+                
+                // Remove common prefixes: numbers, bullets, dashes, asterisks
+                cleaned = cleaned
+                    .replace(/^[\d]+[.):]\s*/, '')     // "1. " or "1) " or "1: "
+                    .replace(/^[-•*]\s*/, '')          // "- " or "• " or "* "
+                    .replace(/^Step\s*\d*[:.]\s*/i, '') // "Step 1: " or "Step: "
+                    .trim();
+                
+                // Skip if nothing left
+                if (!cleaned) continue;
+                
+                // Skip lines that are too short (likely not real steps)
+                if (cleaned.length < 3) continue;
+                
+                steps.push(cleaned);
             }
+            
+            // Limit to max steps
+            return steps.slice(0, this.options.maxSteps);
         }
         
         /**
-         * Call Anthropic API to generate steps
+         * Show notice that steps were pasted from AI
          */
-        async _callAIForSteps(title, description) {
-            const prompt = `You are helping create a Standard Operating Procedure (SOP) for a small business.
-
-Title: ${title}
-${description ? `Description: ${description}` : ''}
-
-Generate 4-8 clear, actionable steps for this SOP. Requirements:
-- Use simple, non-technical language
-- Each step should be a single, concrete action
-- Start each step with an action verb
-- Keep steps brief (under 15 words each)
-- Focus on practical execution
-
-Respond with ONLY a JSON array of step strings, nothing else. Example:
-["Step one text", "Step two text", "Step three text"]`;
-
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 1000,
-                    messages: [
-                        { role: 'user', content: prompt }
-                    ]
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            // Extract text from response
-            const textContent = data.content?.find(block => block.type === 'text');
-            if (!textContent?.text) {
-                throw new Error('No text in API response');
-            }
-            
-            // Parse JSON array from response
-            const responseText = textContent.text.trim();
-            
-            // Handle potential markdown code blocks
-            let jsonText = responseText;
-            if (responseText.startsWith('```')) {
-                jsonText = responseText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-            }
-            
-            const steps = JSON.parse(jsonText);
-            
-            if (!Array.isArray(steps)) {
-                throw new Error('Response is not an array');
-            }
-            
-            // Validate and clean steps
-            return steps
-                .filter(step => typeof step === 'string' && step.trim().length > 0)
-                .map(step => step.trim())
-                .slice(0, this.options.maxSteps);
-        }
-        
-        /**
-         * Handle AI errors gracefully
-         */
-        _handleAIError(error) {
-            let message = 'AI generation failed. Please try again or add steps manually.';
-            
-            if (error.message?.includes('API request failed')) {
-                message = 'Could not connect to AI service. Please try again later.';
-            } else if (error.message?.includes('JSON')) {
-                message = 'AI response was unclear. Please try again with a more specific title.';
-            }
-            
-            this._showNotification(message, 'error');
-        }
-        
-        /**
-         * Show notice that steps are AI-generated drafts
-         */
-        _showAIDraftNotice() {
-            // Remove existing notice if present
+        _showAIPastedNotice() {
             document.getElementById('ai-draft-notice')?.remove();
+            document.getElementById('ai-improved-notice')?.remove();
+            document.getElementById('ai-pasted-notice')?.remove();
             
             const notice = document.createElement('div');
-            notice.id = 'ai-draft-notice';
+            notice.id = 'ai-pasted-notice';
             notice.className = 'ai-draft-notice';
             notice.innerHTML = `
-                <span class="notice-icon">📝</span>
-                <span class="notice-text">These steps are AI-generated drafts. Please review and edit before saving.</span>
+                <span class="notice-icon">📋</span>
+                <span class="notice-text">Draft steps added. These are fully editable—review and adjust before saving.</span>
                 <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
             `;
             
@@ -773,131 +846,105 @@ Respond with ONLY a JSON array of step strings, nothing else. Example:
         }
         
         /**
-         * Improve clarity of existing steps using AI
+         * Show the AI Improve Clarity modal
          */
-        async _improveStepsWithAI() {
-            // Collect current form data
+        _showAIImproveModal() {
             this._collectFormData();
             
-            // Validate steps exist
             if (this.formState.steps.length === 0) {
                 this._showNotification('Add some steps first before improving them', 'error');
                 return;
             }
             
-            // Store original steps for comparison
+            const modal = document.getElementById('ai-improve-modal');
+            const currentStepsEl = document.getElementById('ai-current-steps');
+            const improvedInput = document.getElementById('ai-improved-input');
+            
+            if (!modal) return;
+            
+            // Store original steps
             this._originalSteps = this.formState.steps.map(s => ({ ...s }));
             
-            // Show loading state
-            const aiBtn = document.getElementById('btn-ai-improve');
-            const aiPanel = document.getElementById('ai-steps-panel');
-            const originalBtnText = aiBtn?.textContent;
-            
-            if (aiBtn) {
-                aiBtn.disabled = true;
-                aiBtn.textContent = '⏳ Improving...';
-            }
-            if (aiPanel) {
-                aiPanel.classList.add('loading');
+            // Display current steps for copying
+            if (currentStepsEl) {
+                const stepsText = this.formState.steps
+                    .map((s, i) => `${i + 1}. ${s.text}`)
+                    .join('\n');
+                currentStepsEl.textContent = stepsText;
             }
             
-            this._showNotification('AI is improving your steps...', 'info');
+            // Clear previous input
+            if (improvedInput) improvedInput.value = '';
             
-            try {
-                const improvedSteps = await this._callAIForClarity(this._originalSteps);
-                
-                if (improvedSteps && improvedSteps.length > 0) {
-                    this._improvedSteps = improvedSteps;
-                    this._showClarityPreview();
-                } else {
-                    this._showNotification('AI could not improve the steps. They may already be clear!', 'info');
-                }
-            } catch (error) {
-                console.error('AI clarity error:', error);
-                this._handleAIError(error);
-            } finally {
-                // Restore button state
-                if (aiBtn) {
-                    aiBtn.disabled = false;
-                    aiBtn.textContent = originalBtnText || '✏️ Improve Clarity';
-                }
-                if (aiPanel) {
-                    aiPanel.classList.remove('loading');
-                }
-            }
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach listeners
+            this._attachAIImproveModalListeners();
         }
         
         /**
-         * Call Anthropic API to improve step clarity
+         * Attach event listeners for AI Improve modal
          */
-        async _callAIForClarity(steps) {
-            const stepsText = steps.map((s, i) => `${i + 1}. ${s.text}`).join('\n');
+        _attachAIImproveModalListeners() {
+            const modal = document.getElementById('ai-improve-modal');
+            const closeBtn = document.getElementById('btn-close-ai-improve');
+            const cancelBtn = document.getElementById('btn-cancel-ai-improve');
+            const previewBtn = document.getElementById('btn-preview-ai-improve');
+            const copyStepsBtn = document.getElementById('btn-copy-steps');
             
-            const prompt = `You are helping improve a Standard Operating Procedure (SOP) for non-technical employees.
-
-Current steps:
-${stepsText}
-
-Rewrite each step to be:
-- Shorter (under 12 words if possible)
-- Clearer and more direct
-- Easy for non-technical employees to understand
-- Starting with a simple action verb
-
-IMPORTANT: Preserve the original meaning of each step. Do not add or remove steps.
-
-Respond with ONLY a JSON array of the improved step strings, in the same order. Example:
-["Improved step one", "Improved step two", "Improved step three"]`;
-
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 1000,
-                    messages: [
-                        { role: 'user', content: prompt }
-                    ]
-                })
+            const closeModal = () => {
+                modal.style.display = 'none';
+                this._originalSteps = null;
+            };
+            
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newCancelBtn = cancelBtn?.cloneNode(true);
+            const newPreviewBtn = previewBtn?.cloneNode(true);
+            const newCopyStepsBtn = copyStepsBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            cancelBtn?.parentNode?.replaceChild(newCancelBtn, cancelBtn);
+            previewBtn?.parentNode?.replaceChild(newPreviewBtn, previewBtn);
+            copyStepsBtn?.parentNode?.replaceChild(newCopyStepsBtn, copyStepsBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newCancelBtn?.addEventListener('click', closeModal);
+            
+            newPreviewBtn?.addEventListener('click', () => {
+                const improvedText = document.getElementById('ai-improved-input')?.value?.trim();
+                if (!improvedText) {
+                    this._showNotification('Please paste the improved steps first', 'error');
+                    return;
+                }
+                
+                const improvedSteps = this._parseStepsFromText(improvedText);
+                if (improvedSteps.length === 0) {
+                    this._showNotification('Could not parse steps. Try one step per line.', 'error');
+                    return;
+                }
+                
+                this._improvedSteps = improvedSteps;
+                closeModal();
+                this._showClarityPreview();
             });
             
-            if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
-            }
+            newCopyStepsBtn?.addEventListener('click', () => {
+                const stepsText = this.formState.steps
+                    .map((s, i) => `${i + 1}. ${s.text}`)
+                    .join('\n');
+                navigator.clipboard?.writeText(stepsText).then(() => {
+                    this._showNotification('Steps copied! Now paste in your AI tool.', 'success');
+                }).catch(() => {
+                    this._showNotification('Could not copy. Please select and copy manually.', 'error');
+                });
+            });
             
-            const data = await response.json();
-            
-            // Extract text from response
-            const textContent = data.content?.find(block => block.type === 'text');
-            if (!textContent?.text) {
-                throw new Error('No text in API response');
-            }
-            
-            // Parse JSON array from response
-            const responseText = textContent.text.trim();
-            
-            // Handle potential markdown code blocks
-            let jsonText = responseText;
-            if (responseText.startsWith('```')) {
-                jsonText = responseText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-            }
-            
-            const improvedSteps = JSON.parse(jsonText);
-            
-            if (!Array.isArray(improvedSteps)) {
-                throw new Error('Response is not an array');
-            }
-            
-            // Validate we got the same number of steps
-            if (improvedSteps.length !== steps.length) {
-                console.warn('AI returned different number of steps, adjusting...');
-            }
-            
-            return improvedSteps
-                .filter(step => typeof step === 'string' && step.trim().length > 0)
-                .map(step => step.trim());
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
         }
         
         /**
@@ -907,11 +954,11 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
             const modal = document.getElementById('clarity-modal');
             const comparison = document.getElementById('clarity-comparison');
             
-            if (!modal || !comparison) return;
+            if (!modal || !comparison || !this._originalSteps) return;
             
             // Build comparison HTML
             const comparisonHtml = this._originalSteps.map((original, index) => {
-                const improved = this._improvedSteps[index] || original.text;
+                const improved = this._improvedSteps?.[index] || original.text;
                 const hasChanged = original.text.trim() !== improved.trim();
                 
                 return `
@@ -931,6 +978,28 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                     </div>
                 `;
             }).join('');
+            
+            // Handle case where improved has more/fewer steps
+            if (this._improvedSteps && this._improvedSteps.length > this._originalSteps.length) {
+                for (let i = this._originalSteps.length; i < this._improvedSteps.length; i++) {
+                    comparison.innerHTML += `
+                        <div class="clarity-step changed">
+                            <div class="step-number">${i + 1}</div>
+                            <div class="step-comparison">
+                                <div class="step-original">
+                                    <span class="comparison-label">Before:</span>
+                                    <span class="comparison-text">(new step)</span>
+                                </div>
+                                <div class="step-improved">
+                                    <span class="comparison-label">After:</span>
+                                    <span class="comparison-text highlight">${this._escapeHtml(this._improvedSteps[i])}</span>
+                                </div>
+                            </div>
+                            <span class="change-badge">Added</span>
+                        </div>
+                    `;
+                }
+            }
             
             comparison.innerHTML = comparisonHtml;
             
@@ -956,13 +1025,22 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                 this._improvedSteps = null;
             };
             
-            closeBtn?.addEventListener('click', closeModal);
-            rejectBtn?.addEventListener('click', () => {
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newRejectBtn = rejectBtn?.cloneNode(true);
+            const newAcceptBtn = acceptBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            rejectBtn?.parentNode?.replaceChild(newRejectBtn, rejectBtn);
+            acceptBtn?.parentNode?.replaceChild(newAcceptBtn, acceptBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newRejectBtn?.addEventListener('click', () => {
                 closeModal();
                 this._showNotification('Changes discarded. Original steps kept.', 'info');
             });
             
-            acceptBtn?.addEventListener('click', () => {
+            newAcceptBtn?.addEventListener('click', () => {
                 this._acceptClarityChanges();
                 closeModal();
             });
@@ -977,20 +1055,19 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
          * Accept clarity improvements and update steps
          */
         _acceptClarityChanges() {
-            if (!this._improvedSteps || !this._originalSteps) return;
+            if (!this._improvedSteps) return;
             
-            // Update each step with improved text
-            this.formState.steps.forEach((step, index) => {
-                if (this._improvedSteps[index]) {
-                    step.text = this._improvedSteps[index];
-                    step.aiImproved = true;  // Mark as AI-improved
-                }
-            });
+            // Replace steps with improved versions
+            this.formState.steps = this._improvedSteps.map((text, index) => ({
+                id: this._originalSteps?.[index]?.id || `step_improved_${Date.now()}_${index}`,
+                text: text,
+                note: this._originalSteps?.[index]?.note || '',
+                order: index + 1,
+                aiImproved: true
+            }));
             
             this._updateStepsList();
             this._showNotification('✨ Steps updated with improved clarity!', 'success');
-            
-            // Show notice that steps were improved
             this._showAIImprovedNotice();
         }
         
@@ -998,16 +1075,16 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
          * Show notice that steps were AI-improved
          */
         _showAIImprovedNotice() {
-            // Remove existing notices
             document.getElementById('ai-draft-notice')?.remove();
             document.getElementById('ai-improved-notice')?.remove();
+            document.getElementById('ai-pasted-notice')?.remove();
             
             const notice = document.createElement('div');
             notice.id = 'ai-improved-notice';
             notice.className = 'ai-draft-notice ai-improved-notice';
             notice.innerHTML = `
                 <span class="notice-icon">✨</span>
-                <span class="notice-text">Steps improved for clarity. Review and save when ready.</span>
+                <span class="notice-text">Draft improvements applied. These are fully editable—review and save when ready.</span>
                 <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
             `;
             
@@ -1104,7 +1181,7 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
         }
         
         _handleCancel() {
-            if (this._hasContent() && !confirm('Discard unsaved changes?')) return;
+            if (this._hasContent() && !confirm('Discard unsaved changes?\n\nYour edits have not been saved and will be lost.')) return;
             if (this.callbacks.onCancel) {
                 this.callbacks.onCancel();
             } else {
@@ -1117,7 +1194,7 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                 console.warn('SOPCreate: _handleDelete called but no currentSOP');
                 return;
             }
-            if (!confirm(`Permanently delete "${this.currentSOP.title}"?\n\nThis cannot be undone.`)) return;
+            if (!confirm(`Delete "${this.currentSOP.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) return;
             
             const sops = this._loadSOPs().filter(s => s.id !== this.currentSOP.id);
             this._saveSOPs(sops);
@@ -1397,6 +1474,44 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                     margin-bottom: 1rem;
                 }
                 
+                .ai-panel-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-bottom: 0.5rem;
+                }
+                
+                .ai-icon {
+                    font-size: 1.1rem;
+                }
+                
+                .ai-title {
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    color: #065f46;
+                }
+                
+                .ai-badge {
+                    font-size: 0.65rem;
+                    padding: 0.125rem 0.5rem;
+                    background: #d1fae5;
+                    color: #047857;
+                    border-radius: 10px;
+                    font-weight: 500;
+                }
+                
+                .ai-description {
+                    font-size: 0.8rem;
+                    color: #065f46;
+                    margin: 0 0 0.75rem !important;
+                }
+                
+                .ai-steps-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                }
+                
                 .ai-steps-panel p {
                     margin: 0 0 0.625rem;
                     font-size: 0.8rem;
@@ -1419,8 +1534,8 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                 }
                 
                 .ai-btn:disabled {
-                    opacity: 0.7;
-                    cursor: wait;
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
                 
                 .ai-hint {
@@ -1435,25 +1550,200 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                     pointer-events: none;
                 }
                 
+                /* AI Modals */
+                .ai-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 1rem;
+                }
+                
+                .ai-modal-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    max-width: 600px;
+                    width: 100%;
+                    max-height: 85vh;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+                
+                .ai-modal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .ai-modal-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                }
+                
+                .ai-modal-body {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1.25rem;
+                }
+                
+                .ai-instructions {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .ai-instructions p {
+                    margin: 0 0 0.5rem;
+                    font-size: 0.85rem;
+                }
+                
+                .ai-instructions ol {
+                    margin: 0;
+                    padding-left: 1.25rem;
+                    font-size: 0.85rem;
+                }
+                
+                .ai-instructions li {
+                    margin-bottom: 0.375rem;
+                }
+                
+                .ai-instructions code {
+                    background: #e5e7eb;
+                    padding: 0.125rem 0.375rem;
+                    border-radius: 4px;
+                    font-size: 0.8rem;
+                }
+                
+                .ai-instructions a {
+                    color: #4f46e5;
+                }
+                
+                .btn-copy-small {
+                    font-size: 0.7rem;
+                    padding: 0.125rem 0.5rem;
+                    background: #e5e7eb;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-left: 0.25rem;
+                }
+                
+                .btn-copy-small:hover {
+                    background: #d1d5db;
+                }
+                
+                .ai-paste-area {
+                    margin-top: 1rem;
+                }
+                
+                .ai-paste-area label {
+                    display: block;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    margin-bottom: 0.375rem;
+                }
+                
+                .ai-textarea {
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.875rem;
+                    font-family: inherit;
+                    resize: vertical;
+                    box-sizing: border-box;
+                }
+                
+                .ai-textarea:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+                
+                .ai-paste-hint {
+                    font-size: 0.75rem !important;
+                    color: #6b7280 !important;
+                    margin-top: 0.375rem !important;
+                }
+                
+                .ai-draft-reminder {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    margin-top: 0.75rem;
+                    padding-top: 0.75rem;
+                    border-top: 1px solid #e5e7eb;
+                }
+                
+                .ai-copy-area {
+                    margin-bottom: 1rem;
+                }
+                
+                .ai-copy-area label {
+                    display: block;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    margin-bottom: 0.375rem;
+                }
+                
+                .ai-current-steps {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    padding: 0.75rem;
+                    font-size: 0.85rem;
+                    white-space: pre-wrap;
+                    max-height: 150px;
+                    overflow-y: auto;
+                    margin-bottom: 0.5rem;
+                }
+                
+                .btn-copy {
+                    font-size: 0.8rem;
+                }
+                
+                .ai-modal-footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.75rem;
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                    border-radius: 0 0 12px 12px;
+                }
+                
                 .ai-draft-notice {
                     display: flex;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.625rem;
                     padding: 0.75rem 1rem;
-                    background: #fef3c7;
-                    border: 1px solid #fcd34d;
+                    background: #fefce8;
+                    border: 1px solid #fde047;
                     border-radius: 8px;
                     margin-bottom: 1rem;
                     font-size: 0.8rem;
-                    color: #92400e;
+                    line-height: 1.5;
+                    color: #854d0e;
                 }
                 
                 .ai-draft-notice .notice-icon {
                     font-size: 1rem;
+                    flex-shrink: 0;
                 }
                 
                 .ai-draft-notice .notice-text {
                     flex: 1;
+                    line-height: 1.5;
                 }
                 
                 .ai-draft-notice .notice-dismiss {
@@ -1663,21 +1953,21 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                     color: #6b7280;
                 }
                 
-                .steps-empty p { margin: 0.25rem 0; }
+                .steps-empty p { margin: 0.25rem 0; line-height: 1.5; }
                 
                 .step-item {
                     display: flex;
                     align-items: flex-start;
-                    gap: 0.625rem;
-                    padding: 0.875rem;
-                    background: #f9fafb;
+                    gap: 0.75rem;
+                    padding: 1rem;
+                    background: #fafafa;
                     border: 1px solid #e5e7eb;
                     border-radius: 8px;
-                    margin-bottom: 0.625rem;
-                    transition: all 0.15s;
+                    margin-bottom: 0.75rem;
+                    transition: all 0.2s ease;
                 }
                 
-                .step-item:hover { background: #f3f4f6; }
+                .step-item:hover { background: #f5f5f5; }
                 .step-item.dragging { opacity: 0.5; background: #dbeafe; }
                 .step-item.drag-over { border-color: #6366f1; border-style: dashed; }
                 
@@ -1705,27 +1995,32 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                 
                 .step-input {
                     width: 100%;
-                    padding: 0.5rem 0.625rem;
+                    padding: 0.5rem 0.75rem;
                     border: 1px solid #d1d5db;
                     border-radius: 6px;
-                    font-size: 0.85rem;
+                    font-size: 0.875rem;
+                    line-height: 1.5;
                     resize: vertical;
                     box-sizing: border-box;
+                    transition: border-color 0.2s ease;
                 }
                 
                 .step-input:focus {
                     outline: none;
                     border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
                 }
                 
                 .step-note-input {
                     width: 100%;
-                    margin-top: 0.375rem;
-                    padding: 0.375rem 0.5rem;
+                    margin-top: 0.5rem;
+                    padding: 0.375rem 0.625rem;
                     border: 1px solid #e5e7eb;
                     border-radius: 4px;
-                    font-size: 0.75rem;
+                    font-size: 0.8rem;
+                    line-height: 1.5;
                     box-sizing: border-box;
+                    transition: border-color 0.2s ease;
                 }
                 
                 .step-note-input:focus {
@@ -1793,20 +2088,44 @@ Respond with ONLY a JSON array of the improved step strings, in the same order. 
                     font-size: 0.85rem;
                     font-weight: 500;
                     cursor: pointer;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
                 }
                 
-                .btn-primary { background: #6366f1; color: #fff; }
-                .btn-primary:hover { background: #4f46e5; }
+                .btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+                }
                 
-                .btn-secondary { background: #e5e7eb; color: #374151; }
-                .btn-secondary:hover { background: #d1d5db; }
+                .btn-primary { 
+                    background: #6366f1; 
+                    color: #fff;
+                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
+                }
+                .btn-primary:hover { 
+                    background: #4f46e5;
+                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                }
+                
+                .btn-secondary { 
+                    background: #f3f4f6; 
+                    color: #374151;
+                    border: 1px solid #e5e7eb;
+                }
+                .btn-secondary:hover { 
+                    background: #e5e7eb;
+                    border-color: #d1d5db;
+                }
                 
                 .btn-danger {
                     background: #fef2f2;
-                    color: #dc2626;
+                    color: #b91c1c;
                     border: 1px solid #fecaca;
                 }
-                .btn-danger:hover { background: #fee2e2; }
+                .btn-danger:hover { 
+                    background: #fee2e2;
+                    border-color: #fca5a5;
+                }
                 
                 /* Preview Modal */
                 .preview-modal {

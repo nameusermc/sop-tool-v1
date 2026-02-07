@@ -19,7 +19,7 @@
  *   <script src="modules/sop-create.js"></script>
  *   <script src="app.js"></script>
  * 
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 (function() {
@@ -90,7 +90,6 @@
             console.log('Creating new Dashboard instance');
             AppState.modules.dashboard = new Dashboard(AppState.container, {
                 showMostUsed: true,
-                enableAIFeatures: true,
                 enableFolderManagement: true,
                 enableSorting: true,
                 enableFiltering: true,
@@ -290,31 +289,10 @@
             showEditor(null);  // null = create mode
         });
         
-        // Handle SOP view/select
-        dashboard.on('onViewSOP', (sop) => {
-            console.log('👁️ View SOP clicked:', sop.title);
-            // For now, open in edit mode (you could also show a read-only view)
-            showEditor(sop);
-        });
-        
         // Handle SOP edit
         dashboard.on('onEditSOP', (sop) => {
             console.log('✏️ Edit SOP clicked:', sop.title);
             showEditor(sop);
-        });
-        
-        // Handle checklist button (if Checklist module exists)
-        dashboard.on('onViewChecklists', (sop) => {
-            console.log('📋 View Checklists clicked');
-            if (sop) {
-                console.log('Starting checklist for SOP:', sop.title);
-                // TODO: Integrate Checklist module when ready
-                // showChecklist(sop);
-                alert(`Checklist feature coming soon!\n\nSOP: ${sop.title}`);
-            } else {
-                // Show recent checklists
-                alert('Recent Checklists feature coming soon!');
-            }
         });
         
         // Handle SOP delete
@@ -486,7 +464,7 @@
         reinit: initApp,
         
         // Version
-        version: '2.0.0'
+        version: '2.1.0'
     };
 
     // ========================================================================
