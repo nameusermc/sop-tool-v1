@@ -1,20 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>SOP Tool v1</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOP Tool - Standard Operating Procedures Manager</title>
+    <style>
+        /* Minimal reset and base styles */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #1f2937;
+        }
+        
+        /* App container takes full viewport */
+        #app {
+            min-height: 100vh;
+        }
+        
+        /* Loading state */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-size: 1.25rem;
+            color: #6b7280;
+        }
+    </style>
 </head>
 <body>
-  <div id="app"></div>
+    <!-- Main Application Container -->
+    <div id="app">
+        <div class="loading">Loading SOP Tool...</div>
+    </div>
 
-  <!-- Modules -->
-  <script src="modules/dashboard.js"></script>
-  <script src="modules/sop-create.js"></script>
-  <script src="modules/checklist.js"></script>
-  <script src="modules/folders.js"></script>
-  <script src="modules/ai-placeholders.js"></script>
-  <script src="data/storage.js"></script>
-  <script src="app.js"></script>
+    <!-- 
+        SCRIPT LOADING ORDER IS IMPORTANT!
+        1. Load all module scripts first (they expose global classes)
+        2. Load app.js last (it uses those classes)
+        
+        Features:
+        - Dashboard: SOP listing, folder management, sorting, filtering
+        - SOPCreate: Create/edit SOPs with folder assignment
+    -->
+    
+    <!-- Supabase SDK (for cloud sync - optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Supabase Config -->
+    <script>
+        window.SUPABASE_CONFIG = {
+            url: 'https://zzsndvvaihnflrglvtnj.supabase.co',
+            anonKey: 'sb_publishable_RnNpYjd-LoqxfRYjqc74kg_BhhgTgQD'
+        };
+    </script>
+    
+    <!-- Storage Layer (MUST load first) -->
+    <script src="lib/storage-adapter.js"></script>
+    
+    <!-- Supabase Client (after storage-adapter, before modules) -->
+    <script src="lib/supabase-client.js"></script>
+    
+    <!-- Module Scripts -->
+    <script src="modules/dashboard.js"></script>
+    <script src="modules/sop-create.js"></script>
+    <script src="modules/checklist.js"></script>
+    
+    <!-- Module Integration (patches localStorage, loads after modules) -->
+    <script src="lib/module-integration.js"></script>
+    
+    <!-- Main Application Script (MUST be loaded last) -->
+    <script src="app.js"></script>
 </body>
 </html>

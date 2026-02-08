@@ -1,2113 +1,2279 @@
 /**
  * SOP Create/Edit Module - SOP Tool v1
  * 
- * This module handles creating and editing Standard Operating Procedures:
- * - Form for title and description
- * - Step editor with add, edit, remove, reorder functionality
- * - Folder/category assignment
- * - AI-powered step generation placeholders
- * - Local storage persistence
+ * Features:
+ * - Form for title, description, and folder assignment
+ * - Step editor with add, edit, remove, reorder
+ * - Folder/category selection (integrates with Dashboard folders)
+ * - Tags and status management
+ * - AI-assisted drafting via external tools (paste workflow)
+ * - AI-assisted clarity improvement via external tools
+ * - Auto-save drafts
+ * 
+ * AI WORKFLOW NOTE:
+ * This standalone app uses an external-paste workflow for AI features.
+ * Users generate content in Claude/ChatGPT and paste it here.
+ * AI accelerates drafting but is always optional and editable.
+ * 
+ * STORAGE KEY: 'sop_tool_sops' - Must match Dashboard module
  * 
  * @module SOPCreate
+ * @version 2.3.0
  */
 
-// ============================================================================
-// STORAGE KEYS (Must match Dashboard module)
-// ============================================================================
+(function(global) {
+    'use strict';
 
-/**
- * Local Storage Keys - shared with Dashboard module for data consistency
- */
-const SOP_STORAGE_KEYS = {
-    SOPS: 'sop_tool_sops',
-    FOLDERS: 'sop_tool_folders',
-    SOP_USAGE: 'sop_tool_sop_usage',
-    DRAFTS: 'sop_tool_drafts'  // Auto-save drafts
-};
-
-/**
- * Default folders (fallback if Dashboard hasn't initialized them)
- */
-const DEFAULT_FOLDERS = [
-    { id: 'general', name: 'General', color: '#6366f1', icon: '📁' },
-    { id: 'onboarding', name: 'Onboarding', color: '#22c55e', icon: '👋' },
-    { id: 'operations', name: 'Operations', color: '#f59e0b', icon: '⚙️' },
-    { id: 'safety', name: 'Safety', color: '#ef4444', icon: '🛡️' },
-    { id: 'hr', name: 'HR & Compliance', color: '#8b5cf6', icon: '📋' }
-];
-
-// ============================================================================
-// SOP CREATE/EDIT MODULE CLASS
-// ============================================================================
-
-/**
- * SOPCreate Class
- * Handles the creation and editing of SOPs with a rich step editor
- */
-class SOPCreate {
-    /**
-     * Initialize the SOP Create/Edit module
-     * @param {HTMLElement} containerElement - DOM element to render into
-     * @param {Object} options - Configuration options
-     */
-    constructor(containerElement, options = {}) {
-        // Container reference
-        this.container = containerElement;
-        
-        // Configuration with defaults
-        this.options = {
-            mode: 'create',              // 'create' or 'edit'
-            enableAIFeatures: true,      // Show AI placeholder buttons
-            autoSaveDrafts: true,        // Auto-save drafts to localStorage
-            autoSaveInterval: 30000,     // Auto-save every 30 seconds
-            maxSteps: 50,                // Maximum steps allowed
-            ...options
-        };
-        
-        // Current SOP being edited (null for new SOP)
-        this.currentSOP = null;
-        
-        // Form state
-        this.formState = {
-            title: '',
-            description: '',
-            folderId: 'general',
-            steps: [],
-            tags: [],
-            status: 'draft'
-        };
-        
-        // Available folders (loaded from storage)
-        this.folders = [];
-        
-        // Drag and drop state for step reordering
-        this.dragState = {
-            dragging: false,
-            draggedIndex: null,
-            dragOverIndex: null
-        };
-        
-        // Auto-save timer reference
-        this.autoSaveTimer = null;
-        
-        // Callbacks for integration with other modules
-        this.callbacks = {
-            onSave: null,          // Called when SOP is saved
-            onCancel: null,        // Called when editing is cancelled
-            onDelete: null,        // Called when SOP is deleted (edit mode)
-            onChange: null         // Called when form data changes
-        };
-        
-        // Initialize
-        this._init();
-    }
-    
     // ========================================================================
-    // INITIALIZATION
+    // STORAGE KEYS
     // ========================================================================
-    
-    /**
-     * Initialize the module
-     * @private
-     */
-    _init() {
-        this._loadFolders();
-        this._injectStyles();
-        this._render();
-        this._attachEventListeners();
-        this._setupAutoSave();
-    }
-    
-    /**
-     * Load folders from local storage
-     * @private
-     */
-    _loadFolders() {
-        const stored = localStorage.getItem(SOP_STORAGE_KEYS.FOLDERS);
-        this.folders = stored ? JSON.parse(stored) : [...DEFAULT_FOLDERS];
-    }
-    
-    /**
-     * Load all SOPs from storage (for edit mode)
-     * @private
-     * @returns {Array} Array of SOPs
-     */
-    _loadSOPs() {
-        const stored = localStorage.getItem(SOP_STORAGE_KEYS.SOPS);
-        return stored ? JSON.parse(stored) : [];
-    }
-    
-    /**
-     * Save all SOPs to storage
-     * @private
-     * @param {Array} sops - Array of SOPs to save
-     */
-    _saveSOPs(sops) {
-        localStorage.setItem(SOP_STORAGE_KEYS.SOPS, JSON.stringify(sops));
-    }
-    
-    /**
-     * Setup auto-save functionality
-     * @private
-     */
-    _setupAutoSave() {
-        if (!this.options.autoSaveDrafts) return;
-        
-        // Clear existing timer
-        if (this.autoSaveTimer) {
-            clearInterval(this.autoSaveTimer);
-        }
-        
-        // Set up new timer
-        this.autoSaveTimer = setInterval(() => {
-            this._saveDraft();
-        }, this.options.autoSaveInterval);
-    }
-    
-    /**
-     * Save current form state as draft
-     * @private
-     */
-    _saveDraft() {
-        if (this.options.mode === 'create' && this._hasContent()) {
-            const draft = {
-                ...this.formState,
-                savedAt: Date.now()
+
+    const SOP_STORAGE_KEYS = {
+        SOPS: 'sop_tool_sops',
+        FOLDERS: 'sop_tool_folders',
+        DRAFTS: 'sop_tool_drafts'
+    };
+
+    const DEFAULT_FOLDERS = [
+        { id: 'general', name: 'General', color: '#6366f1', icon: '📁' },
+        { id: 'onboarding', name: 'Onboarding', color: '#22c55e', icon: '👋' },
+        { id: 'operations', name: 'Operations', color: '#f59e0b', icon: '⚙️' },
+        { id: 'safety', name: 'Safety', color: '#ef4444', icon: '🛡️' },
+        { id: 'hr', name: 'HR & Compliance', color: '#8b5cf6', icon: '📋' }
+    ];
+
+    // ========================================================================
+    // SOPCreate CLASS
+    // ========================================================================
+
+    class SOPCreate {
+        constructor(containerElement, options = {}) {
+            if (typeof containerElement === 'string') {
+                containerElement = document.querySelector(containerElement);
+            }
+            
+            if (!containerElement) {
+                throw new Error('SOPCreate: Container element not found');
+            }
+            
+            this.container = containerElement;
+            
+            this.options = {
+                mode: 'create',
+                enableAIFeatures: true,
+                autoSaveDrafts: true,
+                autoSaveInterval: 30000,
+                maxSteps: 50,
+                autoRender: true,
+                ...options
             };
-            localStorage.setItem(SOP_STORAGE_KEYS.DRAFTS, JSON.stringify(draft));
-            this._showNotification('Draft auto-saved', 'info');
+            
+            this.currentSOP = null;
+            this.folders = [];
+            
+            this.formState = {
+                title: '',
+                description: '',
+                folderId: 'general',
+                steps: [],
+                tags: [],
+                status: 'draft'
+            };
+            
+            this.dragState = {
+                dragging: false,
+                draggedIndex: null,
+                dragOverIndex: null
+            };
+            
+            this.autoSaveTimer = null;
+            
+            this.callbacks = {
+                onSave: null,
+                onCancel: null,
+                onDelete: null,
+                onChange: null
+            };
+            
+            this._init();
         }
-    }
-    
-    /**
-     * Load draft if exists
-     * @private
-     * @returns {Object|null} Draft data or null
-     */
-    _loadDraft() {
-        const stored = localStorage.getItem(SOP_STORAGE_KEYS.DRAFTS);
-        return stored ? JSON.parse(stored) : null;
-    }
-    
-    /**
-     * Clear saved draft
-     * @private
-     */
-    _clearDraft() {
-        localStorage.removeItem(SOP_STORAGE_KEYS.DRAFTS);
-    }
-    
-    /**
-     * Check if form has any content
-     * @private
-     * @returns {boolean}
-     */
-    _hasContent() {
-        return this.formState.title.trim() !== '' || 
-               this.formState.description.trim() !== '' ||
-               this.formState.steps.length > 0;
-    }
-    
-    // ========================================================================
-    // RENDERING
-    // ========================================================================
-    
-    /**
-     * Main render function
-     * @private
-     */
-    _render() {
-        this.container.innerHTML = '';
-        this.container.className = 'sop-create-container';
         
-        const isEditMode = this.options.mode === 'edit';
-        const headerTitle = isEditMode ? 'Edit SOP' : 'Create New SOP';
-        const saveButtonText = isEditMode ? 'Update SOP' : 'Save SOP';
+        // ====================================================================
+        // INITIALIZATION
+        // ====================================================================
         
-        this.container.innerHTML = `
-            <div class="sop-create-layout">
-                <!-- Header -->
-                <header class="sop-create-header">
-                    <div class="header-left">
-                        <button class="btn-back" id="btn-back" title="Go Back">
-                            ← Back
-                        </button>
-                        <h2>${headerTitle}</h2>
-                        ${isEditMode && this.currentSOP ? `
-                            <span class="edit-indicator">Editing: ${this._escapeHtml(this.currentSOP.title)}</span>
-                        ` : ''}
-                    </div>
-                    <div class="header-right">
-                        <span class="status-badge status-${this.formState.status}">
-                            ${this.formState.status}
-                        </span>
-                        ${this.options.autoSaveDrafts ? `
-                            <span class="auto-save-indicator" id="auto-save-indicator">
-                                Auto-save enabled
-                            </span>
-                        ` : ''}
-                    </div>
-                </header>
-                
-                <!-- Main Form -->
-                <main class="sop-create-main">
-                    <form class="sop-form" id="sop-form">
-                        <!-- Basic Info Section -->
-                        <section class="form-section">
-                            <h3>📝 Basic Information</h3>
-                            
-                            <div class="form-group">
-                                <label for="sop-title">
-                                    SOP Title <span class="required">*</span>
-                                </label>
-                                <input 
-                                    type="text" 
-                                    id="sop-title" 
-                                    class="form-input"
-                                    placeholder="e.g., New Employee Onboarding Process"
-                                    value="${this._escapeHtml(this.formState.title)}"
-                                    maxlength="200"
-                                    required
-                                />
-                                <span class="char-count">
-                                    <span id="title-count">${this.formState.title.length}</span>/200
-                                </span>
+        _init() {
+            this._loadFolders();
+            this._injectStyles();
+            if (this.options.autoRender) {
+                this._render();
+                this._attachEventListeners();
+            }
+            this._setupAutoSave();
+        }
+        
+        _loadFolders() {
+            const stored = localStorage.getItem(SOP_STORAGE_KEYS.FOLDERS);
+            this.folders = stored ? JSON.parse(stored) : [...DEFAULT_FOLDERS];
+        }
+        
+        _loadSOPs() {
+            const stored = localStorage.getItem(SOP_STORAGE_KEYS.SOPS);
+            return stored ? JSON.parse(stored) : [];
+        }
+        
+        _saveSOPs(sops) {
+            localStorage.setItem(SOP_STORAGE_KEYS.SOPS, JSON.stringify(sops));
+        }
+        
+        _setupAutoSave() {
+            if (!this.options.autoSaveDrafts) return;
+            
+            if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
+            
+            this.autoSaveTimer = setInterval(() => {
+                this._saveDraft();
+            }, this.options.autoSaveInterval);
+        }
+        
+        _saveDraft() {
+            if (this.options.mode === 'create' && this._hasContent()) {
+                this._collectFormData();
+                localStorage.setItem(SOP_STORAGE_KEYS.DRAFTS, JSON.stringify({
+                    ...this.formState,
+                    savedAt: Date.now()
+                }));
+            }
+        }
+        
+        _loadDraft() {
+            const stored = localStorage.getItem(SOP_STORAGE_KEYS.DRAFTS);
+            return stored ? JSON.parse(stored) : null;
+        }
+        
+        _clearDraft() {
+            localStorage.removeItem(SOP_STORAGE_KEYS.DRAFTS);
+        }
+        
+        _hasContent() {
+            return this.formState.title.trim() !== '' || 
+                   this.formState.description.trim() !== '' ||
+                   this.formState.steps.length > 0;
+        }
+        
+        // ====================================================================
+        // RENDERING
+        // ====================================================================
+        
+        _render() {
+            this.container.innerHTML = '';
+            this.container.className = 'sop-create-container';
+            
+            const isEdit = this.options.mode === 'edit';
+            const headerTitle = isEdit ? 'Edit SOP' : 'Create New SOP';
+            const saveText = isEdit ? 'Update SOP' : 'Save SOP';
+            
+            this.container.innerHTML = `
+                <div class="sop-create-layout">
+                    <header class="sop-create-header">
+                        <div class="header-left">
+                            <button class="btn-back" id="btn-back">← Back</button>
+                            <h2>${headerTitle}</h2>
+                        </div>
+                        <div class="header-right">
+                            <span class="status-badge status-${this.formState.status}">${this.formState.status}</span>
+                        </div>
+                    </header>
+                    
+                    <main class="sop-create-main">
+                        <form class="sop-form" id="sop-form">
+                            <!-- Basic Info -->
+                            <section class="form-section">
+                                <h3>📝 Basic Information</h3>
                                 
-                                <!-- AI Touchpoint: Generate Title Suggestions -->
-                                ${this.options.enableAIFeatures ? `
-                                <button type="button" class="ai-btn-inline" data-ai-action="suggest-title">
-                                    ✨ AI: Suggest Better Title
-                                </button>
-                                ` : ''}
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="sop-description">Description</label>
-                                <textarea 
-                                    id="sop-description" 
-                                    class="form-textarea"
-                                    placeholder="Brief description of what this SOP covers and when to use it..."
-                                    rows="3"
-                                    maxlength="500"
-                                >${this._escapeHtml(this.formState.description)}</textarea>
-                                <span class="char-count">
-                                    <span id="desc-count">${this.formState.description.length}</span>/500
-                                </span>
-                                
-                                <!-- AI Touchpoint: Improve Description -->
-                                ${this.options.enableAIFeatures ? `
-                                <button type="button" class="ai-btn-inline" data-ai-action="improve-description">
-                                    ✨ AI: Improve Description
-                                </button>
-                                ` : ''}
-                            </div>
-                            
-                            <div class="form-row">
                                 <div class="form-group">
-                                    <label for="sop-folder">Folder / Category</label>
-                                    <select id="sop-folder" class="form-select">
-                                        ${this._renderFolderOptions()}
-                                    </select>
+                                    <label for="sop-title">Title <span class="required">*</span></label>
+                                    <input type="text" id="sop-title" class="form-input" 
+                                        placeholder="e.g., New Employee Onboarding Process"
+                                        value="${this._escapeHtml(this.formState.title)}"
+                                        maxlength="200" required />
+                                    <span class="char-count"><span id="title-count">${this.formState.title.length}</span>/200</span>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label for="sop-status">Status</label>
-                                    <select id="sop-status" class="form-select">
-                                        <option value="draft" ${this.formState.status === 'draft' ? 'selected' : ''}>
-                                            📝 Draft
-                                        </option>
-                                        <option value="active" ${this.formState.status === 'active' ? 'selected' : ''}>
-                                            ✅ Active
-                                        </option>
-                                        <option value="archived" ${this.formState.status === 'archived' ? 'selected' : ''}>
-                                            📦 Archived
-                                        </option>
-                                    </select>
+                                    <label for="sop-description">Description</label>
+                                    <textarea id="sop-description" class="form-textarea" rows="3"
+                                        placeholder="Brief description of what this SOP covers..."
+                                        maxlength="500">${this._escapeHtml(this.formState.description)}</textarea>
+                                    <span class="char-count"><span id="desc-count">${this.formState.description.length}</span>/500</span>
                                 </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="sop-tags">Tags (comma-separated)</label>
-                                <input 
-                                    type="text" 
-                                    id="sop-tags" 
-                                    class="form-input"
-                                    placeholder="e.g., onboarding, hr, training"
-                                    value="${this.formState.tags.join(', ')}"
-                                />
-                                <span class="help-text">Add tags to make this SOP easier to find</span>
-                            </div>
-                        </section>
-                        
-                        <!-- Steps Section -->
-                        <section class="form-section steps-section">
-                            <div class="section-header">
-                                <h3>📋 Steps</h3>
-                                <span class="step-count" id="step-count">
-                                    ${this.formState.steps.length} / ${this.options.maxSteps} steps
-                                </span>
-                            </div>
-                            
-                            <!-- AI Touchpoint: Generate Steps -->
-                            ${this.options.enableAIFeatures ? `
-                            <div class="ai-steps-panel">
-                                <p class="ai-panel-description">
-                                    Let AI help you draft steps based on your title and description
-                                </p>
-                                <div class="ai-steps-actions">
-                                    <button type="button" class="ai-btn" data-ai-action="draft-steps">
-                                        ✨ AI: Draft Steps Automatically
-                                    </button>
-                                    <button type="button" class="ai-btn-secondary" data-ai-action="suggest-missing">
-                                        🔍 AI: Suggest Missing Steps
-                                    </button>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="sop-folder">Category</label>
+                                        <select id="sop-folder" class="form-select">
+                                            ${this._renderFolderOptions()}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="sop-status">Status</label>
+                                        <select id="sop-status" class="form-select">
+                                            <option value="draft" ${this.formState.status === 'draft' ? 'selected' : ''}>📝 Draft</option>
+                                            <option value="active" ${this.formState.status === 'active' ? 'selected' : ''}>✅ Active</option>
+                                            <option value="archived" ${this.formState.status === 'archived' ? 'selected' : ''}>📦 Archived</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            ` : ''}
+                                
+                                <div class="form-group">
+                                    <label for="sop-tags">Keywords</label>
+                                    <input type="text" id="sop-tags" class="form-input"
+                                        placeholder="e.g., training, safety, weekly"
+                                        value="${this.formState.tags.join(', ')}" />
+                                </div>
+                            </section>
                             
-                            <!-- Steps List -->
-                            <div class="steps-list" id="steps-list">
-                                ${this._renderStepsList()}
-                            </div>
-                            
-                            <!-- Add Step Button -->
-                            <button 
-                                type="button" 
-                                class="btn-add-step" 
-                                id="btn-add-step"
-                                ${this.formState.steps.length >= this.options.maxSteps ? 'disabled' : ''}
-                            >
-                                ➕ Add Step
-                            </button>
-                        </section>
-                        
-                        <!-- Form Actions -->
-                        <section class="form-actions">
-                            <div class="actions-left">
-                                ${isEditMode ? `
-                                <button type="button" class="btn btn-danger" id="btn-delete">
-                                    🗑️ Delete SOP
-                                </button>
+                            <!-- Steps -->
+                            <section class="form-section steps-section">
+                                <div class="section-header">
+                                    <h3>📋 Steps</h3>
+                                    <span class="step-count" id="step-count">${this.formState.steps.length} / ${this.options.maxSteps}</span>
+                                </div>
+                                
+                                ${this.options.enableAIFeatures ? `
+                                <div class="ai-steps-panel" id="ai-steps-panel">
+                                    <div class="ai-panel-header">
+                                        <span class="ai-icon">🤖</span>
+                                        <span class="ai-title">Draft Steps with AI</span>
+                                        <span class="ai-badge">External Paste</span>
+                                    </div>
+                                    <p class="ai-description">Use an external AI tool to draft steps, then paste them here. All pasted steps are drafts you can edit freely.</p>
+                                    <div class="ai-steps-actions">
+                                        <button type="button" class="ai-btn" id="btn-ai-generate" data-ai-action="draft-steps">
+                                            📋 Paste Draft Steps
+                                        </button>
+                                        <button type="button" class="ai-btn ai-btn-secondary" id="btn-ai-improve" data-ai-action="improve-clarity"
+                                            ${this.formState.steps.length === 0 ? 'disabled' : ''}>
+                                            ✏️ Improve Clarity
+                                        </button>
+                                    </div>
+                                    <p class="ai-hint">AI drafts are optional and fully editable. You can always write steps manually.</p>
+                                </div>
                                 ` : ''}
+                                
+                                <div class="steps-list" id="steps-list">
+                                    ${this._renderStepsList()}
+                                </div>
+                                
+                                <button type="button" class="btn-add-step" id="btn-add-step"
+                                    ${this.formState.steps.length >= this.options.maxSteps ? 'disabled' : ''}>
+                                    ➕ Add Step
+                                </button>
+                            </section>
+                            
+                            <!-- Actions -->
+                            <section class="form-actions">
+                                <div class="actions-left">
+                                    ${isEdit ? `<button type="button" class="btn btn-danger" id="btn-delete">🗑️ Delete</button>` : ''}
+                                </div>
+                                <div class="actions-right">
+                                    <button type="button" class="btn btn-secondary" id="btn-cancel">Cancel</button>
+                                    <button type="button" class="btn btn-secondary" id="btn-preview">👁️ Preview</button>
+                                    <button type="submit" class="btn btn-primary" id="btn-save">💾 ${saveText}</button>
+                                </div>
+                            </section>
+                        </form>
+                    </main>
+                    
+                    <!-- Preview Modal -->
+                    <div class="preview-modal" id="preview-modal" style="display: none;">
+                        <div class="preview-content">
+                            <div class="preview-header">
+                                <h3>Preview SOP</h3>
+                                <button class="btn-close" id="btn-close-preview">✕</button>
                             </div>
-                            <div class="actions-right">
-                                <button type="button" class="btn btn-secondary" id="btn-cancel">
-                                    Cancel
-                                </button>
-                                <button type="button" class="btn btn-secondary" id="btn-preview">
-                                    👁️ Preview
-                                </button>
-                                <button type="submit" class="btn btn-primary" id="btn-save">
-                                    💾 ${saveButtonText}
-                                </button>
-                            </div>
-                        </section>
-                    </form>
-                </main>
-                
-                <!-- Preview Modal (hidden by default) -->
-                <div class="preview-modal" id="preview-modal" style="display: none;">
-                    <div class="preview-content">
-                        <div class="preview-header">
-                            <h3>Preview SOP</h3>
-                            <button class="btn-close" id="btn-close-preview">✕</button>
-                        </div>
-                        <div class="preview-body" id="preview-body">
-                            <!-- Preview content rendered here -->
+                            <div class="preview-body" id="preview-body"></div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Notification Toast -->
-                <div class="notification-toast" id="notification-toast" style="display: none;">
-                    <span class="notification-message"></span>
-                </div>
-            </div>
-        `;
-    }
-    
-    /**
-     * Render folder dropdown options
-     * @private
-     * @returns {string} HTML options string
-     */
-    _renderFolderOptions() {
-        return this.folders.map(folder => `
-            <option value="${folder.id}" ${this.formState.folderId === folder.id ? 'selected' : ''}>
-                ${folder.icon || '📁'} ${folder.name}
-            </option>
-        `).join('');
-    }
-    
-    /**
-     * Render the steps list with drag handles
-     * @private
-     * @returns {string} HTML string for steps
-     */
-    _renderStepsList() {
-        if (this.formState.steps.length === 0) {
-            return `
-                <div class="steps-empty" id="steps-empty">
-                    <p>📭 No steps added yet</p>
-                    <p class="help-text">Click "Add Step" or use AI to generate steps</p>
+                    
+                    <!-- Clarity Preview Modal -->
+                    <div class="clarity-modal" id="clarity-modal" style="display: none;">
+                        <div class="clarity-content">
+                            <div class="clarity-header">
+                                <h3>✏️ Review Improved Steps</h3>
+                                <button class="btn-close" id="btn-close-clarity">✕</button>
+                            </div>
+                            <p class="clarity-description">Review the improved steps below:</p>
+                            <div class="clarity-comparison" id="clarity-comparison"></div>
+                            <div class="clarity-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-reject-clarity">Keep Original</button>
+                                <button type="button" class="btn btn-primary" id="btn-accept-clarity">✓ Accept Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Paste Steps Modal -->
+                    <div class="ai-modal" id="ai-paste-modal" style="display: none;">
+                        <div class="ai-modal-content">
+                            <div class="ai-modal-header">
+                                <h3>📋 Paste Draft Steps</h3>
+                                <button class="btn-close" id="btn-close-ai-paste">✕</button>
+                            </div>
+                            <div class="ai-modal-body">
+                                <div class="ai-instructions">
+                                    <p><strong>How to use:</strong></p>
+                                    <ol>
+                                        <li>Copy your SOP title: <code id="copy-title-text"></code> <button type="button" class="btn-copy-small" id="btn-copy-title">Copy</button></li>
+                                        <li>Open <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> or <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a></li>
+                                        <li>Ask: "Generate 5-8 simple steps for this SOP: [paste title]"</li>
+                                        <li>Copy the generated steps and paste below</li>
+                                    </ol>
+                                    <p class="ai-draft-reminder">These will be added as draft steps. You can edit or delete any of them.</p>
+                                </div>
+                                <div class="ai-paste-area">
+                                    <label for="ai-steps-input">Paste your draft steps here (one per line):</label>
+                                    <textarea id="ai-steps-input" class="ai-textarea" rows="8" placeholder="1. First step here
+2. Second step here
+3. Third step here
+..."></textarea>
+                                    <p class="ai-paste-hint">Tip: Numbers and bullet points will be automatically removed.</p>
+                                </div>
+                            </div>
+                            <div class="ai-modal-footer">
+                                <button type="button" class="btn btn-secondary" id="btn-cancel-ai-paste">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="btn-apply-ai-paste">Add as Drafts</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Improve Clarity Modal -->
+                    <div class="ai-modal" id="ai-improve-modal" style="display: none;">
+                        <div class="ai-modal-content">
+                            <div class="ai-modal-header">
+                                <h3>✏️ Improve Step Clarity</h3>
+                                <button class="btn-close" id="btn-close-ai-improve">✕</button>
+                            </div>
+                            <div class="ai-modal-body">
+                                <div class="ai-instructions">
+                                    <p><strong>How to use:</strong></p>
+                                    <ol>
+                                        <li>Copy your current steps below</li>
+                                        <li>Open <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> or <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a></li>
+                                        <li>Ask: "Make these steps shorter and clearer for non-technical employees"</li>
+                                        <li>Paste the improved steps in the second box</li>
+                                    </ol>
+                                    <p class="ai-draft-reminder">Improved steps are drafts. You can edit them further or keep your originals.</p>
+                                </div>
+                                <div class="ai-copy-area">
+                                    <label>Your current steps (copy these):</label>
+                                    <div class="ai-current-steps" id="ai-current-steps"></div>
+                                    <button type="button" class="btn btn-secondary btn-copy" id="btn-copy-steps">📋 Copy Steps</button>
+                                </div>
+                                <div class="ai-paste-area">
+                                    <label for="ai-improved-input">Paste improved draft steps here:</label>
+                                    <textarea id="ai-improved-input" class="ai-textarea" rows="6" placeholder="Paste the AI-improved steps here..."></textarea>
+                                </div>
+                            </div>
+                            <div class="ai-modal-footer">
+                                <button type="button" class="btn btn-secondary" id="btn-cancel-ai-improve">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="btn-preview-ai-improve">Preview Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification -->
+                    <div class="notification-toast" id="notification-toast" style="display: none;">
+                        <span class="notification-message"></span>
+                    </div>
                 </div>
             `;
         }
         
-        return this.formState.steps.map((step, index) => `
-            <div class="step-item ${this.dragState.dragOverIndex === index ? 'drag-over' : ''}" 
-                 data-step-index="${index}"
-                 draggable="true">
-                
-                <!-- Drag Handle -->
-                <div class="step-drag-handle" title="Drag to reorder">
-                    ⋮⋮
-                </div>
-                
-                <!-- Step Number -->
-                <div class="step-number">${index + 1}</div>
-                
-                <!-- Step Content -->
-                <div class="step-content">
-                    <textarea 
-                        class="step-input"
-                        data-step-index="${index}"
-                        placeholder="Describe this step..."
-                        rows="2"
-                    >${this._escapeHtml(step.text)}</textarea>
-                    
-                    <!-- Step Meta (optional fields) -->
-                    <div class="step-meta">
-                        <input 
-                            type="text" 
-                            class="step-note-input"
-                            data-step-index="${index}"
-                            placeholder="Add note or tip (optional)"
-                            value="${this._escapeHtml(step.note || '')}"
-                        />
+        _renderFolderOptions() {
+            return this.folders.map(folder => `
+                <option value="${folder.id}" ${this.formState.folderId === folder.id ? 'selected' : ''}>
+                    ${folder.icon || '📁'} ${this._escapeHtml(folder.name)}
+                </option>
+            `).join('');
+        }
+        
+        _renderStepsList() {
+            if (this.formState.steps.length === 0) {
+                return `
+                    <div class="steps-empty">
+                        <p>📭 No steps added yet</p>
+                        <p class="help-text">Click "Add Step" to begin</p>
+                    </div>
+                `;
+            }
+            
+            return this.formState.steps.map((step, index) => `
+                <div class="step-item" data-step-index="${index}" draggable="true">
+                    <div class="step-drag-handle">⋮⋮</div>
+                    <div class="step-number">${index + 1}</div>
+                    <div class="step-content">
+                        <textarea class="step-input" data-step-index="${index}"
+                            placeholder="Describe this step..." rows="2">${this._escapeHtml(step.text)}</textarea>
+                        <input type="text" class="step-note-input" data-step-index="${index}"
+                            placeholder="Add note (optional)" value="${this._escapeHtml(step.note || '')}" />
+                    </div>
+                    <div class="step-actions">
+                        <button type="button" class="step-action-btn" data-action="move-up" 
+                            data-step-index="${index}" ${index === 0 ? 'disabled' : ''}>↑</button>
+                        <button type="button" class="step-action-btn" data-action="move-down" 
+                            data-step-index="${index}" ${index === this.formState.steps.length - 1 ? 'disabled' : ''}>↓</button>
+                        <button type="button" class="step-action-btn step-delete-btn" 
+                            data-action="delete" data-step-index="${index}">🗑️</button>
                     </div>
                 </div>
-                
-                <!-- Step Actions -->
-                <div class="step-actions">
-                    <!-- AI Touchpoint: Improve Step Language -->
-                    ${this.options.enableAIFeatures ? `
-                    <button type="button" 
-                            class="step-action-btn ai-step-btn" 
-                            data-ai-action="improve-step" 
-                            data-step-index="${index}"
-                            title="AI: Improve Step Language">
-                        ✨
-                    </button>
+            `).join('');
+        }
+        
+        _renderPreview() {
+            const folder = this.folders.find(f => f.id === this.formState.folderId);
+            
+            return `
+                <div class="preview-sop">
+                    <div class="preview-meta">
+                        <span class="preview-folder" style="background: ${folder?.color || '#666'}20; color: ${folder?.color || '#666'}">
+                            ${folder?.icon || '📁'} ${this._escapeHtml(folder?.name || 'Uncategorized')}
+                        </span>
+                        <span class="preview-status status-${this.formState.status}">${this.formState.status}</span>
+                    </div>
+                    
+                    <h2>${this._escapeHtml(this.formState.title) || 'Untitled SOP'}</h2>
+                    <p class="preview-description">${this._escapeHtml(this.formState.description) || 'No description'}</p>
+                    
+                    ${this.formState.tags.length > 0 ? `
+                    <div class="preview-tags">
+                        ${this.formState.tags.map(tag => `<span class="tag">#${this._escapeHtml(tag)}</span>`).join('')}
+                    </div>
                     ` : ''}
                     
-                    <button type="button" 
-                            class="step-action-btn" 
-                            data-action="move-up" 
-                            data-step-index="${index}"
-                            title="Move Up"
-                            ${index === 0 ? 'disabled' : ''}>
-                        ↑
-                    </button>
+                    <hr />
                     
-                    <button type="button" 
-                            class="step-action-btn" 
-                            data-action="move-down" 
-                            data-step-index="${index}"
-                            title="Move Down"
-                            ${index === this.formState.steps.length - 1 ? 'disabled' : ''}>
-                        ↓
-                    </button>
-                    
-                    <button type="button" 
-                            class="step-action-btn step-delete-btn" 
-                            data-action="delete" 
-                            data-step-index="${index}"
-                            title="Delete Step">
-                        🗑️
-                    </button>
+                    <h3>Steps (${this.formState.steps.length})</h3>
+                    ${this.formState.steps.length > 0 ? `
+                    <ol class="preview-steps">
+                        ${this.formState.steps.map(step => `
+                            <li>
+                                <strong>${this._escapeHtml(step.text)}</strong>
+                                ${step.note ? `<p class="step-note">💡 ${this._escapeHtml(step.note)}</p>` : ''}
+                            </li>
+                        `).join('')}
+                    </ol>
+                    ` : '<p>No steps defined</p>'}
                 </div>
-            </div>
-        `).join('');
-    }
-    
-    /**
-     * Render preview content
-     * @private
-     * @returns {string} HTML preview string
-     */
-    _renderPreview() {
-        const folder = this.folders.find(f => f.id === this.formState.folderId);
+            `;
+        }
         
-        return `
-            <div class="preview-sop">
-                <div class="preview-meta">
-                    <span class="preview-folder" style="background: ${folder?.color || '#666'}20; color: ${folder?.color || '#666'}">
-                        ${folder?.icon || '📁'} ${folder?.name || 'Uncategorized'}
-                    </span>
-                    <span class="preview-status status-${this.formState.status}">
-                        ${this.formState.status}
-                    </span>
-                </div>
-                
-                <h2 class="preview-title">${this._escapeHtml(this.formState.title) || 'Untitled SOP'}</h2>
-                
-                <p class="preview-description">
-                    ${this._escapeHtml(this.formState.description) || 'No description provided'}
-                </p>
-                
-                ${this.formState.tags.length > 0 ? `
-                <div class="preview-tags">
-                    ${this.formState.tags.map(tag => `<span class="tag">#${this._escapeHtml(tag)}</span>`).join('')}
-                </div>
-                ` : ''}
-                
-                <hr />
-                
-                <h3>Steps (${this.formState.steps.length})</h3>
-                
-                ${this.formState.steps.length > 0 ? `
-                <ol class="preview-steps">
-                    ${this.formState.steps.map((step, i) => `
-                        <li class="preview-step">
-                            <strong>${this._escapeHtml(step.text)}</strong>
-                            ${step.note ? `<p class="step-note">💡 ${this._escapeHtml(step.note)}</p>` : ''}
-                        </li>
-                    `).join('')}
-                </ol>
-                ` : '<p class="empty-message">No steps defined</p>'}
-            </div>
-        `;
-    }
-    
-    /**
-     * Inject CSS styles for the module
-     * @private
-     */
-    _injectStyles() {
-        if (document.getElementById('sop-create-styles')) return;
+        // ====================================================================
+        // EVENT HANDLING
+        // ====================================================================
         
-        const styles = document.createElement('style');
-        styles.id = 'sop-create-styles';
-        styles.textContent = `
-            /* ============================================
-               SOP Create/Edit Module - Minimal CSS
-               Desktop-first design
-               ============================================ */
-            
-            .sop-create-container {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                color: #1f2937;
-                background: #f9fafb;
-                min-height: 100vh;
-            }
-            
-            .sop-create-layout {
-                max-width: 900px;
-                margin: 0 auto;
-                padding: 2rem;
-            }
-            
-            /* Header */
-            .sop-create-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 2rem;
-                padding-bottom: 1rem;
-                border-bottom: 1px solid #e5e7eb;
-            }
-            
-            .header-left {
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-            }
-            
-            .header-left h2 {
-                margin: 0;
-                font-size: 1.5rem;
-            }
-            
-            .btn-back {
-                padding: 0.5rem 1rem;
-                background: none;
-                border: 1px solid #d1d5db;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 0.9rem;
-                transition: background 0.15s;
-            }
-            
-            .btn-back:hover {
-                background: #f3f4f6;
-            }
-            
-            .edit-indicator {
-                color: #6b7280;
-                font-size: 0.875rem;
-                font-style: italic;
-            }
-            
-            .header-right {
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-            }
-            
-            .status-badge {
-                padding: 0.25rem 0.75rem;
-                border-radius: 999px;
-                font-size: 0.75rem;
-                font-weight: 500;
-                text-transform: uppercase;
-            }
-            
-            .status-draft { background: #fef3c7; color: #92400e; }
-            .status-active { background: #d1fae5; color: #065f46; }
-            .status-archived { background: #e5e7eb; color: #6b7280; }
-            
-            .auto-save-indicator {
-                color: #6b7280;
-                font-size: 0.75rem;
-            }
-            
-            /* Form Sections */
-            .form-section {
-                background: white;
-                border: 1px solid #e5e7eb;
-                border-radius: 10px;
-                padding: 1.5rem;
-                margin-bottom: 1.5rem;
-            }
-            
-            .form-section h3 {
-                margin: 0 0 1.25rem;
-                font-size: 1.1rem;
-                font-weight: 600;
-            }
-            
-            .section-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 1rem;
-            }
-            
-            .section-header h3 {
-                margin: 0;
-            }
-            
-            .step-count {
-                color: #6b7280;
-                font-size: 0.875rem;
-            }
-            
-            /* Form Elements */
-            .form-group {
-                margin-bottom: 1.25rem;
-            }
-            
-            .form-group:last-child {
-                margin-bottom: 0;
-            }
-            
-            .form-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 1.5rem;
-            }
-            
-            label {
-                display: block;
-                margin-bottom: 0.5rem;
-                font-weight: 500;
-                font-size: 0.9rem;
-            }
-            
-            .required {
-                color: #ef4444;
-            }
-            
-            .form-input,
-            .form-textarea,
-            .form-select {
-                width: 100%;
-                padding: 0.75rem 1rem;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                font-size: 0.95rem;
-                transition: border-color 0.15s, box-shadow 0.15s;
-                box-sizing: border-box;
-            }
-            
-            .form-input:focus,
-            .form-textarea:focus,
-            .form-select:focus {
-                outline: none;
-                border-color: #6366f1;
-                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-            }
-            
-            .form-textarea {
-                resize: vertical;
-                min-height: 80px;
-            }
-            
-            .char-count {
-                display: block;
-                text-align: right;
-                font-size: 0.75rem;
-                color: #9ca3af;
-                margin-top: 0.25rem;
-            }
-            
-            .help-text {
-                font-size: 0.8rem;
-                color: #6b7280;
-                margin-top: 0.25rem;
-            }
-            
-            /* AI Buttons */
-            .ai-btn,
-            .ai-btn-secondary {
-                padding: 0.75rem 1.25rem;
-                border-radius: 8px;
-                font-size: 0.9rem;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.15s;
-            }
-            
-            .ai-btn {
-                background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                border: 1px solid #a7f3d0;
-                color: #065f46;
-            }
-            
-            .ai-btn:hover {
-                background: linear-gradient(135deg, #dcfce7, #cffafe);
-            }
-            
-            .ai-btn-secondary {
-                background: white;
-                border: 1px solid #d1d5db;
-                color: #374151;
-            }
-            
-            .ai-btn-secondary:hover {
-                background: #f9fafb;
-            }
-            
-            .ai-btn-inline {
-                margin-top: 0.5rem;
-                padding: 0.375rem 0.75rem;
-                background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                border: 1px solid #a7f3d0;
-                border-radius: 6px;
-                color: #065f46;
-                font-size: 0.75rem;
-                cursor: pointer;
-                transition: all 0.15s;
-            }
-            
-            .ai-btn-inline:hover {
-                background: linear-gradient(135deg, #dcfce7, #cffafe);
-            }
-            
-            /* AI Steps Panel */
-            .ai-steps-panel {
-                background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                border: 1px solid #a7f3d0;
-                border-radius: 8px;
-                padding: 1rem 1.25rem;
-                margin-bottom: 1.25rem;
-            }
-            
-            .ai-panel-description {
-                margin: 0 0 0.75rem;
-                font-size: 0.875rem;
-                color: #065f46;
-            }
-            
-            .ai-steps-actions {
-                display: flex;
-                gap: 0.75rem;
-            }
-            
-            /* Steps List */
-            .steps-list {
-                min-height: 100px;
-            }
-            
-            .steps-empty {
-                text-align: center;
-                padding: 2rem;
-                background: #f9fafb;
-                border: 2px dashed #e5e7eb;
-                border-radius: 8px;
-                color: #6b7280;
-            }
-            
-            .steps-empty p {
-                margin: 0.25rem 0;
-            }
-            
-            .step-item {
-                display: flex;
-                align-items: flex-start;
-                gap: 0.75rem;
-                padding: 1rem;
-                background: #f9fafb;
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                margin-bottom: 0.75rem;
-                transition: all 0.15s;
-            }
-            
-            .step-item:hover {
-                background: #f3f4f6;
-            }
-            
-            .step-item.dragging {
-                opacity: 0.5;
-                background: #dbeafe;
-            }
-            
-            .step-item.drag-over {
-                border-color: #6366f1;
-                border-style: dashed;
-            }
-            
-            .step-drag-handle {
-                cursor: grab;
-                color: #9ca3af;
-                font-weight: bold;
-                padding: 0.25rem;
-                user-select: none;
-            }
-            
-            .step-drag-handle:active {
-                cursor: grabbing;
-            }
-            
-            .step-number {
-                min-width: 28px;
-                height: 28px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: #6366f1;
-                color: white;
-                border-radius: 50%;
-                font-size: 0.8rem;
-                font-weight: 600;
-            }
-            
-            .step-content {
-                flex: 1;
-            }
-            
-            .step-input {
-                width: 100%;
-                padding: 0.5rem 0.75rem;
-                border: 1px solid #d1d5db;
-                border-radius: 6px;
-                font-size: 0.9rem;
-                resize: vertical;
-                box-sizing: border-box;
-            }
-            
-            .step-input:focus {
-                outline: none;
-                border-color: #6366f1;
-            }
-            
-            .step-meta {
-                margin-top: 0.5rem;
-            }
-            
-            .step-note-input {
-                width: 100%;
-                padding: 0.375rem 0.625rem;
-                border: 1px solid #e5e7eb;
-                border-radius: 4px;
-                font-size: 0.8rem;
-                background: white;
-                box-sizing: border-box;
-            }
-            
-            .step-note-input:focus {
-                outline: none;
-                border-color: #6366f1;
-            }
-            
-            .step-actions {
-                display: flex;
-                flex-direction: column;
-                gap: 0.375rem;
-            }
-            
-            .step-action-btn {
-                width: 32px;
-                height: 32px;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                background: white;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.15s;
-                font-size: 0.85rem;
-            }
-            
-            .step-action-btn:hover:not(:disabled) {
-                background: #f3f4f6;
-            }
-            
-            .step-action-btn:disabled {
-                opacity: 0.4;
-                cursor: not-allowed;
-            }
-            
-            .step-delete-btn:hover:not(:disabled) {
-                background: #fef2f2;
-                border-color: #fecaca;
-            }
-            
-            .ai-step-btn {
-                background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                border-color: #a7f3d0;
-            }
-            
-            .ai-step-btn:hover {
-                background: linear-gradient(135deg, #dcfce7, #cffafe);
-            }
-            
-            .btn-add-step {
-                width: 100%;
-                padding: 0.875rem;
-                background: white;
-                border: 2px dashed #d1d5db;
-                border-radius: 8px;
-                color: #6b7280;
-                font-size: 0.9rem;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.15s;
-            }
-            
-            .btn-add-step:hover:not(:disabled) {
-                border-color: #6366f1;
-                color: #6366f1;
-                background: #f5f3ff;
-            }
-            
-            .btn-add-step:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            
-            /* Form Actions */
-            .form-actions {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding-top: 1rem;
-            }
-            
-            .actions-left,
-            .actions-right {
-                display: flex;
-                gap: 0.75rem;
-            }
-            
-            .btn {
-                padding: 0.75rem 1.5rem;
-                border: none;
-                border-radius: 8px;
-                font-size: 0.9rem;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.15s;
-            }
-            
-            .btn-primary {
-                background: #6366f1;
-                color: white;
-            }
-            
-            .btn-primary:hover {
-                background: #4f46e5;
-            }
-            
-            .btn-secondary {
-                background: #e5e7eb;
-                color: #374151;
-            }
-            
-            .btn-secondary:hover {
-                background: #d1d5db;
-            }
-            
-            .btn-danger {
-                background: #fef2f2;
-                color: #dc2626;
-                border: 1px solid #fecaca;
-            }
-            
-            .btn-danger:hover {
-                background: #fee2e2;
-            }
-            
-            /* Preview Modal */
-            .preview-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-            }
-            
-            .preview-content {
-                background: white;
-                border-radius: 12px;
-                width: 90%;
-                max-width: 700px;
-                max-height: 80vh;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .preview-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 1rem 1.5rem;
-                border-bottom: 1px solid #e5e7eb;
-            }
-            
-            .preview-header h3 {
-                margin: 0;
-            }
-            
-            .btn-close {
-                width: 32px;
-                height: 32px;
-                border: none;
-                background: #f3f4f6;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 1rem;
-            }
-            
-            .btn-close:hover {
-                background: #e5e7eb;
-            }
-            
-            .preview-body {
-                padding: 1.5rem;
-                overflow-y: auto;
-            }
-            
-            .preview-sop {}
-            
-            .preview-meta {
-                display: flex;
-                gap: 0.75rem;
-                margin-bottom: 1rem;
-            }
-            
-            .preview-folder {
-                padding: 0.25rem 0.75rem;
-                border-radius: 6px;
-                font-size: 0.8rem;
-                font-weight: 500;
-            }
-            
-            .preview-title {
-                margin: 0 0 0.5rem;
-                font-size: 1.5rem;
-            }
-            
-            .preview-description {
-                color: #6b7280;
-                margin: 0 0 1rem;
-            }
-            
-            .preview-tags {
-                display: flex;
-                gap: 0.5rem;
-                margin-bottom: 1rem;
-            }
-            
-            .tag {
-                color: #6366f1;
-                font-size: 0.85rem;
-            }
-            
-            .preview-steps {
-                padding-left: 1.5rem;
-            }
-            
-            .preview-step {
-                margin-bottom: 1rem;
-                line-height: 1.5;
-            }
-            
-            .step-note {
-                margin: 0.25rem 0 0;
-                font-size: 0.85rem;
-                color: #6b7280;
-                font-weight: normal;
-            }
-            
-            /* Notification Toast */
-            .notification-toast {
-                position: fixed;
-                bottom: 2rem;
-                right: 2rem;
-                padding: 1rem 1.5rem;
-                background: #1f2937;
-                color: white;
-                border-radius: 8px;
-                font-size: 0.9rem;
-                z-index: 1001;
-                animation: slideIn 0.3s ease;
-            }
-            
-            .notification-toast.success { background: #059669; }
-            .notification-toast.error { background: #dc2626; }
-            .notification-toast.info { background: #2563eb; }
-            
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            
-            /* Responsive */
-            @media (max-width: 768px) {
+        _attachEventListeners() {
+            const form = document.getElementById('sop-form');
+            form?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this._handleSave();
+            });
+            
+            document.getElementById('btn-back')?.addEventListener('click', () => this._handleCancel());
+            document.getElementById('btn-cancel')?.addEventListener('click', () => this._handleCancel());
+            document.getElementById('btn-preview')?.addEventListener('click', () => this._showPreview());
+            document.getElementById('btn-close-preview')?.addEventListener('click', () => this._hidePreview());
+            document.getElementById('btn-delete')?.addEventListener('click', () => this._handleDelete());
+            
+            // Form inputs
+            document.getElementById('sop-title')?.addEventListener('input', (e) => {
+                this.formState.title = e.target.value;
+                document.getElementById('title-count').textContent = e.target.value.length;
+            });
+            
+            document.getElementById('sop-description')?.addEventListener('input', (e) => {
+                this.formState.description = e.target.value;
+                document.getElementById('desc-count').textContent = e.target.value.length;
+            });
+            
+            document.getElementById('sop-folder')?.addEventListener('change', (e) => {
+                this.formState.folderId = e.target.value;
+            });
+            
+            document.getElementById('sop-status')?.addEventListener('change', (e) => {
+                this.formState.status = e.target.value;
+                this._updateStatusBadge();
+            });
+            
+            document.getElementById('sop-tags')?.addEventListener('input', (e) => {
+                this.formState.tags = e.target.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+            });
+            
+            document.getElementById('btn-add-step')?.addEventListener('click', () => this._addStep());
+            
+            this._attachStepsListeners();
+            
+            // AI actions
+            document.querySelectorAll('[data-ai-action]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    this._handleAIAction(e.target.dataset.aiAction);
+                });
+            });
+            
+            document.getElementById('preview-modal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'preview-modal') this._hidePreview();
+            });
+        }
+        
+        _attachStepsListeners() {
+            const stepsList = document.getElementById('steps-list');
+            if (!stepsList) return;
+            
+            stepsList.addEventListener('input', (e) => {
+                const index = parseInt(e.target.dataset.stepIndex);
+                if (e.target.classList.contains('step-input') && this.formState.steps[index]) {
+                    this.formState.steps[index].text = e.target.value;
+                }
+                if (e.target.classList.contains('step-note-input') && this.formState.steps[index]) {
+                    this.formState.steps[index].note = e.target.value;
+                }
+            });
+            
+            stepsList.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                
+                const action = btn.dataset.action;
+                const index = parseInt(btn.dataset.stepIndex);
+                
+                if (action === 'move-up') this._moveStep(index, index - 1);
+                else if (action === 'move-down') this._moveStep(index, index + 1);
+                else if (action === 'delete') this._deleteStep(index);
+            });
+            
+            // Drag and drop
+            stepsList.addEventListener('dragstart', (e) => {
+                const item = e.target.closest('.step-item');
+                if (item) {
+                    this.dragState.dragging = true;
+                    this.dragState.draggedIndex = parseInt(item.dataset.stepIndex);
+                    item.classList.add('dragging');
+                }
+            });
+            
+            stepsList.addEventListener('dragend', (e) => {
+                const item = e.target.closest('.step-item');
+                if (item) item.classList.remove('dragging');
+                this.dragState = { dragging: false, draggedIndex: null, dragOverIndex: null };
+                document.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+            });
+            
+            stepsList.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const item = e.target.closest('.step-item');
+                if (item && this.dragState.dragging) {
+                    document.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+                    const overIndex = parseInt(item.dataset.stepIndex);
+                    if (overIndex !== this.dragState.draggedIndex) {
+                        item.classList.add('drag-over');
+                        this.dragState.dragOverIndex = overIndex;
+                    }
+                }
+            });
+            
+            stepsList.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (this.dragState.draggedIndex !== null && this.dragState.dragOverIndex !== null) {
+                    this._moveStep(this.dragState.draggedIndex, this.dragState.dragOverIndex);
+                }
+            });
+        }
+        
+        _updateStatusBadge() {
+            const badge = document.querySelector('.status-badge');
+            if (badge) {
+                badge.className = `status-badge status-${this.formState.status}`;
+                badge.textContent = this.formState.status;
+            }
+        }
+        
+        // ====================================================================
+        // STEP MANAGEMENT
+        // ====================================================================
+        
+        _addStep(text = '') {
+            if (this.formState.steps.length >= this.options.maxSteps) return;
+            
+            this.formState.steps.push({
+                id: `step_${Date.now()}`,
+                text: text,
+                note: '',
+                order: this.formState.steps.length + 1
+            });
+            
+            this._updateStepsList();
+            
+            setTimeout(() => {
+                const inputs = document.querySelectorAll('.step-input');
+                inputs[inputs.length - 1]?.focus();
+            }, 50);
+        }
+        
+        _deleteStep(index) {
+            if (confirm('Delete this step?')) {
+                this.formState.steps.splice(index, 1);
+                this._reorderSteps();
+                this._updateStepsList();
+            }
+        }
+        
+        _moveStep(from, to) {
+            if (to < 0 || to >= this.formState.steps.length) return;
+            const [moved] = this.formState.steps.splice(from, 1);
+            this.formState.steps.splice(to, 0, moved);
+            this._reorderSteps();
+            this._updateStepsList();
+        }
+        
+        _reorderSteps() {
+            this.formState.steps.forEach((step, i) => step.order = i + 1);
+        }
+        
+        _updateStepsList() {
+            const list = document.getElementById('steps-list');
+            const count = document.getElementById('step-count');
+            const addBtn = document.getElementById('btn-add-step');
+            const improveBtn = document.getElementById('btn-ai-improve');
+            
+            if (list) {
+                list.innerHTML = this._renderStepsList();
+                this._attachStepsListeners();
+            }
+            if (count) count.textContent = `${this.formState.steps.length} / ${this.options.maxSteps}`;
+            if (addBtn) addBtn.disabled = this.formState.steps.length >= this.options.maxSteps;
+            if (improveBtn) improveBtn.disabled = this.formState.steps.length === 0;
+        }
+        
+        // ====================================================================
+        // AI HANDLERS (External Paste Workflow)
+        // ====================================================================
+        
+        /**
+         * Handle AI action buttons
+         * Since this is a standalone app without API access, we use an
+         * external-paste workflow where users generate content in external
+         * AI tools and paste it here.
+         */
+        _handleAIAction(action) {
+            if (action === 'draft-steps') {
+                this._showAIPasteModal();
+            } else if (action === 'improve-clarity') {
+                this._showAIImproveModal();
+            }
+        }
+        
+        /**
+         * Show the AI Paste Steps modal
+         */
+        _showAIPasteModal() {
+            this._collectFormData();
+            
+            const modal = document.getElementById('ai-paste-modal');
+            const titleText = document.getElementById('copy-title-text');
+            const stepsInput = document.getElementById('ai-steps-input');
+            
+            if (!modal) return;
+            
+            // Set the title for copying
+            const title = this.formState.title?.trim() || 'My SOP';
+            if (titleText) titleText.textContent = `"${title}"`;
+            
+            // Clear previous input
+            if (stepsInput) stepsInput.value = '';
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach listeners
+            this._attachAIPasteModalListeners();
+        }
+        
+        /**
+         * Attach event listeners for AI Paste modal
+         */
+        _attachAIPasteModalListeners() {
+            const modal = document.getElementById('ai-paste-modal');
+            const closeBtn = document.getElementById('btn-close-ai-paste');
+            const cancelBtn = document.getElementById('btn-cancel-ai-paste');
+            const applyBtn = document.getElementById('btn-apply-ai-paste');
+            const copyTitleBtn = document.getElementById('btn-copy-title');
+            
+            const closeModal = () => {
+                modal.style.display = 'none';
+            };
+            
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newCancelBtn = cancelBtn?.cloneNode(true);
+            const newApplyBtn = applyBtn?.cloneNode(true);
+            const newCopyTitleBtn = copyTitleBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            cancelBtn?.parentNode?.replaceChild(newCancelBtn, cancelBtn);
+            applyBtn?.parentNode?.replaceChild(newApplyBtn, applyBtn);
+            copyTitleBtn?.parentNode?.replaceChild(newCopyTitleBtn, copyTitleBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newCancelBtn?.addEventListener('click', closeModal);
+            
+            newApplyBtn?.addEventListener('click', () => {
+                this._applyPastedSteps();
+                closeModal();
+            });
+            
+            newCopyTitleBtn?.addEventListener('click', () => {
+                const title = this.formState.title?.trim() || 'My SOP';
+                navigator.clipboard?.writeText(title).then(() => {
+                    this._showNotification('Title copied!', 'success');
+                }).catch(() => {
+                    this._showNotification('Could not copy. Please select and copy manually.', 'error');
+                });
+            });
+            
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+        }
+        
+        /**
+         * Parse and apply pasted steps from AI
+         */
+        _applyPastedSteps() {
+            const input = document.getElementById('ai-steps-input');
+            const rawText = input?.value?.trim();
+            
+            if (!rawText) {
+                this._showNotification('Please paste some steps first', 'error');
+                return;
+            }
+            
+            // Parse steps from text
+            const steps = this._parseStepsFromText(rawText);
+            
+            if (steps.length === 0) {
+                this._showNotification('Could not parse any steps. Try one step per line.', 'error');
+                return;
+            }
+            
+            // Confirm if replacing existing steps
+            if (this.formState.steps.length > 0) {
+                if (!confirm(`This will replace your ${this.formState.steps.length} existing steps with ${steps.length} new steps. Continue?`)) {
+                    return;
+                }
+            }
+            
+            // Apply the steps
+            this.formState.steps = steps.map((text, index) => ({
+                id: `step_pasted_${Date.now()}_${index}`,
+                text: text,
+                note: '',
+                order: index + 1,
+                aiPasted: true
+            }));
+            
+            this._updateStepsList();
+            this._showNotification(`✨ Added ${steps.length} steps. Review and edit as needed.`, 'success');
+            this._showAIPastedNotice();
+        }
+        
+        /**
+         * Parse steps from raw text (handles various formats)
+         */
+        _parseStepsFromText(text) {
+            // Split by newlines
+            const lines = text.split(/\r?\n/);
+            
+            const steps = [];
+            for (const line of lines) {
+                // Clean up the line
+                let cleaned = line.trim();
+                
+                // Skip empty lines
+                if (!cleaned) continue;
+                
+                // Remove common prefixes: numbers, bullets, dashes, asterisks
+                cleaned = cleaned
+                    .replace(/^[\d]+[.):]\s*/, '')     // "1. " or "1) " or "1: "
+                    .replace(/^[-•*]\s*/, '')          // "- " or "• " or "* "
+                    .replace(/^Step\s*\d*[:.]\s*/i, '') // "Step 1: " or "Step: "
+                    .trim();
+                
+                // Skip if nothing left
+                if (!cleaned) continue;
+                
+                // Skip lines that are too short (likely not real steps)
+                if (cleaned.length < 3) continue;
+                
+                steps.push(cleaned);
+            }
+            
+            // Limit to max steps
+            return steps.slice(0, this.options.maxSteps);
+        }
+        
+        /**
+         * Show notice that steps were pasted from AI
+         */
+        _showAIPastedNotice() {
+            document.getElementById('ai-draft-notice')?.remove();
+            document.getElementById('ai-improved-notice')?.remove();
+            document.getElementById('ai-pasted-notice')?.remove();
+            
+            const notice = document.createElement('div');
+            notice.id = 'ai-pasted-notice';
+            notice.className = 'ai-draft-notice';
+            notice.innerHTML = `
+                <span class="notice-icon">📋</span>
+                <span class="notice-text">Draft steps added. These are fully editable—review and adjust before saving.</span>
+                <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
+            `;
+            
+            const stepsList = document.getElementById('steps-list');
+            if (stepsList) {
+                stepsList.parentNode.insertBefore(notice, stepsList);
+            }
+        }
+        
+        /**
+         * Show the AI Improve Clarity modal
+         */
+        _showAIImproveModal() {
+            this._collectFormData();
+            
+            if (this.formState.steps.length === 0) {
+                this._showNotification('Add some steps first before improving them', 'error');
+                return;
+            }
+            
+            const modal = document.getElementById('ai-improve-modal');
+            const currentStepsEl = document.getElementById('ai-current-steps');
+            const improvedInput = document.getElementById('ai-improved-input');
+            
+            if (!modal) return;
+            
+            // Store original steps
+            this._originalSteps = this.formState.steps.map(s => ({ ...s }));
+            
+            // Display current steps for copying
+            if (currentStepsEl) {
+                const stepsText = this.formState.steps
+                    .map((s, i) => `${i + 1}. ${s.text}`)
+                    .join('\n');
+                currentStepsEl.textContent = stepsText;
+            }
+            
+            // Clear previous input
+            if (improvedInput) improvedInput.value = '';
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach listeners
+            this._attachAIImproveModalListeners();
+        }
+        
+        /**
+         * Attach event listeners for AI Improve modal
+         */
+        _attachAIImproveModalListeners() {
+            const modal = document.getElementById('ai-improve-modal');
+            const closeBtn = document.getElementById('btn-close-ai-improve');
+            const cancelBtn = document.getElementById('btn-cancel-ai-improve');
+            const previewBtn = document.getElementById('btn-preview-ai-improve');
+            const copyStepsBtn = document.getElementById('btn-copy-steps');
+            
+            const closeModal = () => {
+                modal.style.display = 'none';
+                this._originalSteps = null;
+            };
+            
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newCancelBtn = cancelBtn?.cloneNode(true);
+            const newPreviewBtn = previewBtn?.cloneNode(true);
+            const newCopyStepsBtn = copyStepsBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            cancelBtn?.parentNode?.replaceChild(newCancelBtn, cancelBtn);
+            previewBtn?.parentNode?.replaceChild(newPreviewBtn, previewBtn);
+            copyStepsBtn?.parentNode?.replaceChild(newCopyStepsBtn, copyStepsBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newCancelBtn?.addEventListener('click', closeModal);
+            
+            newPreviewBtn?.addEventListener('click', () => {
+                const improvedText = document.getElementById('ai-improved-input')?.value?.trim();
+                if (!improvedText) {
+                    this._showNotification('Please paste the improved steps first', 'error');
+                    return;
+                }
+                
+                const improvedSteps = this._parseStepsFromText(improvedText);
+                if (improvedSteps.length === 0) {
+                    this._showNotification('Could not parse steps. Try one step per line.', 'error');
+                    return;
+                }
+                
+                this._improvedSteps = improvedSteps;
+                closeModal();
+                this._showClarityPreview();
+            });
+            
+            newCopyStepsBtn?.addEventListener('click', () => {
+                const stepsText = this.formState.steps
+                    .map((s, i) => `${i + 1}. ${s.text}`)
+                    .join('\n');
+                navigator.clipboard?.writeText(stepsText).then(() => {
+                    this._showNotification('Steps copied! Now paste in your AI tool.', 'success');
+                }).catch(() => {
+                    this._showNotification('Could not copy. Please select and copy manually.', 'error');
+                });
+            });
+            
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+        }
+        
+        /**
+         * Show before/after clarity preview modal
+         */
+        _showClarityPreview() {
+            const modal = document.getElementById('clarity-modal');
+            const comparison = document.getElementById('clarity-comparison');
+            
+            if (!modal || !comparison || !this._originalSteps) return;
+            
+            // Build comparison HTML
+            const comparisonHtml = this._originalSteps.map((original, index) => {
+                const improved = this._improvedSteps?.[index] || original.text;
+                const hasChanged = original.text.trim() !== improved.trim();
+                
+                return `
+                    <div class="clarity-step ${hasChanged ? 'changed' : 'unchanged'}">
+                        <div class="step-number">${index + 1}</div>
+                        <div class="step-comparison">
+                            <div class="step-original">
+                                <span class="comparison-label">Before:</span>
+                                <span class="comparison-text">${this._escapeHtml(original.text)}</span>
+                            </div>
+                            <div class="step-improved">
+                                <span class="comparison-label">After:</span>
+                                <span class="comparison-text ${hasChanged ? 'highlight' : ''}">${this._escapeHtml(improved)}</span>
+                            </div>
+                        </div>
+                        ${hasChanged ? '<span class="change-badge">Changed</span>' : '<span class="unchanged-badge">No change</span>'}
+                    </div>
+                `;
+            }).join('');
+            
+            // Handle case where improved has more/fewer steps
+            if (this._improvedSteps && this._improvedSteps.length > this._originalSteps.length) {
+                for (let i = this._originalSteps.length; i < this._improvedSteps.length; i++) {
+                    comparison.innerHTML += `
+                        <div class="clarity-step changed">
+                            <div class="step-number">${i + 1}</div>
+                            <div class="step-comparison">
+                                <div class="step-original">
+                                    <span class="comparison-label">Before:</span>
+                                    <span class="comparison-text">(new step)</span>
+                                </div>
+                                <div class="step-improved">
+                                    <span class="comparison-label">After:</span>
+                                    <span class="comparison-text highlight">${this._escapeHtml(this._improvedSteps[i])}</span>
+                                </div>
+                            </div>
+                            <span class="change-badge">Added</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            comparison.innerHTML = comparisonHtml;
+            
+            // Show modal
+            modal.style.display = 'flex';
+            
+            // Attach modal event listeners
+            this._attachClarityModalListeners();
+        }
+        
+        /**
+         * Attach event listeners for clarity modal
+         */
+        _attachClarityModalListeners() {
+            const modal = document.getElementById('clarity-modal');
+            const closeBtn = document.getElementById('btn-close-clarity');
+            const rejectBtn = document.getElementById('btn-reject-clarity');
+            const acceptBtn = document.getElementById('btn-accept-clarity');
+            
+            const closeModal = () => {
+                modal.style.display = 'none';
+                this._originalSteps = null;
+                this._improvedSteps = null;
+            };
+            
+            // Remove old listeners by cloning
+            const newCloseBtn = closeBtn?.cloneNode(true);
+            const newRejectBtn = rejectBtn?.cloneNode(true);
+            const newAcceptBtn = acceptBtn?.cloneNode(true);
+            
+            closeBtn?.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            rejectBtn?.parentNode?.replaceChild(newRejectBtn, rejectBtn);
+            acceptBtn?.parentNode?.replaceChild(newAcceptBtn, acceptBtn);
+            
+            newCloseBtn?.addEventListener('click', closeModal);
+            newRejectBtn?.addEventListener('click', () => {
+                closeModal();
+                this._showNotification('Changes discarded. Original steps kept.', 'info');
+            });
+            
+            newAcceptBtn?.addEventListener('click', () => {
+                this._acceptClarityChanges();
+                closeModal();
+            });
+            
+            // Close on backdrop click
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+        }
+        
+        /**
+         * Accept clarity improvements and update steps
+         */
+        _acceptClarityChanges() {
+            if (!this._improvedSteps) return;
+            
+            // Replace steps with improved versions
+            this.formState.steps = this._improvedSteps.map((text, index) => ({
+                id: this._originalSteps?.[index]?.id || `step_improved_${Date.now()}_${index}`,
+                text: text,
+                note: this._originalSteps?.[index]?.note || '',
+                order: index + 1,
+                aiImproved: true
+            }));
+            
+            this._updateStepsList();
+            this._showNotification('✨ Steps updated with improved clarity!', 'success');
+            this._showAIImprovedNotice();
+        }
+        
+        /**
+         * Show notice that steps were AI-improved
+         */
+        _showAIImprovedNotice() {
+            document.getElementById('ai-draft-notice')?.remove();
+            document.getElementById('ai-improved-notice')?.remove();
+            document.getElementById('ai-pasted-notice')?.remove();
+            
+            const notice = document.createElement('div');
+            notice.id = 'ai-improved-notice';
+            notice.className = 'ai-draft-notice ai-improved-notice';
+            notice.innerHTML = `
+                <span class="notice-icon">✨</span>
+                <span class="notice-text">Draft improvements applied. These are fully editable—review and save when ready.</span>
+                <button type="button" class="notice-dismiss" onclick="this.parentElement.remove()">✕</button>
+            `;
+            
+            const stepsList = document.getElementById('steps-list');
+            if (stepsList) {
+                stepsList.parentNode.insertBefore(notice, stepsList);
+            }
+        }
+        
+        // ====================================================================
+        // FORM ACTIONS
+        // ====================================================================
+        
+        _handleSave() {
+            this._collectFormData();
+            
+            if (!this._validate()) return;
+            
+            const sopData = {
+                id: (this.options.mode === 'edit' && this.currentSOP) 
+                    ? this.currentSOP.id 
+                    : `sop_${Date.now()}`,
+                title: this.formState.title.trim(),
+                description: this.formState.description.trim(),
+                folderId: this.formState.folderId,
+                steps: this.formState.steps.map((step, i) => ({
+                    id: step.id || `step_${Date.now()}_${i}`,
+                    text: step.text.trim(),
+                    note: step.note?.trim() || '',
+                    order: i + 1
+                })),
+                tags: this.formState.tags,
+                status: this.formState.status,
+                createdAt: (this.options.mode === 'edit' && this.currentSOP) 
+                    ? this.currentSOP.createdAt 
+                    : Date.now(),
+                updatedAt: Date.now()
+            };
+            
+            const sops = this._loadSOPs();
+            
+            if (this.options.mode === 'edit' && this.currentSOP) {
+                const index = sops.findIndex(s => s.id === this.currentSOP.id);
+                if (index !== -1) sops[index] = sopData;
+                else sops.push(sopData);
+            } else {
+                sops.push(sopData);
+            }
+            
+            this._saveSOPs(sops);
+            this._clearDraft();
+            
+            this._showNotification(this.options.mode === 'edit' ? 'SOP updated!' : 'SOP created!', 'success');
+            
+            if (this.callbacks.onSave) {
+                setTimeout(() => this.callbacks.onSave(sopData), 300);
+            } else {
+                console.warn('SOPCreate: onSave callback not registered - navigation may not work');
+            }
+        }
+        
+        _collectFormData() {
+            const title = document.getElementById('sop-title');
+            const desc = document.getElementById('sop-description');
+            const folder = document.getElementById('sop-folder');
+            const status = document.getElementById('sop-status');
+            const tags = document.getElementById('sop-tags');
+            
+            if (title) this.formState.title = title.value;
+            if (desc) this.formState.description = desc.value;
+            if (folder) this.formState.folderId = folder.value;
+            if (status) this.formState.status = status.value;
+            if (tags) this.formState.tags = tags.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+            
+            document.querySelectorAll('.step-input').forEach((input, i) => {
+                if (this.formState.steps[i]) this.formState.steps[i].text = input.value;
+            });
+            document.querySelectorAll('.step-note-input').forEach((input, i) => {
+                if (this.formState.steps[i]) this.formState.steps[i].note = input.value;
+            });
+        }
+        
+        _validate() {
+            const errors = [];
+            if (!this.formState.title.trim()) errors.push('Title is required');
+            if (this.formState.steps.length === 0) errors.push('At least one step is required');
+            if (this.formState.steps.some(s => !s.text.trim())) errors.push('Some steps are empty');
+            
+            if (errors.length > 0) {
+                alert('Please fix:\n\n• ' + errors.join('\n• '));
+                return false;
+            }
+            return true;
+        }
+        
+        _handleCancel() {
+            if (this._hasContent() && !confirm('Discard unsaved changes?\n\nYour edits have not been saved and will be lost.')) return;
+            if (this.callbacks.onCancel) {
+                this.callbacks.onCancel();
+            } else {
+                console.warn('SOPCreate: onCancel callback not registered - navigation may not work');
+            }
+        }
+        
+        _handleDelete() {
+            if (!this.currentSOP) {
+                console.warn('SOPCreate: _handleDelete called but no currentSOP');
+                return;
+            }
+            if (!confirm(`Delete "${this.currentSOP.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) return;
+            
+            const sops = this._loadSOPs().filter(s => s.id !== this.currentSOP.id);
+            this._saveSOPs(sops);
+            
+            this._showNotification('SOP deleted', 'success');
+            if (this.callbacks.onDelete) {
+                setTimeout(() => this.callbacks.onDelete(this.currentSOP), 300);
+            } else {
+                console.warn('SOPCreate: onDelete callback not registered - navigation may not work');
+            }
+        }
+        
+        _showPreview() {
+            this._collectFormData();
+            const modal = document.getElementById('preview-modal');
+            const body = document.getElementById('preview-body');
+            if (modal && body) {
+                body.innerHTML = this._renderPreview();
+                modal.style.display = 'flex';
+            }
+        }
+        
+        _hidePreview() {
+            const modal = document.getElementById('preview-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        _showNotification(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            if (!toast) {
+                console.warn('SOPCreate: Notification toast element not found');
+                return;
+            }
+            const msgEl = toast.querySelector('.notification-message');
+            if (!msgEl) {
+                console.warn('SOPCreate: Notification message element not found');
+                return;
+            }
+            toast.className = `notification-toast ${type}`;
+            msgEl.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        }
+        
+        // ====================================================================
+        // PUBLIC API
+        // ====================================================================
+        
+        create(options = {}) {
+            this.options.mode = 'create';
+            this.currentSOP = null;
+            this._loadFolders();
+            
+            const draft = this._loadDraft();
+            if (draft && confirm('Continue editing saved draft?')) {
+                this.formState = { ...draft };
+            } else {
+                this.formState = {
+                    title: options.title || '',
+                    description: options.description || '',
+                    folderId: options.folderId || 'general',
+                    steps: options.steps || [],
+                    tags: options.tags || [],
+                    status: 'draft'
+                };
+            }
+            
+            this._render();
+            this._attachEventListeners();
+        }
+        
+        edit(sopOrId) {
+            this.options.mode = 'edit';
+            this._loadFolders();
+            
+            let sop = sopOrId;
+            if (typeof sopOrId === 'string') {
+                sop = this._loadSOPs().find(s => s.id === sopOrId);
+            }
+            
+            if (!sop) {
+                this._showNotification('SOP not found', 'error');
+                return;
+            }
+            
+            this.currentSOP = sop;
+            this.formState = {
+                title: sop.title || '',
+                description: sop.description || '',
+                folderId: sop.folderId || 'general',
+                steps: sop.steps ? [...sop.steps] : [],
+                tags: sop.tags ? [...sop.tags] : [],
+                status: sop.status || 'draft'
+            };
+            
+            this._render();
+            this._attachEventListeners();
+        }
+        
+        on(event, callback) {
+            const valid = ['onSave', 'onCancel', 'onDelete', 'onChange'];
+            if (valid.includes(event)) this.callbacks[event] = callback;
+        }
+        
+        refresh() {
+            this._loadFolders();
+            this._render();
+            this._attachEventListeners();
+        }
+        
+        destroy() {
+            if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
+            this.container.innerHTML = '';
+            document.getElementById('sop-create-styles')?.remove();
+        }
+        
+        _escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ====================================================================
+        // STYLES
+        // ====================================================================
+        
+        _injectStyles() {
+            if (document.getElementById('sop-create-styles')) return;
+            
+            const styles = document.createElement('style');
+            styles.id = 'sop-create-styles';
+            styles.textContent = `
+                .sop-create-container {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    color: #1f2937;
+                    background: #f9fafb;
+                    min-height: 100vh;
+                }
+                
                 .sop-create-layout {
-                    padding: 1rem;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 1.5rem;
                 }
                 
                 .sop-create-header {
-                    flex-direction: column;
-                    gap: 1rem;
-                    align-items: flex-start;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1rem;
+                    border-bottom: 1px solid #e5e7eb;
                 }
                 
+                .header-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+                
+                .header-left h2 {
+                    margin: 0;
+                    font-size: 1.25rem;
+                }
+                
+                .btn-back {
+                    padding: 0.5rem 0.75rem;
+                    background: none;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.875rem;
+                }
+                
+                .btn-back:hover { background: #f3f4f6; }
+                
+                .status-badge {
+                    padding: 0.25rem 0.625rem;
+                    border-radius: 999px;
+                    font-size: 0.7rem;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                }
+                
+                .status-draft { background: #fef3c7; color: #92400e; }
+                .status-active { background: #d1fae5; color: #065f46; }
+                .status-archived { background: #e5e7eb; color: #6b7280; }
+                
+                .form-section {
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 10px;
+                    padding: 1.25rem;
+                    margin-bottom: 1.25rem;
+                }
+                
+                .form-section h3 {
+                    margin: 0 0 1rem;
+                    font-size: 1rem;
+                }
+                
+                .section-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                }
+                
+                .section-header h3 { margin: 0; }
+                
+                .step-count {
+                    color: #6b7280;
+                    font-size: 0.8rem;
+                }
+                
+                .form-group {
+                    margin-bottom: 1rem;
+                }
+                
+                .form-group:last-child { margin-bottom: 0; }
+                
                 .form-row {
-                    grid-template-columns: 1fr;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                }
+                
+                label {
+                    display: block;
+                    margin-bottom: 0.375rem;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                }
+                
+                .required { color: #ef4444; }
+                
+                .form-input, .form-textarea, .form-select {
+                    width: 100%;
+                    padding: 0.625rem 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.9rem;
+                    box-sizing: border-box;
+                }
+                
+                .form-input:focus, .form-textarea:focus, .form-select:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+                
+                .form-textarea {
+                    resize: vertical;
+                    min-height: 70px;
+                }
+                
+                .char-count {
+                    display: block;
+                    text-align: right;
+                    font-size: 0.7rem;
+                    color: #9ca3af;
+                    margin-top: 0.25rem;
+                }
+                
+                .help-text {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                }
+                
+                /* AI Panel */
+                .ai-steps-panel {
+                    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
+                    border: 1px solid #a7f3d0;
+                    border-radius: 8px;
+                    padding: 0.875rem 1rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .ai-panel-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-bottom: 0.5rem;
+                }
+                
+                .ai-icon {
+                    font-size: 1.1rem;
+                }
+                
+                .ai-title {
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    color: #065f46;
+                }
+                
+                .ai-badge {
+                    font-size: 0.65rem;
+                    padding: 0.125rem 0.5rem;
+                    background: #d1fae5;
+                    color: #047857;
+                    border-radius: 10px;
+                    font-weight: 500;
+                }
+                
+                .ai-description {
+                    font-size: 0.8rem;
+                    color: #065f46;
+                    margin: 0 0 0.75rem !important;
                 }
                 
                 .ai-steps-actions {
-                    flex-direction: column;
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
                 }
                 
-                .form-actions {
-                    flex-direction: column;
-                    gap: 1rem;
+                .ai-steps-panel p {
+                    margin: 0 0 0.625rem;
+                    font-size: 0.8rem;
+                    color: #065f46;
                 }
                 
-                .actions-left,
-                .actions-right {
-                    width: 100%;
+                .ai-btn {
+                    padding: 0.5rem 1rem;
+                    background: linear-gradient(135deg, #dcfce7, #cffafe);
+                    border: 1px solid #a7f3d0;
+                    border-radius: 6px;
+                    color: #065f46;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+                
+                .ai-btn:hover {
+                    background: linear-gradient(135deg, #bbf7d0, #a5f3fc);
+                }
+                
+                .ai-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                
+                .ai-hint {
+                    font-size: 0.7rem !important;
+                    color: #6b7280 !important;
+                    margin-top: 0.5rem !important;
+                    margin-bottom: 0 !important;
+                }
+                
+                .ai-steps-panel.loading {
+                    opacity: 0.7;
+                    pointer-events: none;
+                }
+                
+                /* AI Modals */
+                .ai-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
                     justify-content: center;
+                    z-index: 1000;
+                    padding: 1rem;
                 }
-            }
-        `;
-        
-        document.head.appendChild(styles);
-    }
-    
-    // ========================================================================
-    // EVENT HANDLING
-    // ========================================================================
-    
-    /**
-     * Attach all event listeners
-     * @private
-     */
-    _attachEventListeners() {
-        // Form submission
-        const form = document.getElementById('sop-form');
-        form?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this._handleSave();
-        });
-        
-        // Back button
-        document.getElementById('btn-back')?.addEventListener('click', () => {
-            this._handleCancel();
-        });
-        
-        // Cancel button
-        document.getElementById('btn-cancel')?.addEventListener('click', () => {
-            this._handleCancel();
-        });
-        
-        // Preview button
-        document.getElementById('btn-preview')?.addEventListener('click', () => {
-            this._showPreview();
-        });
-        
-        // Close preview
-        document.getElementById('btn-close-preview')?.addEventListener('click', () => {
-            this._hidePreview();
-        });
-        
-        // Delete button (edit mode)
-        document.getElementById('btn-delete')?.addEventListener('click', () => {
-            this._handleDelete();
-        });
-        
-        // Title input
-        const titleInput = document.getElementById('sop-title');
-        titleInput?.addEventListener('input', (e) => {
-            this.formState.title = e.target.value;
-            document.getElementById('title-count').textContent = e.target.value.length;
-            this._triggerChange();
-        });
-        
-        // Description input
-        const descInput = document.getElementById('sop-description');
-        descInput?.addEventListener('input', (e) => {
-            this.formState.description = e.target.value;
-            document.getElementById('desc-count').textContent = e.target.value.length;
-            this._triggerChange();
-        });
-        
-        // Folder select
-        document.getElementById('sop-folder')?.addEventListener('change', (e) => {
-            this.formState.folderId = e.target.value;
-            this._triggerChange();
-        });
-        
-        // Status select
-        document.getElementById('sop-status')?.addEventListener('change', (e) => {
-            this.formState.status = e.target.value;
-            this._updateStatusBadge();
-            this._triggerChange();
-        });
-        
-        // Tags input
-        document.getElementById('sop-tags')?.addEventListener('input', (e) => {
-            this.formState.tags = e.target.value
-                .split(',')
-                .map(tag => tag.trim().toLowerCase())
-                .filter(tag => tag.length > 0);
-            this._triggerChange();
-        });
-        
-        // Add step button
-        document.getElementById('btn-add-step')?.addEventListener('click', () => {
-            this._addStep();
-        });
-        
-        // Steps list event delegation
-        this._attachStepsListeners();
-        
-        // AI action buttons
-        document.querySelectorAll('[data-ai-action]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const action = e.target.dataset.aiAction;
-                const stepIndex = e.target.dataset.stepIndex;
-                this._handleAIAction(action, stepIndex);
-            });
-        });
-        
-        // Click outside preview to close
-        document.getElementById('preview-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'preview-modal') {
-                this._hidePreview();
-            }
-        });
-    }
-    
-    /**
-     * Attach event listeners for the steps list
-     * Includes drag-and-drop functionality
-     * @private
-     */
-    _attachStepsListeners() {
-        const stepsList = document.getElementById('steps-list');
-        if (!stepsList) return;
-        
-        // Step input changes
-        stepsList.addEventListener('input', (e) => {
-            if (e.target.classList.contains('step-input')) {
-                const index = parseInt(e.target.dataset.stepIndex);
-                this.formState.steps[index].text = e.target.value;
-                this._triggerChange();
-            }
-            
-            if (e.target.classList.contains('step-note-input')) {
-                const index = parseInt(e.target.dataset.stepIndex);
-                this.formState.steps[index].note = e.target.value;
-                this._triggerChange();
-            }
-        });
-        
-        // Step action buttons
-        stepsList.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            
-            const action = btn.dataset.action;
-            const index = parseInt(btn.dataset.stepIndex);
-            
-            switch (action) {
-                case 'move-up':
-                    this._moveStep(index, index - 1);
-                    break;
-                case 'move-down':
-                    this._moveStep(index, index + 1);
-                    break;
-                case 'delete':
-                    this._deleteStep(index);
-                    break;
-            }
-        });
-        
-        // AI step buttons
-        stepsList.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-ai-action]');
-            if (btn) {
-                const action = btn.dataset.aiAction;
-                const stepIndex = btn.dataset.stepIndex;
-                this._handleAIAction(action, stepIndex);
-            }
-        });
-        
-        // Drag and drop
-        stepsList.addEventListener('dragstart', (e) => {
-            const stepItem = e.target.closest('.step-item');
-            if (!stepItem) return;
-            
-            this.dragState.dragging = true;
-            this.dragState.draggedIndex = parseInt(stepItem.dataset.stepIndex);
-            stepItem.classList.add('dragging');
-            
-            e.dataTransfer.effectAllowed = 'move';
-        });
-        
-        stepsList.addEventListener('dragend', (e) => {
-            const stepItem = e.target.closest('.step-item');
-            if (stepItem) {
-                stepItem.classList.remove('dragging');
-            }
-            
-            this.dragState.dragging = false;
-            this.dragState.draggedIndex = null;
-            this.dragState.dragOverIndex = null;
-            
-            // Remove all drag-over classes
-            document.querySelectorAll('.step-item.drag-over').forEach(el => {
-                el.classList.remove('drag-over');
-            });
-        });
-        
-        stepsList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            const stepItem = e.target.closest('.step-item');
-            if (!stepItem || !this.dragState.dragging) return;
-            
-            const overIndex = parseInt(stepItem.dataset.stepIndex);
-            
-            // Remove previous drag-over
-            document.querySelectorAll('.step-item.drag-over').forEach(el => {
-                el.classList.remove('drag-over');
-            });
-            
-            if (overIndex !== this.dragState.draggedIndex) {
-                stepItem.classList.add('drag-over');
-                this.dragState.dragOverIndex = overIndex;
-            }
-        });
-        
-        stepsList.addEventListener('drop', (e) => {
-            e.preventDefault();
-            
-            if (this.dragState.draggedIndex !== null && 
-                this.dragState.dragOverIndex !== null &&
-                this.dragState.draggedIndex !== this.dragState.dragOverIndex) {
                 
-                this._moveStep(this.dragState.draggedIndex, this.dragState.dragOverIndex);
-            }
-        });
-    }
-    
-    /**
-     * Trigger change callback
-     * @private
-     */
-    _triggerChange() {
-        if (this.callbacks.onChange) {
-            this.callbacks.onChange(this.formState);
-        }
-    }
-    
-    /**
-     * Update status badge display
-     * @private
-     */
-    _updateStatusBadge() {
-        const badge = document.querySelector('.status-badge');
-        if (badge) {
-            badge.className = `status-badge status-${this.formState.status}`;
-            badge.textContent = this.formState.status;
-        }
-    }
-    
-    // ========================================================================
-    // STEP MANAGEMENT
-    // ========================================================================
-    
-    /**
-     * Add a new step
-     * @private
-     * @param {string} text - Initial step text (optional)
-     */
-    _addStep(text = '') {
-        if (this.formState.steps.length >= this.options.maxSteps) {
-            this._showNotification('Maximum steps reached', 'error');
-            return;
-        }
-        
-        const newStep = {
-            id: `step_${Date.now()}`,
-            text: text,
-            note: '',
-            order: this.formState.steps.length + 1
-        };
-        
-        this.formState.steps.push(newStep);
-        this._updateStepsList();
-        this._triggerChange();
-        
-        // Focus the new step input
-        setTimeout(() => {
-            const inputs = document.querySelectorAll('.step-input');
-            const lastInput = inputs[inputs.length - 1];
-            if (lastInput) lastInput.focus();
-        }, 50);
-    }
-    
-    /**
-     * Delete a step
-     * @private
-     * @param {number} index - Step index to delete
-     */
-    _deleteStep(index) {
-        if (confirm('Are you sure you want to delete this step?')) {
-            this.formState.steps.splice(index, 1);
-            this._reorderSteps();
-            this._updateStepsList();
-            this._triggerChange();
-        }
-    }
-    
-    /**
-     * Move a step from one position to another
-     * @private
-     * @param {number} fromIndex - Original position
-     * @param {number} toIndex - Target position
-     */
-    _moveStep(fromIndex, toIndex) {
-        if (toIndex < 0 || toIndex >= this.formState.steps.length) return;
-        
-        const [movedStep] = this.formState.steps.splice(fromIndex, 1);
-        this.formState.steps.splice(toIndex, 0, movedStep);
-        
-        this._reorderSteps();
-        this._updateStepsList();
-        this._triggerChange();
-    }
-    
-    /**
-     * Update step order numbers
-     * @private
-     */
-    _reorderSteps() {
-        this.formState.steps.forEach((step, index) => {
-            step.order = index + 1;
-        });
-    }
-    
-    /**
-     * Update the steps list display
-     * @private
-     */
-    _updateStepsList() {
-        const stepsList = document.getElementById('steps-list');
-        const stepCount = document.getElementById('step-count');
-        const addBtn = document.getElementById('btn-add-step');
-        
-        if (stepsList) {
-            stepsList.innerHTML = this._renderStepsList();
-        }
-        
-        if (stepCount) {
-            stepCount.textContent = `${this.formState.steps.length} / ${this.options.maxSteps} steps`;
-        }
-        
-        if (addBtn) {
-            addBtn.disabled = this.formState.steps.length >= this.options.maxSteps;
-        }
-    }
-    
-    // ========================================================================
-    // AI TOUCHPOINT HANDLERS
-    // ========================================================================
-    
-    /**
-     * Handle AI action triggers
-     * These are placeholder hooks for AI integration
-     * 
-     * @private
-     * @param {string} action - AI action type
-     * @param {string|number} stepIndex - Optional step index for step-specific actions
-     */
-    _handleAIAction(action, stepIndex = null) {
-        /**
-         * AI TOUCHPOINT DOCUMENTATION
-         * 
-         * Each action is designed to integrate with an AI service.
-         * Replace the placeholder implementations with actual API calls.
-         */
-        
-        switch (action) {
-            case 'suggest-title':
-                /**
-                 * AI Touchpoint: Suggest Better Title
-                 * 
-                 * Purpose: Generate improved title suggestions based on description/steps
-                 * Input: Current title, description, steps
-                 * Output: Array of title suggestions
-                 * 
-                 * Example prompt: "Based on this SOP description and steps,
-                 * suggest 3 clear, action-oriented titles..."
-                 */
-                console.log('🤖 AI Action: Suggest Title');
-                console.log('Input:', {
-                    currentTitle: this.formState.title,
-                    description: this.formState.description,
-                    steps: this.formState.steps
-                });
+                .ai-modal-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    max-width: 600px;
+                    width: 100%;
+                    max-height: 85vh;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
                 
-                this._showAIPlaceholder(
-                    'Analyzing your SOP to suggest better titles...',
-                    'suggest-title'
-                );
-                break;
+                .ai-modal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
                 
-            case 'improve-description':
-                /**
-                 * AI Touchpoint: Improve Description
-                 * 
-                 * Purpose: Enhance the description for clarity and completeness
-                 * Input: Current title, description
-                 * Output: Improved description text
-                 * 
-                 * Example prompt: "Improve this SOP description to be more
-                 * clear, comprehensive, and professionally written..."
-                 */
-                console.log('🤖 AI Action: Improve Description');
-                console.log('Input:', {
-                    title: this.formState.title,
-                    description: this.formState.description
-                });
+                .ai-modal-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                }
                 
-                this._showAIPlaceholder(
-                    'Improving your description for clarity...',
-                    'improve-description'
-                );
-                break;
+                .ai-modal-body {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1.25rem;
+                }
                 
-            case 'draft-steps':
-                /**
-                 * AI Touchpoint: Draft Steps Automatically
-                 * 
-                 * Purpose: Generate a complete set of steps based on title/description
-                 * Input: Title, description
-                 * Output: Array of step objects with text and optional notes
-                 * 
-                 * Example prompt: "Based on this SOP title and description,
-                 * generate a comprehensive list of steps. Each step should
-                 * be clear, actionable, and start with a verb..."
-                 */
-                console.log('🤖 AI Action: Draft Steps');
-                console.log('Input:', {
-                    title: this.formState.title,
-                    description: this.formState.description
-                });
+                .ai-instructions {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin-bottom: 1rem;
+                }
                 
-                this._showAIPlaceholder(
-                    'Generating steps based on your title and description...',
-                    'draft-steps',
-                    () => {
-                        // Simulate AI-generated steps (replace with actual API)
-                        const sampleSteps = [
-                            { text: 'Review prerequisites and gather necessary materials', note: '' },
-                            { text: 'Complete initial setup and verification', note: '' },
-                            { text: 'Execute main procedure steps', note: '' },
-                            { text: 'Verify completion and document results', note: '' }
-                        ];
-                        
-                        if (confirm('AI has generated 4 sample steps. Add them to your SOP?')) {
-                            sampleSteps.forEach(step => {
-                                this._addStep(step.text);
-                            });
-                        }
-                    }
-                );
-                break;
+                .ai-instructions p {
+                    margin: 0 0 0.5rem;
+                    font-size: 0.85rem;
+                }
                 
-            case 'suggest-missing':
-                /**
-                 * AI Touchpoint: Suggest Missing Steps
-                 * 
-                 * Purpose: Analyze existing steps and suggest additions
-                 * Input: Title, description, current steps
-                 * Output: Array of suggested additional steps
-                 * 
-                 * Example prompt: "Review these SOP steps and suggest any
-                 * missing steps that would make the procedure more complete..."
-                 */
-                console.log('🤖 AI Action: Suggest Missing Steps');
-                console.log('Input:', {
-                    title: this.formState.title,
-                    description: this.formState.description,
-                    existingSteps: this.formState.steps
-                });
+                .ai-instructions ol {
+                    margin: 0;
+                    padding-left: 1.25rem;
+                    font-size: 0.85rem;
+                }
                 
-                this._showAIPlaceholder(
-                    'Analyzing your steps to identify gaps...',
-                    'suggest-missing'
-                );
-                break;
+                .ai-instructions li {
+                    margin-bottom: 0.375rem;
+                }
                 
-            case 'improve-step':
-                /**
-                 * AI Touchpoint: Improve Step Language
-                 * 
-                 * Purpose: Improve a single step's clarity and language
-                 * Input: Step text, context (other steps)
-                 * Output: Improved step text
-                 * 
-                 * Example prompt: "Improve this step to be clearer, more
-                 * actionable, and consistent with professional SOP language..."
-                 */
-                const step = this.formState.steps[parseInt(stepIndex)];
-                console.log('🤖 AI Action: Improve Step', stepIndex);
-                console.log('Input:', {
-                    step: step,
-                    context: this.formState.steps
-                });
+                .ai-instructions code {
+                    background: #e5e7eb;
+                    padding: 0.125rem 0.375rem;
+                    border-radius: 4px;
+                    font-size: 0.8rem;
+                }
                 
-                this._showAIPlaceholder(
-                    `Improving step ${parseInt(stepIndex) + 1}...`,
-                    'improve-step'
-                );
-                break;
+                .ai-instructions a {
+                    color: #4f46e5;
+                }
                 
-            default:
-                console.log('Unknown AI action:', action);
-        }
-    }
-    
-    /**
-     * Show AI placeholder message/modal
-     * @private
-     * @param {string} message - Loading message
-     * @param {string} action - Action identifier
-     * @param {Function} callback - Optional callback after "completion"
-     */
-    _showAIPlaceholder(message, action, callback = null) {
-        // In production, replace with actual AI integration
-        // This is a simple demonstration
-        
-        this._showNotification(message, 'info');
-        
-        // Simulate AI processing delay
-        setTimeout(() => {
-            alert(`✨ AI Feature Placeholder\n\nAction: ${action}\n\nThis is where the AI integration would provide results.\n\nIn production, this would call your AI service and update the form with suggestions.`);
+                .btn-copy-small {
+                    font-size: 0.7rem;
+                    padding: 0.125rem 0.5rem;
+                    background: #e5e7eb;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-left: 0.25rem;
+                }
+                
+                .btn-copy-small:hover {
+                    background: #d1d5db;
+                }
+                
+                .ai-paste-area {
+                    margin-top: 1rem;
+                }
+                
+                .ai-paste-area label {
+                    display: block;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    margin-bottom: 0.375rem;
+                }
+                
+                .ai-textarea {
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.875rem;
+                    font-family: inherit;
+                    resize: vertical;
+                    box-sizing: border-box;
+                }
+                
+                .ai-textarea:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+                
+                .ai-paste-hint {
+                    font-size: 0.75rem !important;
+                    color: #6b7280 !important;
+                    margin-top: 0.375rem !important;
+                }
+                
+                .ai-draft-reminder {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    margin-top: 0.75rem;
+                    padding-top: 0.75rem;
+                    border-top: 1px solid #e5e7eb;
+                }
+                
+                .ai-copy-area {
+                    margin-bottom: 1rem;
+                }
+                
+                .ai-copy-area label {
+                    display: block;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    margin-bottom: 0.375rem;
+                }
+                
+                .ai-current-steps {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    padding: 0.75rem;
+                    font-size: 0.85rem;
+                    white-space: pre-wrap;
+                    max-height: 150px;
+                    overflow-y: auto;
+                    margin-bottom: 0.5rem;
+                }
+                
+                .btn-copy {
+                    font-size: 0.8rem;
+                }
+                
+                .ai-modal-footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.75rem;
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                    border-radius: 0 0 12px 12px;
+                }
+                
+                .ai-draft-notice {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.625rem;
+                    padding: 0.75rem 1rem;
+                    background: #fefce8;
+                    border: 1px solid #fde047;
+                    border-radius: 8px;
+                    margin-bottom: 1rem;
+                    font-size: 0.8rem;
+                    line-height: 1.5;
+                    color: #854d0e;
+                }
+                
+                .ai-draft-notice .notice-icon {
+                    font-size: 1rem;
+                    flex-shrink: 0;
+                }
+                
+                .ai-draft-notice .notice-text {
+                    flex: 1;
+                    line-height: 1.5;
+                }
+                
+                .ai-draft-notice .notice-dismiss {
+                    background: none;
+                    border: none;
+                    color: #92400e;
+                    cursor: pointer;
+                    padding: 0.25rem;
+                    font-size: 0.9rem;
+                    opacity: 0.7;
+                }
+                
+                .ai-draft-notice .notice-dismiss:hover {
+                    opacity: 1;
+                }
+                
+                .ai-improved-notice {
+                    background: #ecfdf5;
+                    border-color: #6ee7b7;
+                    color: #065f46;
+                }
+                
+                .ai-btn-secondary {
+                    background: linear-gradient(135deg, #f3f4f6, #e5e7eb) !important;
+                    border-color: #d1d5db !important;
+                    color: #374151 !important;
+                }
+                
+                .ai-btn-secondary:hover {
+                    background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+                }
+                
+                .ai-btn-secondary:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                
+                /* Clarity Preview Modal */
+                .clarity-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 1rem;
+                }
+                
+                .clarity-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    max-width: 700px;
+                    width: 100%;
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                }
+                
+                .clarity-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .clarity-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                }
+                
+                .clarity-description {
+                    padding: 0.75rem 1.25rem;
+                    margin: 0;
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    background: #f9fafb;
+                }
+                
+                .clarity-comparison {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1rem 1.25rem;
+                }
+                
+                .clarity-step {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.75rem;
+                    padding: 0.875rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    margin-bottom: 0.75rem;
+                }
+                
+                .clarity-step.changed {
+                    border-color: #6366f1;
+                    background: #f5f3ff;
+                }
+                
+                .clarity-step .step-number {
+                    min-width: 28px;
+                    height: 28px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #e5e7eb;
+                    border-radius: 50%;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    color: #6b7280;
+                }
+                
+                .clarity-step.changed .step-number {
+                    background: #6366f1;
+                    color: #fff;
+                }
+                
+                .step-comparison {
+                    flex: 1;
+                    min-width: 0;
+                }
+                
+                .step-original, .step-improved {
+                    margin-bottom: 0.5rem;
+                }
+                
+                .step-improved {
+                    margin-bottom: 0;
+                }
+                
+                .comparison-label {
+                    display: block;
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    color: #9ca3af;
+                    margin-bottom: 0.125rem;
+                }
+                
+                .comparison-text {
+                    font-size: 0.875rem;
+                    line-height: 1.4;
+                }
+                
+                .step-original .comparison-text {
+                    color: #6b7280;
+                    text-decoration: line-through;
+                }
+                
+                .step-improved .comparison-text.highlight {
+                    color: #4f46e5;
+                    font-weight: 500;
+                }
+                
+                .clarity-step.unchanged .step-original .comparison-text {
+                    text-decoration: none;
+                    color: #374151;
+                }
+                
+                .change-badge {
+                    font-size: 0.65rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #6366f1;
+                    color: #fff;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+                
+                .unchanged-badge {
+                    font-size: 0.65rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #e5e7eb;
+                    color: #6b7280;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+                
+                .clarity-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.75rem;
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                    border-radius: 0 0 12px 12px;
+                }
+                
+                /* Steps */
+                .steps-list {
+                    min-height: 80px;
+                }
+                
+                .steps-empty {
+                    text-align: center;
+                    padding: 1.5rem;
+                    background: #f9fafb;
+                    border: 2px dashed #e5e7eb;
+                    border-radius: 8px;
+                    color: #6b7280;
+                }
+                
+                .steps-empty p { margin: 0.25rem 0; line-height: 1.5; }
+                
+                .step-item {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.75rem;
+                    padding: 1rem;
+                    background: #fafafa;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    margin-bottom: 0.75rem;
+                    transition: all 0.2s ease;
+                }
+                
+                .step-item:hover { background: #f5f5f5; }
+                .step-item.dragging { opacity: 0.5; background: #dbeafe; }
+                .step-item.drag-over { border-color: #6366f1; border-style: dashed; }
+                
+                .step-drag-handle {
+                    cursor: grab;
+                    color: #9ca3af;
+                    font-weight: bold;
+                    padding: 0.25rem;
+                }
+                
+                .step-number {
+                    min-width: 26px;
+                    height: 26px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #6366f1;
+                    color: #fff;
+                    border-radius: 50%;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                }
+                
+                .step-content { flex: 1; }
+                
+                .step-input {
+                    width: 100%;
+                    padding: 0.5rem 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.875rem;
+                    line-height: 1.5;
+                    resize: vertical;
+                    box-sizing: border-box;
+                    transition: border-color 0.2s ease;
+                }
+                
+                .step-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+                }
+                
+                .step-note-input {
+                    width: 100%;
+                    margin-top: 0.5rem;
+                    padding: 0.375rem 0.625rem;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 4px;
+                    font-size: 0.8rem;
+                    line-height: 1.5;
+                    box-sizing: border-box;
+                    transition: border-color 0.2s ease;
+                }
+                
+                .step-note-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                }
+                
+                .step-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.25rem;
+                }
+                
+                .step-action-btn {
+                    width: 28px;
+                    height: 28px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    background: #fff;
+                    cursor: pointer;
+                    font-size: 0.8rem;
+                }
+                
+                .step-action-btn:hover:not(:disabled) { background: #f3f4f6; }
+                .step-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+                .step-delete-btn:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; }
+                
+                .btn-add-step {
+                    width: 100%;
+                    padding: 0.75rem;
+                    background: #fff;
+                    border: 2px dashed #d1d5db;
+                    border-radius: 8px;
+                    color: #6b7280;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+                
+                .btn-add-step:hover:not(:disabled) {
+                    border-color: #6366f1;
+                    color: #6366f1;
+                    background: #f5f3ff;
+                }
+                
+                .btn-add-step:disabled { opacity: 0.5; cursor: not-allowed; }
+                
+                /* Actions */
+                .form-actions {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding-top: 0.5rem;
+                }
+                
+                .actions-left, .actions-right {
+                    display: flex;
+                    gap: 0.5rem;
+                }
+                
+                .btn {
+                    padding: 0.625rem 1.25rem;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
+                }
+                
+                .btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+                }
+                
+                .btn-primary { 
+                    background: #6366f1; 
+                    color: #fff;
+                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
+                }
+                .btn-primary:hover { 
+                    background: #4f46e5;
+                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                }
+                
+                .btn-secondary { 
+                    background: #f3f4f6; 
+                    color: #374151;
+                    border: 1px solid #e5e7eb;
+                }
+                .btn-secondary:hover { 
+                    background: #e5e7eb;
+                    border-color: #d1d5db;
+                }
+                
+                .btn-danger {
+                    background: #fef2f2;
+                    color: #b91c1c;
+                    border: 1px solid #fecaca;
+                }
+                .btn-danger:hover { 
+                    background: #fee2e2;
+                    border-color: #fca5a5;
+                }
+                
+                /* Preview Modal */
+                .preview-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                }
+                
+                .preview-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    width: 90%;
+                    max-width: 600px;
+                    max-height: 80vh;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .preview-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .preview-header h3 { margin: 0; font-size: 1rem; }
+                
+                .btn-close {
+                    width: 28px;
+                    height: 28px;
+                    border: none;
+                    background: #f3f4f6;
+                    border-radius: 6px;
+                    cursor: pointer;
+                }
+                
+                .btn-close:hover { background: #e5e7eb; }
+                
+                .preview-body {
+                    padding: 1.25rem;
+                    overflow-y: auto;
+                }
+                
+                .preview-meta {
+                    display: flex;
+                    gap: 0.5rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .preview-folder {
+                    padding: 0.25rem 0.625rem;
+                    border-radius: 6px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                }
+                
+                .preview-status {
+                    padding: 0.25rem 0.625rem;
+                    border-radius: 6px;
+                    font-size: 0.7rem;
+                    font-weight: 500;
+                }
+                
+                .preview-sop h2 {
+                    margin: 0 0 0.5rem;
+                    font-size: 1.25rem;
+                }
+                
+                .preview-description {
+                    color: #6b7280;
+                    margin: 0 0 1rem;
+                    font-size: 0.9rem;
+                }
+                
+                .preview-tags {
+                    display: flex;
+                    gap: 0.5rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .tag { color: #6366f1; font-size: 0.8rem; }
+                
+                .preview-steps {
+                    padding-left: 1.25rem;
+                }
+                
+                .preview-steps li {
+                    margin-bottom: 0.75rem;
+                    line-height: 1.4;
+                }
+                
+                .step-note {
+                    margin: 0.25rem 0 0;
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    font-weight: normal;
+                }
+                
+                /* Notification */
+                .notification-toast {
+                    position: fixed;
+                    bottom: 1.5rem;
+                    right: 1.5rem;
+                    padding: 0.875rem 1.25rem;
+                    background: #1f2937;
+                    color: #fff;
+                    border-radius: 8px;
+                    font-size: 0.85rem;
+                    z-index: 1001;
+                }
+                
+                .notification-toast.success { background: #059669; }
+                .notification-toast.error { background: #dc2626; }
+                .notification-toast.info { background: #2563eb; }
+                
+                @media (max-width: 768px) {
+                    .sop-create-layout { padding: 1rem; }
+                    .form-row { grid-template-columns: 1fr; }
+                    .form-actions { flex-direction: column; gap: 0.75rem; }
+                    .actions-left, .actions-right { width: 100%; justify-content: center; }
+                }
+            `;
             
-            if (callback) {
-                callback();
-            }
-        }, 1000);
-    }
-    
-    // ========================================================================
-    // FORM ACTIONS
-    // ========================================================================
-    
-    /**
-     * Handle form save
-     * @private
-     */
-    _handleSave() {
-        // Validate
-        if (!this._validate()) return;
-        
-        // Prepare SOP data
-        const sopData = {
-            title: this.formState.title.trim(),
-            description: this.formState.description.trim(),
-            folderId: this.formState.folderId,
-            steps: this.formState.steps.map((step, index) => ({
-                id: step.id,
-                text: step.text.trim(),
-                note: step.note?.trim() || '',
-                order: index + 1
-            })),
-            tags: this.formState.tags,
-            status: this.formState.status,
-            updatedAt: Date.now()
-        };
-        
-        // Load existing SOPs
-        const sops = this._loadSOPs();
-        
-        if (this.options.mode === 'edit' && this.currentSOP) {
-            // Update existing SOP
-            const index = sops.findIndex(s => s.id === this.currentSOP.id);
-            if (index !== -1) {
-                sops[index] = {
-                    ...sops[index],
-                    ...sopData
-                };
-            }
-        } else {
-            // Create new SOP
-            sopData.id = `sop_${Date.now()}`;
-            sopData.createdAt = Date.now();
-            sops.push(sopData);
-        }
-        
-        // Save to storage
-        this._saveSOPs(sops);
-        
-        // Clear draft
-        this._clearDraft();
-        
-        // Show success message
-        this._showNotification(
-            this.options.mode === 'edit' ? 'SOP updated successfully!' : 'SOP created successfully!',
-            'success'
-        );
-        
-        // Trigger callback
-        if (this.callbacks.onSave) {
-            this.callbacks.onSave(sopData);
+            document.head.appendChild(styles);
         }
     }
-    
-    /**
-     * Validate form data
-     * @private
-     * @returns {boolean} True if valid
-     */
-    _validate() {
-        const errors = [];
-        
-        if (!this.formState.title.trim()) {
-            errors.push('Title is required');
-        }
-        
-        if (this.formState.steps.length === 0) {
-            errors.push('At least one step is required');
-        }
-        
-        // Check for empty steps
-        const emptySteps = this.formState.steps.filter(s => !s.text.trim());
-        if (emptySteps.length > 0) {
-            errors.push(`${emptySteps.length} step(s) have no text`);
-        }
-        
-        if (errors.length > 0) {
-            alert('Please fix the following issues:\n\n• ' + errors.join('\n• '));
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Handle cancel action
-     * @private
-     */
-    _handleCancel() {
-        if (this._hasContent()) {
-            if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-                return;
-            }
-        }
-        
-        if (this.callbacks.onCancel) {
-            this.callbacks.onCancel();
-        }
-    }
-    
-    /**
-     * Handle delete action (edit mode only)
-     * @private
-     */
-    _handleDelete() {
-        if (!this.currentSOP) return;
-        
-        if (confirm(`Are you sure you want to delete "${this.currentSOP.title}"?\n\nThis action cannot be undone.`)) {
-            const sops = this._loadSOPs();
-            const filtered = sops.filter(s => s.id !== this.currentSOP.id);
-            this._saveSOPs(filtered);
-            
-            this._showNotification('SOP deleted', 'success');
-            
-            if (this.callbacks.onDelete) {
-                this.callbacks.onDelete(this.currentSOP);
-            }
-        }
-    }
-    
-    /**
-     * Show preview modal
-     * @private
-     */
-    _showPreview() {
-        const modal = document.getElementById('preview-modal');
-        const body = document.getElementById('preview-body');
-        
-        if (modal && body) {
-            body.innerHTML = this._renderPreview();
-            modal.style.display = 'flex';
-        }
-    }
-    
-    /**
-     * Hide preview modal
-     * @private
-     */
-    _hidePreview() {
-        const modal = document.getElementById('preview-modal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-    }
-    
-    /**
-     * Show notification toast
-     * @private
-     * @param {string} message - Notification message
-     * @param {string} type - 'success', 'error', or 'info'
-     */
-    _showNotification(message, type = 'info') {
-        const toast = document.getElementById('notification-toast');
-        if (!toast) return;
-        
-        toast.className = `notification-toast ${type}`;
-        toast.querySelector('.notification-message').textContent = message;
-        toast.style.display = 'block';
-        
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3000);
-    }
-    
-    // ========================================================================
-    // PUBLIC API
-    // ========================================================================
-    
-    /**
-     * Open the editor in create mode
-     * @public
-     * @param {Object} options - Optional initial data
-     */
-    create(options = {}) {
-        this.options.mode = 'create';
-        this.currentSOP = null;
-        
-        // Check for saved draft
-        const draft = this._loadDraft();
-        if (draft && confirm('You have a saved draft. Would you like to continue editing it?')) {
-            this.formState = { ...draft };
-        } else {
-            this.formState = {
-                title: options.title || '',
-                description: options.description || '',
-                folderId: options.folderId || 'general',
-                steps: options.steps || [],
-                tags: options.tags || [],
-                status: 'draft'
-            };
-        }
-        
-        this._render();
-        this._attachEventListeners();
-    }
-    
-    /**
-     * Open the editor in edit mode
-     * @public
-     * @param {string|Object} sopOrId - SOP object or ID to edit
-     */
-    edit(sopOrId) {
-        this.options.mode = 'edit';
-        
-        // Load SOP if ID provided
-        let sop = sopOrId;
-        if (typeof sopOrId === 'string') {
-            const sops = this._loadSOPs();
-            sop = sops.find(s => s.id === sopOrId);
-        }
-        
-        if (!sop) {
-            this._showNotification('SOP not found', 'error');
-            return;
-        }
-        
-        this.currentSOP = sop;
-        
-        // Populate form state
-        this.formState = {
-            title: sop.title || '',
-            description: sop.description || '',
-            folderId: sop.folderId || 'general',
-            steps: sop.steps ? [...sop.steps] : [],
-            tags: sop.tags ? [...sop.tags] : [],
-            status: sop.status || 'draft'
-        };
-        
-        this._render();
-        this._attachEventListeners();
-    }
-    
-    /**
-     * Get current form data
-     * @public
-     * @returns {Object} Current form state
-     */
-    getData() {
-        return { ...this.formState };
-    }
-    
-    /**
-     * Set form data
-     * @public
-     * @param {Object} data - Form data to set
-     */
-    setData(data) {
-        this.formState = {
-            ...this.formState,
-            ...data
-        };
-        this._render();
-        this._attachEventListeners();
-    }
-    
-    /**
-     * Register callback functions
-     * @public
-     * @param {string} event - Event name
-     * @param {Function} callback - Callback function
-     */
-    on(event, callback) {
-        const validEvents = ['onSave', 'onCancel', 'onDelete', 'onChange'];
-        
-        if (validEvents.includes(event)) {
-            this.callbacks[event] = callback;
-        } else {
-            console.warn(`Unknown event: ${event}. Valid: ${validEvents.join(', ')}`);
-        }
-    }
-    
-    /**
-     * Refresh the view
-     * @public
-     */
-    refresh() {
-        this._loadFolders();
-        this._render();
-        this._attachEventListeners();
-    }
-    
-    /**
-     * Destroy the module and clean up
-     * @public
-     */
-    destroy() {
-        // Clear auto-save timer
-        if (this.autoSaveTimer) {
-            clearInterval(this.autoSaveTimer);
-        }
-        
-        // Clear container
-        this.container.innerHTML = '';
-        
-        // Remove styles
-        const styles = document.getElementById('sop-create-styles');
-        if (styles) {
-            styles.remove();
-        }
-    }
-    
-    // ========================================================================
-    // UTILITY FUNCTIONS
-    // ========================================================================
-    
-    /**
-     * Escape HTML to prevent XSS
-     * @private
-     * @param {string} text - Text to escape
-     * @returns {string} Escaped text
-     */
-    _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text || '';
-        return div.innerHTML;
-    }
-}
 
-// ============================================================================
-// MODULE EXPORTS
-// ============================================================================
+    // ========================================================================
+    // EXPORTS
+    // ========================================================================
 
-/**
- * Factory function to create SOP Create/Edit instance
- * @param {HTMLElement|string} container - Container element or selector
- * @param {Object} options - Configuration options
- * @returns {SOPCreate} SOPCreate instance
- */
-function createSOPEditor(container, options = {}) {
-    const containerEl = typeof container === 'string'
-        ? document.querySelector(container)
-        : container;
-    
-    if (!containerEl) {
-        throw new Error('SOP Editor container element not found');
+    function createSOPEditor(container, options = {}) {
+        return new SOPCreate(container, options);
     }
-    
-    return new SOPCreate(containerEl, options);
-}
 
-// Export for different module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { SOPCreate, createSOPEditor, SOP_STORAGE_KEYS };
-} else if (typeof window !== 'undefined') {
-    window.SOPCreate = SOPCreate;
-    window.createSOPEditor = createSOPEditor;
-    window.SOP_STORAGE_KEYS = SOP_STORAGE_KEYS;
-}
+    global.SOPCreate = SOPCreate;
+    global.createSOPEditor = createSOPEditor;
+    global.SOP_STORAGE_KEYS = SOP_STORAGE_KEYS;
 
-// ES6 module export
-export { SOPCreate, createSOPEditor, SOP_STORAGE_KEYS };
+    console.log('✅ SOPCreate module loaded');
+
+})(typeof window !== 'undefined' ? window : this);

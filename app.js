@@ -1,45 +1,797 @@
-// Temporary storage for SOPs
-function saveSOP(sopData) {
-    // Get existing SOPs from localStorage
-    const existingSOPs = JSON.parse(localStorage.getItem('sops') || '[]');
-    // Add the new SOP
-    existingSOPs.push(sopData);
-    // Save back
-    localStorage.setItem('sops', JSON.stringify(existingSOPs));
-}
+/**
+ * SOP Tool - Main Application Controller
+ * 
+ * This file integrates all modules (Dashboard, SOPCreate, etc.) and handles:
+ * - View switching between Dashboard and Editor
+ * - Button click handlers
+ * - Module instantiation and callbacks
+ * - Navigation state management
+ * 
+ * Features:
+ * - Folder management (create, edit, delete folders)
+ * - Sorting and filtering SOPs
+ * - Recently edited highlighting
+ * - Collapsible folder sections
+ * 
+ * USAGE:
+ * Include after all module scripts in index.html:
+ *   <script src="modules/dashboard.js"></script>
+ *   <script src="modules/sop-create.js"></script>
+ *   <script src="app.js"></script>
+ * 
+ * @version 2.1.0
+ */
 
+(function() {
+    'use strict';
 
-const appContainer = document.getElementById('app');
+    // ========================================================================
+    // APPLICATION STATE
+    // ========================================================================
 
-// Load Dashboard
-function loadDashboard() {
-    appContainer.innerHTML = '';
+    /**
+     * Application state object
+     * Tracks current view, module instances, and navigation history
+     */
+    const AppState = {
+        currentView: 'dashboard',  // 'dashboard' | 'create' | 'edit' | 'checklist'
+        previousView: null,
+        
+        // Module instances (lazy-loaded)
+        modules: {
+            dashboard: null,
+            editor: null,
+            checklist: null,
+            folders: null
+        },
+        
+        // Currently selected SOP for editing
+        currentSOP: null,
+        
+        // Currently active checklist
+        currentChecklistId: null,
+        
+        // App container element
+        container: null,
+        
+        // Initialization status
+        initialized: false
+    };
 
-    if (typeof Dashboard === 'function') { // Claude-generated class
-        const dashboard = new Dashboard(appContainer, {
-            onCreateSOP: () => {
-                loadSOPCreate(); // Open SOP Create module
-            },
-            onViewChecklists: () => {
-                loadChecklist(); // Placeholder for later
-            }
+    // ========================================================================
+    // VIEW MANAGEMENT
+    // ========================================================================
+
+    /**
+     * Show the Dashboard view
+     * Creates Dashboard instance if not exists, then renders it
+     */
+    function showDashboard() {
+        console.log('📊 Switching to Dashboard view');
+        
+        AppState.previousView = AppState.currentView;
+        AppState.currentView = 'dashboard';
+        AppState.currentSOP = null;
+        
+        // Check if Dashboard class exists
+        if (typeof Dashboard !== 'function') {
+            console.error('Dashboard module not loaded! Make sure dashboard.js is included before app.js');
+            AppState.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #dc2626;">
+                    <h2>Error: Dashboard module not found</h2>
+                    <p>Make sure <code>dashboard.js</code> is included before <code>app.js</code></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create or refresh Dashboard
+        if (!AppState.modules.dashboard) {
+            console.log('Creating new Dashboard instance');
+            AppState.modules.dashboard = new Dashboard(AppState.container, {
+                showMostUsed: true,
+                enableFolderManagement: true,
+                enableSorting: true,
+                enableFiltering: true,
+                highlightRecentEdits: true,
+                autoRender: true
+            });
+            
+            // Register Dashboard callbacks
+            setupDashboardCallbacks();
+        } else {
+            console.log('Refreshing existing Dashboard');
+            AppState.modules.dashboard.refresh();
+        }
+    }
+
+    /**
+     * Show the SOP Create/Edit view
+     * @param {Object|null} sop - SOP to edit, or null for create mode
+     */
+    function showEditor(sop = null) {
+        const mode = sop ? 'edit' : 'create';
+        console.log(`📝 Switching to Editor view (mode: ${mode})`);
+        
+        AppState.previousView = AppState.currentView;
+        AppState.currentView = mode;
+        AppState.currentSOP = sop;
+        
+        // Check if SOPCreate class exists
+        if (typeof SOPCreate !== 'function') {
+            console.error('SOPCreate module not loaded! Make sure sop-create.js is included before app.js');
+            AppState.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #dc2626;">
+                    <h2>Error: SOPCreate module not found</h2>
+                    <p>Make sure <code>sop-create.js</code> is included before <code>app.js</code></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create Editor instance if not exists
+        if (!AppState.modules.editor) {
+            console.log('Creating new SOPCreate instance');
+            AppState.modules.editor = new SOPCreate(AppState.container, {
+                enableAIFeatures: true,
+                autoSaveDrafts: true,
+                autoRender: false  // We'll render manually after setting up callbacks
+            });
+            
+            // Register Editor callbacks
+            setupEditorCallbacks();
+        }
+        
+        // Open in appropriate mode
+        if (sop) {
+            console.log('Opening editor in EDIT mode for SOP:', sop.id);
+            AppState.modules.editor.edit(sop);
+        } else {
+            console.log('Opening editor in CREATE mode');
+            AppState.modules.editor.create();
+        }
+    }
+
+    /**
+     * Show the Checklist view
+     * @param {Object|string} sopOrChecklistId - SOP object to start new checklist, or checklist ID to resume
+     * @param {boolean} isResume - True if resuming an existing checklist
+     */
+    function showChecklist(sopOrChecklistId, isResume = false) {
+        // Validate input
+        if (!sopOrChecklistId) {
+            console.error('showChecklist: Missing required parameter sopOrChecklistId');
+            showDashboard();
+            return;
+        }
+        
+        // For new checklists, validate SOP object
+        if (!isResume && (typeof sopOrChecklistId !== 'object' || !sopOrChecklistId.id)) {
+            console.error('showChecklist: Invalid SOP object for new checklist:', sopOrChecklistId);
+            showDashboard();
+            return;
+        }
+        
+        // For resume, validate checklist ID is a string
+        if (isResume && typeof sopOrChecklistId !== 'string') {
+            console.error('showChecklist: Invalid checklist ID for resume:', sopOrChecklistId);
+            showDashboard();
+            return;
+        }
+        
+        console.log(`📋 Switching to Checklist view (${isResume ? 'resume' : 'new'})`);
+        
+        AppState.previousView = AppState.currentView;
+        AppState.currentView = 'checklist';
+        
+        // Check if Checklist class exists
+        if (typeof Checklist !== 'function') {
+            console.error('Checklist module not loaded! Make sure checklist.js is included before app.js');
+            AppState.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #dc2626;">
+                    <h2>Error: Checklist module not found</h2>
+                    <p>Make sure <code>checklist.js</code> is included before <code>app.js</code></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create Checklist instance if not exists
+        if (!AppState.modules.checklist) {
+            console.log('Creating new Checklist instance');
+            AppState.modules.checklist = new Checklist(AppState.container, {
+                autoSave: true,
+                showNotes: true,
+                showTimestamps: true
+            });
+            
+            // Register Checklist callbacks
+            setupChecklistCallbacks();
+        }
+        
+        // Start or resume checklist
+        if (isResume) {
+            console.log('Resuming checklist:', sopOrChecklistId);
+            AppState.currentChecklistId = sopOrChecklistId;
+            AppState.modules.checklist.resumeChecklist(sopOrChecklistId);
+        } else {
+            console.log('Starting new checklist from SOP:', sopOrChecklistId.id, '(' + sopOrChecklistId.title + ')');
+            AppState.modules.checklist.startFromSOP(sopOrChecklistId.id);
+        }
+    }
+
+    /**
+     * Show a completed checklist in read-only view mode
+     * @param {string} checklistId - ID of the completed checklist to view
+     */
+    function showCompletedChecklist(checklistId) {
+        // Validate input
+        if (!checklistId || typeof checklistId !== 'string') {
+            console.error('showCompletedChecklist: Invalid checklist ID:', checklistId);
+            showDashboard();
+            return;
+        }
+        
+        console.log('👁️ Switching to Checklist view (read-only)');
+        
+        AppState.previousView = AppState.currentView;
+        AppState.currentView = 'checklist';
+        
+        // Check if Checklist class exists
+        if (typeof Checklist !== 'function') {
+            console.error('Checklist module not loaded!');
+            AppState.container.innerHTML = `
+                <div style="padding: 2rem; text-align: center; color: #dc2626;">
+                    <h2>Error: Checklist module not found</h2>
+                    <p>Make sure <code>checklist.js</code> is included before <code>app.js</code></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create Checklist instance if not exists
+        if (!AppState.modules.checklist) {
+            console.log('Creating new Checklist instance');
+            AppState.modules.checklist = new Checklist(AppState.container, {
+                autoSave: true,
+                showNotes: true,
+                showTimestamps: true
+            });
+            
+            // Register Checklist callbacks
+            setupChecklistCallbacks();
+        }
+        
+        // View completed checklist in read-only mode
+        console.log('Viewing completed checklist:', checklistId);
+        AppState.currentChecklistId = checklistId;
+        AppState.modules.checklist.viewCompleted(checklistId);
+    }
+
+    // ========================================================================
+    // CALLBACK SETUP
+    // ========================================================================
+
+    /**
+     * Setup Dashboard callbacks for integration with other modules
+     */
+    function setupDashboardCallbacks() {
+        const dashboard = AppState.modules.dashboard;
+        
+        if (!dashboard) {
+            console.error('Cannot setup callbacks: Dashboard not initialized');
+            return;
+        }
+        
+        // Handle "Create New SOP" button click
+        dashboard.on('onCreateSOP', () => {
+            console.log('🆕 Create New SOP clicked');
+            showEditor(null);  // null = create mode
         });
-        dashboard.render(); // Or init() depending on Claude’s code
-    } else {
-        appContainer.innerHTML = '<p>Dashboard module not found.</p>';
+        
+        // Handle SOP edit
+        dashboard.on('onEditSOP', (sop) => {
+            console.log('✏️ Edit SOP clicked:', sop.title);
+            showEditor(sop);
+        });
+        
+        // Handle SOP delete
+        dashboard.on('onDeleteSOP', (sop) => {
+            console.log('🗑️ SOP deleted:', sop.title);
+            // Dashboard already handles the deletion, just log it
+        });
+        
+        // Handle Run Checklist button
+        dashboard.on('onRunChecklist', (sop) => {
+            console.log('✅ Run Checklist clicked for:', sop.title);
+            showChecklist(sop, false);
+        });
+        
+        // Handle Resume Checklist
+        dashboard.on('onResumeChecklist', (checklistId) => {
+            console.log('▶️ Resume Checklist clicked:', checklistId);
+            showChecklist(checklistId, true);
+        });
+        
+        // Handle View Completed Checklist
+        dashboard.on('onViewCompletedChecklist', (checklistId) => {
+            console.log('👁️ View Completed Checklist clicked:', checklistId);
+            showCompletedChecklist(checklistId);
+        });
+        
+        console.log('✅ Dashboard callbacks registered');
     }
-}
 
-// Load SOP Create/Edit
-function loadSOPCreate(sopId = null) {
-    appContainer.innerHTML = '';
-
-    if (typeof renderSOPCreate === 'function') {
-        renderSOPCreate(appContainer, sopId, loadDashboard);
-    } else {
-        appContainer.innerHTML = '<p>SOP Create module not found.</p>';
+    /**
+     * Setup Checklist callbacks
+     */
+    function setupChecklistCallbacks() {
+        const checklist = AppState.modules.checklist;
+        
+        if (!checklist) {
+            console.error('Cannot setup callbacks: Checklist not initialized');
+            return;
+        }
+        
+        // Handle back navigation
+        checklist.on('onBack', () => {
+            console.log('← Returning to Dashboard from Checklist');
+            showDashboard();
+        });
+        
+        // Handle checklist completion
+        checklist.on('onComplete', (completedChecklist) => {
+            console.log('🎉 Checklist completed:', completedChecklist.sopTitle);
+        });
+        
+        console.log('✅ Checklist callbacks registered');
     }
-}
 
-// Initialize
-loadDashboard();
+    /**
+     * Setup SOPCreate/Editor callbacks
+     */
+    function setupEditorCallbacks() {
+        const editor = AppState.modules.editor;
+        
+        if (!editor) {
+            console.error('Cannot setup callbacks: Editor not initialized');
+            return;
+        }
+        
+        // Handle Save - return to Dashboard and refresh
+        editor.on('onSave', (sop) => {
+            console.log('💾 SOP saved:', sop.title, '(ID:', sop.id + ')');
+            
+            // Show success message (optional, editor already shows notification)
+            console.log('Returning to Dashboard...');
+            
+            // Return to Dashboard and refresh to show new/updated SOP
+            showDashboard();
+        });
+        
+        // Handle Cancel - return to Dashboard without saving
+        editor.on('onCancel', () => {
+            console.log('❌ Editor cancelled, returning to Dashboard');
+            showDashboard();
+        });
+        
+        // Handle Delete - return to Dashboard after deletion
+        editor.on('onDelete', (sop) => {
+            console.log('🗑️ SOP deleted from editor:', sop.title);
+            showDashboard();
+        });
+        
+        // Handle form changes (optional, for auto-save indicators, etc.)
+        editor.on('onChange', (formData) => {
+            // Could update a "unsaved changes" indicator here
+            // console.log('Form changed:', formData.title);
+        });
+        
+        console.log('✅ Editor callbacks registered');
+    }
+
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+
+    /**
+     * Initialize the application
+     * Called when DOM is ready
+     */
+    async function initApp() {
+        console.log('🚀 Initializing SOP Tool Application');
+        
+        // Get the main container
+        AppState.container = document.getElementById('app');
+        
+        if (!AppState.container) {
+            console.error('App container not found! Make sure you have <div id="app"></div> in your HTML');
+            return;
+        }
+        
+        // Check for required modules
+        const modulesLoaded = {
+            Dashboard: typeof Dashboard === 'function',
+            SOPCreate: typeof SOPCreate === 'function',
+            Checklist: typeof Checklist === 'function'
+        };
+        
+        console.log('Module status:', modulesLoaded);
+        
+        if (!modulesLoaded.Dashboard) {
+            console.warn('⚠️ Dashboard module not loaded');
+        }
+        
+        if (!modulesLoaded.SOPCreate) {
+            console.warn('⚠️ SOPCreate module not loaded');
+        }
+        
+        if (!modulesLoaded.Checklist) {
+            console.warn('⚠️ Checklist module not loaded');
+        }
+        
+        // Initialize auth state (check for existing session)
+        if (typeof StorageAdapter !== 'undefined' && StorageAdapter.Auth) {
+            console.log('🔐 Checking auth session...');
+            await StorageAdapter.Auth.init();
+            
+            if (StorageAdapter.Auth.isAuthenticated()) {
+                const user = StorageAdapter.Auth.getUser();
+                console.log('✅ Logged in as:', user?.email);
+            } else {
+                console.log('👤 Running in local-only mode');
+            }
+        }
+        
+        // Start with Dashboard view
+        showDashboard();
+        
+        // Inject auth UI
+        injectAuthUI();
+        
+        AppState.initialized = true;
+        console.log('✅ SOP Tool Application initialized');
+    }
+
+    // ========================================================================
+    // AUTH UI
+    // ========================================================================
+
+    /**
+     * Inject auth UI elements (login button, user indicator, auth modal)
+     */
+    function injectAuthUI() {
+        // Add styles for auth UI
+        if (!document.getElementById('auth-ui-styles')) {
+            const style = document.createElement('style');
+            style.id = 'auth-ui-styles';
+            style.textContent = `
+                .auth-indicator {
+                    position: fixed;
+                    top: 12px;
+                    right: 16px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    z-index: 1000;
+                }
+                .auth-indicator button {
+                    padding: 6px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    background: #fff;
+                    cursor: pointer;
+                    font-size: 13px;
+                }
+                .auth-indicator button:hover {
+                    background: #f3f4f6;
+                }
+                .auth-indicator .user-email {
+                    color: #6b7280;
+                    max-width: 150px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .auth-modal-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 9999;
+                }
+                .auth-modal {
+                    background: #fff;
+                    border-radius: 12px;
+                    padding: 24px;
+                    width: 100%;
+                    max-width: 360px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                }
+                .auth-modal h2 {
+                    margin: 0 0 20px 0;
+                    font-size: 1.25rem;
+                }
+                .auth-modal .tabs {
+                    display: flex;
+                    gap: 4px;
+                    margin-bottom: 20px;
+                }
+                .auth-modal .tab {
+                    flex: 1;
+                    padding: 8px;
+                    border: none;
+                    background: #f3f4f6;
+                    cursor: pointer;
+                    border-radius: 6px;
+                    font-weight: 500;
+                }
+                .auth-modal .tab.active {
+                    background: #4f46e5;
+                    color: #fff;
+                }
+                .auth-modal input {
+                    width: 100%;
+                    padding: 10px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    margin-bottom: 12px;
+                    font-size: 14px;
+                }
+                .auth-modal input:focus {
+                    outline: none;
+                    border-color: #4f46e5;
+                }
+                .auth-modal .btn-primary {
+                    width: 100%;
+                    padding: 10px;
+                    background: #4f46e5;
+                    color: #fff;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+                .auth-modal .btn-primary:hover {
+                    background: #4338ca;
+                }
+                .auth-modal .btn-primary:disabled {
+                    background: #9ca3af;
+                    cursor: not-allowed;
+                }
+                .auth-modal .error {
+                    color: #dc2626;
+                    font-size: 13px;
+                    margin-bottom: 12px;
+                }
+                .auth-modal .close-btn {
+                    position: absolute;
+                    top: 12px;
+                    right: 12px;
+                    background: none;
+                    border: none;
+                    font-size: 20px;
+                    cursor: pointer;
+                    color: #6b7280;
+                }
+                .sync-status {
+                    position: fixed;
+                    bottom: 12px;
+                    left: 16px;
+                    padding: 6px 12px;
+                    background: #1f2937;
+                    color: #fff;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    z-index: 1000;
+                    display: none;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Create auth indicator container
+        const indicator = document.createElement('div');
+        indicator.className = 'auth-indicator';
+        indicator.id = 'auth-indicator';
+        updateAuthIndicator(indicator);
+        document.body.appendChild(indicator);
+
+        // Create sync status indicator
+        const syncStatus = document.createElement('div');
+        syncStatus.className = 'sync-status';
+        syncStatus.id = 'sync-status';
+        document.body.appendChild(syncStatus);
+
+        // Listen for auth changes
+        if (StorageAdapter?.Auth?.onAuthStateChange) {
+            StorageAdapter.Auth.onAuthStateChange((isAuth, user) => {
+                updateAuthIndicator(document.getElementById('auth-indicator'));
+                if (isAuth) {
+                    // Refresh dashboard to show synced data
+                    if (AppState.modules.dashboard) {
+                        AppState.modules.dashboard.refresh();
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Update the auth indicator based on current state
+     */
+    function updateAuthIndicator(container) {
+        if (!container) return;
+
+        const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
+        const user = StorageAdapter?.Auth?.getUser?.();
+        const hasSupabase = StorageAdapter?.hasSupabase?.() || false;
+
+        if (!hasSupabase) {
+            // No Supabase config - show nothing or "local mode"
+            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Local Mode</span>`;
+            return;
+        }
+
+        if (isAuth && user) {
+            container.innerHTML = `
+                <span class="user-email">☁️ ${user.email}</span>
+                <button onclick="SOPToolApp.signOut()">Sign Out</button>
+            `;
+        } else {
+            container.innerHTML = `
+                <button onclick="SOPToolApp.showAuthModal()">Sign In</button>
+            `;
+        }
+    }
+
+    /**
+     * Show the auth modal
+     */
+    function showAuthModal() {
+        // Remove existing modal if any
+        const existing = document.getElementById('auth-modal-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'auth-modal-overlay';
+        overlay.id = 'auth-modal-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        overlay.innerHTML = `
+            <div class="auth-modal" style="position:relative;">
+                <button class="close-btn" onclick="document.getElementById('auth-modal-overlay').remove()">×</button>
+                <h2>Sign In to Sync</h2>
+                <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">
+                    Your SOPs are saved locally. Sign in to sync across devices.
+                </p>
+                <div class="tabs">
+                    <button class="tab active" data-tab="signin">Sign In</button>
+                    <button class="tab" data-tab="signup">Sign Up</button>
+                </div>
+                <div id="auth-error" class="error" style="display:none;"></div>
+                <form id="auth-form">
+                    <input type="text" id="auth-email" placeholder="Email" required autocomplete="email" />
+                    <input type="password" id="auth-password" placeholder="Password" required minlength="6" />
+                    <button type="submit" class="btn-primary" id="auth-submit">Sign In</button>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Tab switching
+        let currentTab = 'signin';
+        overlay.querySelectorAll('.tab').forEach(tab => {
+            tab.onclick = () => {
+                overlay.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+                document.getElementById('auth-submit').textContent = 
+                    currentTab === 'signin' ? 'Sign In' : 'Sign Up';
+                document.getElementById('auth-error').style.display = 'none';
+            };
+        });
+
+        // Form submission
+        document.getElementById('auth-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const submitBtn = document.getElementById('auth-submit');
+            const errorDiv = document.getElementById('auth-error');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = currentTab === 'signin' ? 'Signing in...' : 'Creating account...';
+            errorDiv.style.display = 'none';
+
+            try {
+                if (currentTab === 'signin') {
+                    await StorageAdapter.Auth.signIn(email, password);
+                } else {
+                    await StorageAdapter.Auth.signUp(email, password);
+                }
+                overlay.remove();
+                
+                // Show sync status briefly
+                const syncStatus = document.getElementById('sync-status');
+                if (syncStatus) {
+                    syncStatus.textContent = '✓ Synced';
+                    syncStatus.style.display = 'block';
+                    setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
+                }
+            } catch (err) {
+                errorDiv.textContent = err.message || 'Authentication failed';
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = currentTab === 'signin' ? 'Sign In' : 'Sign Up';
+            }
+        };
+
+        // Focus email input
+        document.getElementById('auth-email').focus();
+    }
+
+    /**
+     * Sign out the current user
+     */
+    async function signOut() {
+        if (confirm('Sign out? Your data will remain on this device.')) {
+            await StorageAdapter.Auth.signOut();
+            updateAuthIndicator(document.getElementById('auth-indicator'));
+        }
+    }
+
+    // ========================================================================
+    // GLOBAL API (for debugging and external access)
+    // ========================================================================
+
+    /**
+     * Expose app functions globally for debugging and potential external use
+     */
+    window.SOPToolApp = {
+        // View navigation
+        showDashboard: showDashboard,
+        showEditor: showEditor,
+        showChecklist: showChecklist,
+        showCompletedChecklist: showCompletedChecklist,
+        
+        // Auth
+        showAuthModal: showAuthModal,
+        signOut: signOut,
+        
+        // State access (read-only)
+        getState: () => ({ ...AppState }),
+        getCurrentView: () => AppState.currentView,
+        isAuthenticated: () => StorageAdapter?.Auth?.isAuthenticated?.() || false,
+        
+        // Module access
+        getDashboard: () => AppState.modules.dashboard,
+        getEditor: () => AppState.modules.editor,
+        getChecklist: () => AppState.modules.checklist,
+        
+        // Re-initialization
+        reinit: initApp,
+        
+        // Version
+        version: '3.0.0'
+    };
+
+    // ========================================================================
+    // DOM READY - START APPLICATION
+    // ========================================================================
+
+    /**
+     * Wait for DOM to be ready, then initialize
+     */
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+        // DOM already loaded
+        initApp();
+    }
+
+})();

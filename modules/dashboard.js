@@ -1,181 +1,148 @@
 /**
- * Dashboard Module - SOP Tool v1
+ * Enhanced Dashboard Module - SOP Tool v1
  * 
- * This module handles the main dashboard view including:
- * - SOP listing with folder/category organization
- * - Folder sidebar for filtering
- * - Search functionality
- * - Quick action buttons
+ * Features:
+ * - SOP listing grouped by folders/categories
+ * - Folder management (create, edit, delete, reorder)
+ * - Sorting by date created (toggle: newest/oldest)
+ * - Filtering by folder, search term, status, hashtag
+ * - Clickable hashtags in SOP titles for quick filtering
+ * - Recently edited SOP highlighting
+ * - Collapsible folder sections
  * - Most Used SOPs tracking
- * - Local storage persistence
- * - AI touchpoint placeholders
+ * - In-progress and completed checklists display
  * 
- * USAGE:
- * Include via script tag: <script src="modules/dashboard.js"></script>
- * Then instantiate: const dashboard = new Dashboard(document.getElementById('app'));
- * Or use factory: const dashboard = createDashboard('#app');
+ * STORAGE KEYS:
+ * - 'sop_tool_sops' - All SOP documents
+ * - 'sop_tool_folders' - Folder definitions
+ * - 'sop_tool_sop_usage' - Usage tracking
+ * - 'sop_tool_dashboard_prefs' - User preferences (collapsed folders, sort, etc.)
  * 
  * @module Dashboard
+ * @version 2.2.0
  */
-
-// ============================================================================
-// IMMEDIATELY INVOKED FUNCTION TO AVOID GLOBAL POLLUTION
-// While still exposing necessary classes to window
-// ============================================================================
 
 (function(global) {
     'use strict';
 
     // ========================================================================
-    // DATA STRUCTURES & STORAGE KEYS
+    // STORAGE KEYS & CONSTANTS
     // ========================================================================
 
-    /**
-     * Local Storage Keys used by the Dashboard module
-     * Centralized for easy modification and consistency
-     */
     const STORAGE_KEYS = {
-        SOPS: 'sop_tool_sops',                    // All SOP documents
-        FOLDERS: 'sop_tool_folders',              // Folder/category structure
-        RECENT_CHECKLISTS: 'sop_tool_recent_checklists',  // Recently viewed checklists
-        SOP_USAGE: 'sop_tool_sop_usage',          // Usage tracking for "Most Used"
-        USER_PREFERENCES: 'sop_tool_user_prefs'   // User dashboard preferences
+        SOPS: 'sop_tool_sops',
+        FOLDERS: 'sop_tool_folders',
+        SOP_USAGE: 'sop_tool_sop_usage',
+        DASHBOARD_PREFS: 'sop_tool_dashboard_prefs'
     };
 
     /**
-     * Default folder structure if none exists
-     * Each folder has an id, name, color, and optional icon
+     * Default folders - created on first load
      */
     const DEFAULT_FOLDERS = [
-        { id: 'general', name: 'General', color: '#6366f1', icon: '📁' },
-        { id: 'onboarding', name: 'Onboarding', color: '#22c55e', icon: '👋' },
-        { id: 'operations', name: 'Operations', color: '#f59e0b', icon: '⚙️' },
-        { id: 'safety', name: 'Safety', color: '#ef4444', icon: '🛡️' },
-        { id: 'hr', name: 'HR & Compliance', color: '#8b5cf6', icon: '📋' }
+        { id: 'general', name: 'General', color: '#6366f1', icon: '📁', order: 0 },
+        { id: 'onboarding', name: 'Onboarding', color: '#22c55e', icon: '👋', order: 1 },
+        { id: 'operations', name: 'Operations', color: '#f59e0b', icon: '⚙️', order: 2 },
+        { id: 'safety', name: 'Safety', color: '#ef4444', icon: '🛡️', order: 3 },
+        { id: 'hr', name: 'HR & Compliance', color: '#8b5cf6', icon: '📋', order: 4 }
     ];
 
     /**
-     * Sample SOP data structure for reference and initial seeding
-     * 
-     * SOP Object Structure:
-     * {
-     *   id: string,           // Unique identifier
-     *   title: string,        // SOP title
-     *   description: string,  // Brief description
-     *   folderId: string,     // Reference to folder
-     *   steps: array,         // Array of step objects
-     *   createdAt: timestamp, // Creation date
-     *   updatedAt: timestamp, // Last modification date
-     *   tags: array,          // Searchable tags
-     *   status: string        // 'draft' | 'active' | 'archived'
-     * }
+     * Available folder colors for customization
      */
-    const SAMPLE_SOPS = [
-        {
-            id: 'sop_001',
-            title: 'New Employee Onboarding',
-            description: 'Complete checklist for onboarding new team members',
-            folderId: 'onboarding',
-            steps: [
-                { id: 's1', text: 'Send welcome email', order: 1 },
-                { id: 's2', text: 'Set up workstation', order: 2 },
-                { id: 's3', text: 'Schedule orientation meeting', order: 3 }
-            ],
-            createdAt: Date.now() - 86400000 * 7,
-            updatedAt: Date.now() - 86400000 * 2,
-            tags: ['hr', 'new hire', 'setup'],
-            status: 'active'
-        },
-        {
-            id: 'sop_002',
-            title: 'Daily Safety Inspection',
-            description: 'Standard safety checks to perform each morning',
-            folderId: 'safety',
-            steps: [
-                { id: 's1', text: 'Check emergency exits', order: 1 },
-                { id: 's2', text: 'Verify fire extinguishers', order: 2 },
-                { id: 's3', text: 'Inspect first aid kits', order: 3 }
-            ],
-            createdAt: Date.now() - 86400000 * 14,
-            updatedAt: Date.now() - 86400000 * 1,
-            tags: ['safety', 'daily', 'inspection'],
-            status: 'active'
-        },
-        {
-            id: 'sop_003',
-            title: 'Equipment Maintenance',
-            description: 'Monthly maintenance procedures for office equipment',
-            folderId: 'operations',
-            steps: [
-                { id: 's1', text: 'Clean and dust equipment', order: 1 },
-                { id: 's2', text: 'Check for wear and tear', order: 2 },
-                { id: 's3', text: 'Update maintenance log', order: 3 }
-            ],
-            createdAt: Date.now() - 86400000 * 30,
-            updatedAt: Date.now() - 86400000 * 5,
-            tags: ['maintenance', 'equipment', 'monthly'],
-            status: 'active'
-        }
+    const FOLDER_COLORS = [
+        '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
+        '#f59e0b', '#22c55e', '#14b8a6', '#0ea5e9'
     ];
 
-    // ========================================================================
-    // DASHBOARD MODULE CLASS
-    // ========================================================================
+    /**
+     * Available folder icons
+     */
+    const FOLDER_ICONS = [
+        '📁', '📂', '📋', '📝', '📄', '📑', '🗂️', '🗃️',
+        '👋', '⚙️', '🛡️', '🔧', '💼', '📊', '🎯', '✅',
+        '⚠️', '🔒', '💡', '🚀', '📦', '🏷️', '⭐', '🔥'
+    ];
 
     /**
-     * Dashboard Class
-     * Main controller for the dashboard view and functionality
+     * Sort options (simplified: creation date only)
      */
+    const SORT_OPTIONS = {
+        CREATED_DESC: 'created_desc',  // Newest first (default)
+        CREATED_ASC: 'created_asc'     // Oldest first
+    };
+
+    /**
+     * How long (ms) to consider an SOP "recently edited"
+     * Default: 24 hours
+     */
+    const RECENT_EDIT_THRESHOLD = 24 * 60 * 60 * 1000;
+
+    // ========================================================================
+    // DASHBOARD CLASS
+    // ========================================================================
+
     class Dashboard {
         /**
-         * Initialize the Dashboard module
-         * @param {HTMLElement} containerElement - The DOM element to render the dashboard into
+         * Initialize the Dashboard
+         * @param {HTMLElement|string} containerElement - Container element or selector
          * @param {Object} options - Configuration options
          */
         constructor(containerElement, options = {}) {
-            // Handle string selector or element
             if (typeof containerElement === 'string') {
                 containerElement = document.querySelector(containerElement);
             }
             
-            // Validate container
             if (!containerElement) {
                 throw new Error('Dashboard: Container element not found');
             }
             
-            // Store reference to the container element
             this.container = containerElement;
             
-            // Configuration options with defaults
+            // Configuration
             this.options = {
-                showMostUsed: true,           // Show "Most Used SOPs" section
-                mostUsedLimit: 5,             // Number of SOPs to show in "Most Used"
-                recentChecklistsLimit: 5,     // Number of recent checklists to track
-                enableAIFeatures: true,       // Enable AI touchpoint placeholders
-                autoRender: true,             // Automatically render on initialization
+                showMostUsed: true,
+                mostUsedLimit: 5,
+                enableFolderManagement: true,
+                enableSorting: true,
+                enableFiltering: true,
+                highlightRecentEdits: true,
+                recentEditThreshold: RECENT_EDIT_THRESHOLD,
+                autoRender: true,
                 ...options
             };
             
-            // Internal state
+            // State
             this.state = {
-                sops: [],                     // All SOPs
-                folders: [],                  // All folders
-                filteredSops: [],             // SOPs after filtering
-                selectedFolderId: null,       // Currently selected folder filter
-                searchQuery: '',              // Current search query
-                sopUsage: {}                  // Usage count per SOP
+                sops: [],
+                folders: [],
+                filteredSops: [],
+                sopUsage: {},
+                
+                // Filtering & Sorting
+                selectedFolderId: null,      // null = all folders
+                searchQuery: '',
+                sortBy: SORT_OPTIONS.CREATED_DESC,  // Default: newest first
+                statusFilter: null,          // null = all statuses
+                hashtagFilter: null,         // null = no hashtag filter
+                
+                // UI state
+                collapsedFolders: new Set(),
+                completedCollapsed: false,   // Collapse "Recently Completed" section
+                showFolderModal: false,
+                editingFolder: null
             };
             
-            // Event callbacks (for integration with other modules)
+            // Callbacks
             this.callbacks = {
-                onCreateSOP: null,            // Called when "Create New SOP" clicked
-                onViewSOP: null,              // Called when an SOP is selected
-                onViewChecklists: null,       // Called when "View Recent Checklists" clicked
-                onEditSOP: null,              // Called when edit action triggered
-                onDeleteSOP: null             // Called when delete action triggered
+                onCreateSOP: null,
+                onEditSOP: null,
+                onDeleteSOP: null,
+                onRunChecklist: null,
+                onResumeChecklist: null,
+                onViewCompletedChecklist: null
             };
             
-            // Initialize the dashboard
             this._init();
         }
         
@@ -183,12 +150,9 @@
         // INITIALIZATION
         // ====================================================================
         
-        /**
-         * Initialize the dashboard - load data and render
-         * @private
-         */
         _init() {
             this._loadData();
+            this._loadPreferences();
             if (this.options.autoRender) {
                 this._render();
                 this._attachEventListeners();
@@ -196,12 +160,10 @@
         }
         
         /**
-         * Load all data from local storage
-         * Seeds with sample data if first run
-         * @private
+         * Load all data from localStorage
          */
         _loadData() {
-            // Load folders (or use defaults)
+            // Load folders
             const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
             if (storedFolders) {
                 this.state.folders = JSON.parse(storedFolders);
@@ -210,64 +172,72 @@
                 this._saveFolders();
             }
             
-            // Load SOPs (or seed with samples)
+            // Sort folders by order
+            this.state.folders.sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            // Load SOPs
             const storedSops = localStorage.getItem(STORAGE_KEYS.SOPS);
-            if (storedSops) {
-                this.state.sops = JSON.parse(storedSops);
-            } else {
-                this.state.sops = [...SAMPLE_SOPS];
-                this._saveSops();
-            }
+            this.state.sops = storedSops ? JSON.parse(storedSops) : [];
             
-            // Load usage tracking data
+            // Load usage data
             const storedUsage = localStorage.getItem(STORAGE_KEYS.SOP_USAGE);
-            if (storedUsage) {
-                this.state.sopUsage = JSON.parse(storedUsage);
-            } else {
-                // Initialize usage counts
-                this.state.sopUsage = {};
-                this.state.sops.forEach(sop => {
-                    this.state.sopUsage[sop.id] = Math.floor(Math.random() * 20); // Sample data
-                });
-                this._saveUsage();
-            }
+            this.state.sopUsage = storedUsage ? JSON.parse(storedUsage) : {};
             
-            // Initialize filtered SOPs to all SOPs
-            this.state.filteredSops = [...this.state.sops];
+            // Apply current filters
+            this._applyFiltersAndSort();
+            
+            console.log(`Dashboard: Loaded ${this.state.sops.length} SOPs, ${this.state.folders.length} folders`);
+        }
+        
+        /**
+         * Load user preferences (collapsed folders, sort order, etc.)
+         */
+        _loadPreferences() {
+            const prefs = localStorage.getItem(STORAGE_KEYS.DASHBOARD_PREFS);
+            if (prefs) {
+                const parsed = JSON.parse(prefs);
+                this.state.collapsedFolders = new Set(parsed.collapsedFolders || []);
+                this.state.completedCollapsed = parsed.completedCollapsed || false;
+                
+                // Handle legacy sort values - migrate to creation-based sorting
+                const savedSort = parsed.sortBy;
+                if (savedSort === SORT_OPTIONS.CREATED_DESC || savedSort === SORT_OPTIONS.CREATED_ASC) {
+                    this.state.sortBy = savedSort;
+                } else {
+                    // Legacy sort value - default to newest first
+                    this.state.sortBy = SORT_OPTIONS.CREATED_DESC;
+                }
+            }
+        }
+        
+        /**
+         * Save user preferences
+         */
+        _savePreferences() {
+            const prefs = {
+                collapsedFolders: Array.from(this.state.collapsedFolders),
+                completedCollapsed: this.state.completedCollapsed,
+                sortBy: this.state.sortBy
+            };
+            localStorage.setItem(STORAGE_KEYS.DASHBOARD_PREFS, JSON.stringify(prefs));
         }
         
         // ====================================================================
         // DATA PERSISTENCE
         // ====================================================================
         
-        /**
-         * Save SOPs to local storage
-         * @private
-         */
         _saveSops() {
             localStorage.setItem(STORAGE_KEYS.SOPS, JSON.stringify(this.state.sops));
         }
         
-        /**
-         * Save folders to local storage
-         * @private
-         */
         _saveFolders() {
             localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(this.state.folders));
         }
         
-        /**
-         * Save usage data to local storage
-         * @private
-         */
         _saveUsage() {
             localStorage.setItem(STORAGE_KEYS.SOP_USAGE, JSON.stringify(this.state.sopUsage));
         }
         
-        /**
-         * Track SOP usage for "Most Used" feature
-         * @param {string} sopId - The ID of the SOP being accessed
-         */
         trackUsage(sopId) {
             if (!this.state.sopUsage[sopId]) {
                 this.state.sopUsage[sopId] = 0;
@@ -277,76 +247,319 @@
         }
         
         // ====================================================================
-        // RENDERING
+        // FILTERING & SORTING
         // ====================================================================
         
         /**
-         * Main render function - builds entire dashboard UI
-         * @private
+         * Apply all active filters and sort the SOPs
          */
+        _applyFiltersAndSort() {
+            let filtered = [...this.state.sops];
+            
+            // Filter by folder
+            if (this.state.selectedFolderId) {
+                filtered = filtered.filter(sop => sop.folderId === this.state.selectedFolderId);
+            }
+            
+            // Filter by search query
+            if (this.state.searchQuery) {
+                const query = this.state.searchQuery.toLowerCase();
+                filtered = filtered.filter(sop => {
+                    const titleMatch = sop.title?.toLowerCase().includes(query);
+                    const descMatch = sop.description?.toLowerCase().includes(query);
+                    const tagMatch = sop.tags?.some(tag => tag.toLowerCase().includes(query));
+                    return titleMatch || descMatch || tagMatch;
+                });
+            }
+            
+            // Filter by status
+            if (this.state.statusFilter) {
+                filtered = filtered.filter(sop => sop.status === this.state.statusFilter);
+            }
+            
+            // Filter by hashtag
+            if (this.state.hashtagFilter) {
+                filtered = filtered.filter(sop => this._sopHasHashtag(sop, this.state.hashtagFilter));
+            }
+            
+            // Apply sorting
+            filtered = this._sortSops(filtered);
+            
+            this.state.filteredSops = filtered;
+        }
+        
+        /**
+         * Sort SOPs based on current sort setting (creation date only)
+         */
+        _sortSops(sops) {
+            const sorted = [...sops];
+            
+            if (this.state.sortBy === SORT_OPTIONS.CREATED_ASC) {
+                // Oldest first
+                sorted.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            } else {
+                // Newest first (default)
+                sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            }
+            
+            return sorted;
+        }
+        
+        /**
+         * Extract hashtags from text
+         * @param {string} text - Text to search for hashtags
+         * @returns {string[]} Array of hashtags (without # prefix)
+         */
+        _extractHashtags(text) {
+            if (!text) return [];
+            const matches = text.match(/#[a-zA-Z0-9_]+/g);
+            return matches ? matches.map(tag => tag.substring(1).toLowerCase()) : [];
+        }
+        
+        /**
+         * Check if SOP contains a specific hashtag
+         * @param {Object} sop - SOP object
+         * @param {string} hashtag - Hashtag to search for (without #)
+         * @returns {boolean}
+         */
+        _sopHasHashtag(sop, hashtag) {
+            const hashtagLower = hashtag.toLowerCase();
+            
+            // Check title
+            const titleHashtags = this._extractHashtags(sop.title);
+            if (titleHashtags.includes(hashtagLower)) return true;
+            
+            // Check steps
+            if (sop.steps) {
+                for (const step of sop.steps) {
+                    const stepHashtags = this._extractHashtags(step.text);
+                    if (stepHashtags.includes(hashtagLower)) return true;
+                    
+                    // Also check step notes
+                    const noteHashtags = this._extractHashtags(step.note);
+                    if (noteHashtags.includes(hashtagLower)) return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        /**
+         * Render text with clickable hashtags
+         * @param {string} text - Text to render
+         * @returns {string} HTML with clickable hashtag spans
+         */
+        _renderWithHashtags(text) {
+            if (!text) return '';
+            
+            const escaped = this._escapeHtml(text);
+            const activeHashtag = this.state.hashtagFilter?.toLowerCase();
+            
+            // Replace hashtags with clickable spans
+            return escaped.replace(/#([a-zA-Z0-9_]+)/g, (match, tag) => {
+                const isActive = activeHashtag === tag.toLowerCase();
+                return `<span class="hashtag${isActive ? ' active' : ''}" data-hashtag="${this._escapeHtml(tag.toLowerCase())}">${match}</span>`;
+            });
+        }
+        
+        /**
+         * Check if SOP was recently edited
+         */
+        _isRecentlyEdited(sop) {
+            if (!this.options.highlightRecentEdits) return false;
+            const threshold = Date.now() - this.options.recentEditThreshold;
+            return (sop.updatedAt || sop.createdAt || 0) > threshold;
+        }
+        
+        /**
+         * Group SOPs by folder
+         */
+        _groupSopsByFolder() {
+            const groups = {};
+            
+            // Initialize groups for all folders
+            this.state.folders.forEach(folder => {
+                groups[folder.id] = {
+                    folder: folder,
+                    sops: []
+                };
+            });
+            
+            // Add uncategorized group
+            groups['uncategorized'] = {
+                folder: { id: 'uncategorized', name: 'Other', icon: '📄', color: '#6b7280' },
+                sops: []
+            };
+            
+            // Group filtered SOPs
+            this.state.filteredSops.forEach(sop => {
+                const folderId = sop.folderId || 'uncategorized';
+                if (groups[folderId]) {
+                    groups[folderId].sops.push(sop);
+                } else {
+                    groups['uncategorized'].sops.push(sop);
+                }
+            });
+            
+            return groups;
+        }
+        
+        // ====================================================================
+        // FOLDER MANAGEMENT
+        // ====================================================================
+        
+        /**
+         * Create a new folder
+         */
+        createFolder(folderData) {
+            const newFolder = {
+                id: `folder_${Date.now()}`,
+                name: folderData.name || 'New Folder',
+                color: folderData.color || FOLDER_COLORS[0],
+                icon: folderData.icon || '📁',
+                order: this.state.folders.length,
+                createdAt: Date.now()
+            };
+            
+            this.state.folders.push(newFolder);
+            this._saveFolders();
+            this.refresh();
+            
+            return newFolder;
+        }
+        
+        /**
+         * Update an existing folder
+         */
+        updateFolder(folderId, updates) {
+            const index = this.state.folders.findIndex(f => f.id === folderId);
+            if (index === -1) return null;
+            
+            this.state.folders[index] = {
+                ...this.state.folders[index],
+                ...updates
+            };
+            
+            this._saveFolders();
+            this.refresh();
+            
+            return this.state.folders[index];
+        }
+        
+        /**
+         * Delete a folder (moves SOPs to uncategorized)
+         */
+        deleteFolder(folderId) {
+            // Don't delete default folders or uncategorized
+            if (['general', 'uncategorized'].includes(folderId)) {
+                this._showNotification('Cannot delete this folder', 'error');
+                return false;
+            }
+            
+            const folder = this.state.folders.find(f => f.id === folderId);
+            if (!folder) return false;
+            
+            // Move all SOPs in this folder to "general"
+            let movedCount = 0;
+            this.state.sops.forEach(sop => {
+                if (sop.folderId === folderId) {
+                    sop.folderId = 'general';
+                    movedCount++;
+                }
+            });
+            
+            if (movedCount > 0) {
+                this._saveSops();
+            }
+            
+            // Remove the folder
+            this.state.folders = this.state.folders.filter(f => f.id !== folderId);
+            this._saveFolders();
+            
+            this._showNotification(`Folder "${folder.name}" deleted. ${movedCount} SOPs moved to General.`, 'success');
+            this.refresh();
+            
+            return true;
+        }
+        
+        /**
+         * Toggle folder collapsed state
+         */
+        toggleFolderCollapse(folderId) {
+            if (this.state.collapsedFolders.has(folderId)) {
+                this.state.collapsedFolders.delete(folderId);
+            } else {
+                this.state.collapsedFolders.add(folderId);
+            }
+            this._savePreferences();
+            this._updateFolderCollapseUI(folderId);
+        }
+        
+        // ====================================================================
+        // RENDERING
+        // ====================================================================
+        
         _render() {
             this.container.innerHTML = '';
             this.container.className = 'dashboard-container';
             
-            // Build dashboard structure
             this.container.innerHTML = `
                 <div class="dashboard-layout">
-                    <!-- Folder Sidebar -->
+                    <!-- Sidebar -->
                     <aside class="dashboard-sidebar" id="folder-sidebar">
                         <div class="sidebar-header">
                             <h3>📂 Folders</h3>
+                            ${this.options.enableFolderManagement ? `
+                            <button class="btn-icon" id="btn-add-folder" title="Add Folder">➕</button>
+                            ` : ''}
                         </div>
                         <nav class="folder-list" id="folder-list">
                             ${this._renderFolderList()}
                         </nav>
-                        
-                        <!-- AI Touchpoint: Suggest Folder Organization -->
-                        ${this.options.enableAIFeatures ? `
-                        <div class="ai-touchpoint" id="ai-organize-folders">
-                            <button class="ai-btn" data-ai-action="organize-folders">
-                                ✨ AI: Suggest Folder Organization
-                            </button>
-                        </div>
-                        ` : ''}
                     </aside>
                     
-                    <!-- Main Content Area -->
+                    <!-- Main Content -->
                     <main class="dashboard-main">
-                        <!-- Header with Search and Quick Actions -->
+                        <!-- Header -->
                         <header class="dashboard-header">
                             <div class="search-container">
                                 <input 
                                     type="text" 
                                     id="sop-search" 
                                     class="search-input" 
-                                    placeholder="Search SOPs by title or description..."
-                                    value="${this.state.searchQuery}"
+                                    placeholder="Search SOPs..."
+                                    value="${this._escapeHtml(this.state.searchQuery)}"
                                 />
                                 <span class="search-icon">🔍</span>
                             </div>
+                            
+                            ${this.options.enableSorting ? `
+                            <button class="sort-toggle-btn" id="btn-sort-toggle" title="Toggle sort order">
+                                ${this.state.sortBy === SORT_OPTIONS.CREATED_DESC ? '↓ Newest' : '↑ Oldest'}
+                            </button>
+                            ` : ''}
                             
                             <div class="quick-actions">
                                 <button class="btn btn-primary" id="btn-create-sop">
                                     ➕ Create New SOP
                                 </button>
-                                <button class="btn btn-secondary" id="btn-view-checklists">
-                                    📋 View Recent Checklists
-                                </button>
                             </div>
                         </header>
                         
-                        <!-- Most Used SOPs Section (Optional) -->
-                        ${this.options.showMostUsed ? `
+                        <!-- Active Filters -->
+                        ${this._renderActiveFilters()}
+                        
+                        <!-- Recent Checklists Section -->
+                        ${this._renderRecentChecklists()}
+                        
+                        <!-- Completed Checklists Section -->
+                        ${this._renderCompletedChecklists()}
+                        
+                        <!-- Most Used Section -->
+                        ${this.options.showMostUsed && this.state.sops.length > 0 ? `
                         <section class="most-used-section" id="most-used-section">
                             <div class="section-header">
-                                <h3>🔥 Most Used SOPs</h3>
-                                
-                                <!-- AI Touchpoint: Analyze Usage Patterns -->
-                                ${this.options.enableAIFeatures ? `
-                                <button class="ai-btn-small" data-ai-action="analyze-usage">
-                                    ✨ Analyze Patterns
-                                </button>
-                                ` : ''}
+                                <h3>🔥 Most Used</h3>
                             </div>
                             <div class="most-used-list" id="most-used-list">
                                 ${this._renderMostUsedSops()}
@@ -354,43 +567,77 @@
                         </section>
                         ` : ''}
                         
-                        <!-- SOP List Section -->
+                        <!-- SOP List by Folders -->
                         <section class="sop-list-section">
                             <div class="section-header">
-                                <h3>📄 All SOPs</h3>
+                                <h3>📄 SOPs</h3>
                                 <span class="sop-count" id="sop-count">
-                                    ${this.state.filteredSops.length} SOPs
+                                    ${this.state.filteredSops.length} of ${this.state.sops.length} SOPs
                                 </span>
                             </div>
                             
-                            <!-- AI Touchpoint: Bulk Improve -->
-                            ${this.options.enableAIFeatures ? `
-                            <div class="ai-touchpoint-inline">
-                                <button class="ai-btn-small" data-ai-action="bulk-improve">
-                                    ✨ AI: Review All SOPs for Improvements
-                                </button>
-                            </div>
-                            ` : ''}
-                            
-                            <div class="sop-list" id="sop-list">
-                                ${this._renderSopList()}
+                            <div class="sop-groups" id="sop-groups">
+                                ${this._renderSopGroups()}
                             </div>
                         </section>
                     </main>
                 </div>
+                
+                <!-- Folder Modal -->
+                <div class="modal-overlay" id="folder-modal" style="display: none;">
+                    <div class="modal-content folder-modal-content">
+                        <div class="modal-header">
+                            <h3 id="folder-modal-title">Add Folder</h3>
+                            <button class="btn-close" id="btn-close-folder-modal">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>Folder Name</label>
+                                <input type="text" id="folder-name-input" class="form-input" placeholder="Enter folder name" maxlength="50" />
+                            </div>
+                            <div class="form-group">
+                                <label>Icon</label>
+                                <div class="icon-picker" id="icon-picker">
+                                    ${FOLDER_ICONS.map(icon => `
+                                        <button type="button" class="icon-option" data-icon="${icon}">${icon}</button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Color</label>
+                                <div class="color-picker" id="color-picker">
+                                    ${FOLDER_COLORS.map(color => `
+                                        <button type="button" class="color-option" data-color="${color}" style="background: ${color}"></button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" id="btn-cancel-folder">Cancel</button>
+                            <button class="btn btn-primary" id="btn-save-folder">Save Folder</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notification Toast -->
+                <div class="notification-toast" id="notification-toast" style="display: none;">
+                    <span class="notification-message"></span>
+                </div>
             `;
             
-            // Inject minimal styles
             this._injectStyles();
         }
         
         /**
-         * Render the folder sidebar list
-         * @private
-         * @returns {string} HTML string for folder list
+         * Render folder list in sidebar
          */
         _renderFolderList() {
-            // "All" option
+            const sopCounts = {};
+            this.state.sops.forEach(sop => {
+                const folderId = sop.folderId || 'uncategorized';
+                sopCounts[folderId] = (sopCounts[folderId] || 0) + 1;
+            });
+            
             let html = `
                 <div class="folder-item ${!this.state.selectedFolderId ? 'active' : ''}" 
                      data-folder-id="">
@@ -400,9 +647,8 @@
                 </div>
             `;
             
-            // Individual folders
             this.state.folders.forEach(folder => {
-                const count = this.state.sops.filter(s => s.folderId === folder.id).length;
+                const count = sopCounts[folder.id] || 0;
                 const isActive = this.state.selectedFolderId === folder.id;
                 
                 html += `
@@ -410,24 +656,207 @@
                          data-folder-id="${folder.id}"
                          style="--folder-color: ${folder.color}">
                         <span class="folder-icon">${folder.icon || '📁'}</span>
-                        <span class="folder-name">${folder.name}</span>
+                        <span class="folder-name">${this._escapeHtml(folder.name)}</span>
                         <span class="folder-count">${count}</span>
+                        ${this.options.enableFolderManagement && !['general'].includes(folder.id) ? `
+                        <div class="folder-actions">
+                            <button class="folder-action-btn" data-action="edit-folder" data-folder-id="${folder.id}" title="Edit">✏️</button>
+                            <button class="folder-action-btn" data-action="delete-folder" data-folder-id="${folder.id}" title="Delete">🗑️</button>
+                        </div>
+                        ` : ''}
                     </div>
                 `;
             });
+            
+            // Uncategorized
+            const uncategorizedCount = sopCounts['uncategorized'] || 0;
+            if (uncategorizedCount > 0) {
+                html += `
+                    <div class="folder-item ${this.state.selectedFolderId === 'uncategorized' ? 'active' : ''}" 
+                         data-folder-id="uncategorized"
+                         style="--folder-color: #6b7280">
+                        <span class="folder-icon">📄</span>
+                        <span class="folder-name">Other</span>
+                        <span class="folder-count">${uncategorizedCount}</span>
+                    </div>
+                `;
+            }
             
             return html;
         }
         
         /**
-         * Render the Most Used SOPs section
-         * @private
-         * @returns {string} HTML string for most used SOPs
+         * Render active filter badges
+         */
+        _renderActiveFilters() {
+            const filters = [];
+            
+            if (this.state.selectedFolderId) {
+                const folder = this.state.folders.find(f => f.id === this.state.selectedFolderId);
+                if (folder) {
+                    filters.push({
+                        type: 'folder',
+                        label: `Folder: ${folder.name}`,
+                        value: this.state.selectedFolderId
+                    });
+                }
+            }
+            
+            if (this.state.searchQuery) {
+                filters.push({
+                    type: 'search',
+                    label: `Search: "${this.state.searchQuery}"`,
+                    value: this.state.searchQuery
+                });
+            }
+            
+            if (this.state.hashtagFilter) {
+                filters.push({
+                    type: 'hashtag',
+                    label: `#${this.state.hashtagFilter}`,
+                    value: this.state.hashtagFilter
+                });
+            }
+            
+            if (filters.length === 0) return '';
+            
+            return `
+                <div class="active-filters">
+                    ${filters.map(f => `
+                        <span class="filter-badge${f.type === 'hashtag' ? ' filter-badge-hashtag' : ''}" data-filter-type="${f.type}">
+                            ${this._escapeHtml(f.label)}
+                            <button class="filter-remove" data-filter-type="${f.type}">✕</button>
+                        </span>
+                    `).join('')}
+                    <button class="btn-link" id="btn-clear-filters">Clear All</button>
+                </div>
+            `;
+        }
+        
+        /**
+         * Render recent/in-progress checklists section
+         */
+        _renderRecentChecklists() {
+            const checklists = this._loadChecklists();
+            const inProgress = checklists.filter(c => c.status === 'in_progress').slice(0, 5);
+            
+            if (inProgress.length === 0) return '';
+            
+            return `
+                <section class="recent-checklists-section">
+                    <div class="section-header">
+                        <h3>📋 Continue Where You Left Off</h3>
+                    </div>
+                    <div class="checklists-list">
+                        ${inProgress.map(checklist => {
+                            const progress = Math.round((checklist.completedSteps / checklist.totalSteps) * 100);
+                            const folder = this.state.folders.find(f => f.id === checklist.folderId);
+                            return `
+                                <div class="checklist-card" data-checklist-id="${checklist.id}">
+                                    <div class="checklist-card-main">
+                                        <span class="checklist-folder" style="color: ${folder?.color || '#6b7280'}">
+                                            ${folder?.icon || '📁'}
+                                        </span>
+                                        <div class="checklist-info">
+                                            <h4>${this._escapeHtml(checklist.sopTitle)}</h4>
+                                            <div class="checklist-progress">
+                                                <div class="mini-progress-bar">
+                                                    <div class="mini-progress-fill" style="width: ${progress}%"></div>
+                                                </div>
+                                                <span>${checklist.completedSteps}/${checklist.totalSteps}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn-resume" data-checklist-id="${checklist.id}">Resume →</button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </section>
+            `;
+        }
+        
+        /**
+         * Render completed checklists section
+         */
+        _renderCompletedChecklists() {
+            const checklists = this._loadChecklists();
+            const completed = checklists
+                .filter(c => c.status === 'completed')
+                .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+                .slice(0, 5);
+            
+            if (completed.length === 0) return '';
+            
+            const isCollapsed = this.state.completedCollapsed;
+            
+            return `
+                <section class="completed-checklists-section ${isCollapsed ? 'collapsed' : ''}">
+                    <div class="section-header section-header-collapsible" id="completed-section-header">
+                        <h3>✅ Recently Completed <span class="completed-count">(${completed.length})</span></h3>
+                        <button class="collapse-arrow ${isCollapsed ? 'collapsed' : ''}" id="btn-toggle-completed" title="${isCollapsed ? 'Expand' : 'Collapse'}">
+                            ▼
+                        </button>
+                    </div>
+                    <div class="checklists-list ${isCollapsed ? 'hidden' : ''}">
+                        ${completed.map(checklist => {
+                            const completedDate = checklist.completedAt 
+                                ? new Date(checklist.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                : 'Unknown';
+                            const completedTime = checklist.completedAt
+                                ? new Date(checklist.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : '';
+                            return `
+                                <div class="checklist-card completed-checklist-card" data-completed-checklist-id="${checklist.id}">
+                                    <div class="checklist-card-main">
+                                        <span class="checklist-complete-icon">✓</span>
+                                        <div class="checklist-info">
+                                            <h4>${this._escapeHtml(checklist.sopTitle)}</h4>
+                                            <div class="checklist-completed-date">
+                                                <span>Completed ${completedDate} at ${completedTime}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn-view-completed" data-completed-checklist-id="${checklist.id}">View →</button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </section>
+            `;
+        }
+        
+        /**
+         * Load checklists from localStorage
+         */
+        /**
+         * Load checklists from localStorage
+         * Returns raw data without recalculating status - status is persisted explicitly
+         */
+        _loadChecklists() {
+            const stored = localStorage.getItem('sop_tool_checklists');
+            if (!stored) return [];
+            
+            const checklists = JSON.parse(stored);
+            
+            // Defensive: ensure each checklist has required fields
+            // but do NOT recalculate status - respect persisted values
+            return checklists.map(c => ({
+                ...c,
+                // Ensure required fields exist with defaults only if missing
+                status: c.status || 'in_progress',
+                completedSteps: c.completedSteps ?? 0,
+                totalSteps: c.totalSteps ?? (c.steps?.length || 0),
+                completedAt: c.completedAt ?? null
+            }));
+        }
+        
+        /**
+         * Render most used SOPs
          */
         _renderMostUsedSops() {
-            // Sort SOPs by usage count and take top N
             const sortedByUsage = [...this.state.sops]
-                .filter(sop => sop.status === 'active')
+                .filter(sop => sop.status !== 'archived')
                 .sort((a, b) => {
                     const usageA = this.state.sopUsage[a.id] || 0;
                     const usageB = this.state.sopUsage[b.id] || 0;
@@ -436,7 +865,7 @@
                 .slice(0, this.options.mostUsedLimit);
             
             if (sortedByUsage.length === 0) {
-                return '<p class="empty-message">No usage data yet. Start using SOPs to see trends!</p>';
+                return '<p class="empty-message">No usage data yet</p>';
             }
             
             return sortedByUsage.map(sop => {
@@ -450,108 +879,608 @@
                             <span class="usage-badge">${usage} uses</span>
                         </div>
                         <h4 class="card-title">${this._escapeHtml(sop.title)}</h4>
-                        <p class="card-folder" style="color: ${folder?.color || '#666'}">
-                            ${folder?.name || 'Uncategorized'}
-                        </p>
                     </div>
                 `;
             }).join('');
         }
         
         /**
-         * Render the main SOP list
-         * @private
-         * @returns {string} HTML string for SOP list
+         * Render SOPs grouped by folder with collapsible sections
          */
-        _renderSopList() {
+        _renderSopGroups() {
             if (this.state.filteredSops.length === 0) {
+                const isFiltered = this.state.searchQuery || this.state.selectedFolderId || this.state.hashtagFilter;
+                
+                if (isFiltered) {
+                    return `
+                        <div class="empty-state">
+                            <p>📭 No SOPs found matching your filters.</p>
+                            <button class="btn btn-primary" id="btn-create-sop-empty">
+                                ➕ Create New SOP
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                // First-time user empty state
                 return `
-                    <div class="empty-state">
-                        <p>📭 No SOPs found matching your criteria.</p>
-                        <button class="btn btn-primary" id="btn-create-sop-empty">
-                            Create your first SOP
-                        </button>
+                    <div class="empty-state empty-state-welcome">
+                        <div class="welcome-header">
+                            <p class="welcome-title">No SOPs yet</p>
+                            <p class="welcome-subtitle">A Standard Operating Procedure helps your team follow the same steps every time.</p>
+                        </div>
+                        
+                        <div class="welcome-why">
+                            <p class="why-title">Why create one?</p>
+                            <p class="why-text">SOPs reduce mistakes, save training time, and make handoffs easier. Start with something your team does often.</p>
+                        </div>
+                        
+                        <div class="welcome-actions">
+                            <button class="btn btn-primary" id="btn-create-sop-empty">
+                                ➕ Create your first SOP
+                            </button>
+                        </div>
+                        
+                        <div class="welcome-starter">
+                            <p class="starter-label">Not sure where to start?</p>
+                            <p class="starter-idea">Try documenting something simple: how to submit a request, onboard a new team member, or handle a common question.</p>
+                        </div>
+                        
+                        <div class="trust-notice">
+                            <p>Your SOPs are saved locally in this browser. Nothing is uploaded or shared.</p>
+                            <p>Changes save automatically. Clearing browser data or switching devices will reset your data.</p>
+                        </div>
                     </div>
                 `;
             }
             
-            return this.state.filteredSops.map(sop => {
-                const folder = this.state.folders.find(f => f.id === sop.folderId);
-                const updatedDate = new Date(sop.updatedAt).toLocaleDateString();
-                const stepCount = sop.steps?.length || 0;
+            const groups = this._groupSopsByFolder();
+            let html = '';
+            
+            // Render folders in order
+            const orderedFolderIds = this.state.folders.map(f => f.id);
+            orderedFolderIds.push('uncategorized');
+            
+            orderedFolderIds.forEach(folderId => {
+                const group = groups[folderId];
+                if (!group || group.sops.length === 0) return;
                 
-                return `
-                    <div class="sop-card" data-sop-id="${sop.id}">
-                        <div class="sop-card-main">
-                            <div class="sop-card-header">
-                                <span class="sop-icon">${folder?.icon || '📄'}</span>
-                                <span class="sop-status status-${sop.status}">${sop.status}</span>
-                            </div>
-                            
-                            <h4 class="sop-title">${this._escapeHtml(sop.title)}</h4>
-                            <p class="sop-description">${this._escapeHtml(sop.description)}</p>
-                            
-                            <div class="sop-meta">
-                                <span class="meta-item folder-tag" style="background: ${folder?.color || '#666'}20; color: ${folder?.color || '#666'}">
-                                    ${folder?.name || 'Uncategorized'}
-                                </span>
-                                <span class="meta-item">📝 ${stepCount} steps</span>
-                                <span class="meta-item">🕐 ${updatedDate}</span>
-                            </div>
-                            
-                            <!-- Tags -->
-                            ${sop.tags && sop.tags.length > 0 ? `
-                            <div class="sop-tags">
-                                ${sop.tags.slice(0, 3).map(tag => `
-                                    <span class="tag">#${this._escapeHtml(tag)}</span>
-                                `).join('')}
-                            </div>
-                            ` : ''}
+                const isCollapsed = this.state.collapsedFolders.has(folderId);
+                const folder = group.folder;
+                
+                html += `
+                    <div class="sop-group" data-folder-id="${folderId}">
+                        <div class="sop-group-header" data-folder-id="${folderId}" style="--folder-color: ${folder.color}">
+                            <button class="collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-action="toggle-collapse" data-folder-id="${folderId}">
+                                ${isCollapsed ? '▶' : '▼'}
+                            </button>
+                            <span class="group-icon">${folder.icon}</span>
+                            <span class="group-name">${this._escapeHtml(folder.name)}</span>
+                            <span class="group-count">${group.sops.length}</span>
                         </div>
-                        
-                        <div class="sop-card-actions">
-                            <button class="action-btn view-btn" data-action="view" data-sop-id="${sop.id}" title="View SOP">
-                                👁️
-                            </button>
-                            <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
-                                ✏️
-                            </button>
-                            <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Run as Checklist">
-                                ✅
-                            </button>
-                            
-                            <!-- AI Touchpoint: Improve this SOP -->
-                            ${this.options.enableAIFeatures ? `
-                            <button class="action-btn ai-btn-icon" data-ai-action="improve-sop" data-sop-id="${sop.id}" title="AI: Suggest Improvements">
-                                ✨
-                            </button>
-                            ` : ''}
-                            
-                            <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
-                                🗑️
-                            </button>
+                        <div class="sop-group-content ${isCollapsed ? 'collapsed' : ''}" id="group-content-${folderId}">
+                            ${group.sops.map(sop => this._renderSopCard(sop)).join('')}
                         </div>
                     </div>
                 `;
-            }).join('');
+            });
+            
+            return html;
         }
         
         /**
-         * Inject minimal CSS styles for the dashboard
-         * @private
+         * Render a single SOP card
          */
+        _renderSopCard(sop) {
+            const folder = this.state.folders.find(f => f.id === sop.folderId);
+            const updatedDate = new Date(sop.updatedAt || sop.createdAt).toLocaleDateString();
+            const stepCount = sop.steps?.length || 0;
+            const isRecent = this._isRecentlyEdited(sop);
+            
+            return `
+                <div class="sop-card ${isRecent ? 'recently-edited' : ''}" data-sop-id="${sop.id}">
+                    ${isRecent ? '<span class="recent-badge">Recently Updated</span>' : ''}
+                    <div class="sop-card-main">
+                        <div class="sop-card-header">
+                            <span class="sop-status status-${sop.status || 'draft'}">${sop.status || 'draft'}</span>
+                        </div>
+                        
+                        <h4 class="sop-title">${this._renderWithHashtags(sop.title)}</h4>
+                        <p class="sop-description">${this._escapeHtml(sop.description || 'No description')}</p>
+                        
+                        <div class="sop-meta">
+                            <span class="meta-item">📝 ${stepCount} steps</span>
+                            <span class="meta-item">🕐 ${updatedDate}</span>
+                        </div>
+                        
+                        ${sop.tags && sop.tags.length > 0 ? `
+                        <div class="sop-tags">
+                            ${sop.tags.slice(0, 3).map(tag => `<span class="tag">#${this._escapeHtml(tag)}</span>`).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="sop-card-actions">
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
+                        </button>
+                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
+                            ✏️ Edit
+                        </button>
+                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        /**
+         * Update folder collapse UI without full re-render
+         */
+        _updateFolderCollapseUI(folderId) {
+            const content = document.getElementById(`group-content-${folderId}`);
+            const btn = document.querySelector(`[data-action="toggle-collapse"][data-folder-id="${folderId}"]`);
+            
+            if (content && btn) {
+                const isCollapsed = this.state.collapsedFolders.has(folderId);
+                content.classList.toggle('collapsed', isCollapsed);
+                btn.classList.toggle('collapsed', isCollapsed);
+                btn.textContent = isCollapsed ? '▶' : '▼';
+            }
+        }
+        
+        // ====================================================================
+        // EVENT HANDLING
+        // ====================================================================
+        
+        _attachEventListeners() {
+            // Search
+            document.getElementById('sop-search')?.addEventListener('input', (e) => {
+                this.state.searchQuery = e.target.value;
+                this._applyFiltersAndSort();
+                this._updateSopList();
+            });
+            
+            // Sort toggle button
+            document.getElementById('btn-sort-toggle')?.addEventListener('click', () => {
+                // Toggle between newest and oldest
+                if (this.state.sortBy === SORT_OPTIONS.CREATED_DESC) {
+                    this.state.sortBy = SORT_OPTIONS.CREATED_ASC;
+                } else {
+                    this.state.sortBy = SORT_OPTIONS.CREATED_DESC;
+                }
+                
+                // Update button text
+                const btn = document.getElementById('btn-sort-toggle');
+                if (btn) {
+                    btn.textContent = this.state.sortBy === SORT_OPTIONS.CREATED_DESC ? '↓ Newest' : '↑ Oldest';
+                }
+                
+                this._savePreferences();
+                this._applyFiltersAndSort();
+                this._updateSopList();
+            });
+            
+            // Folder selection
+            document.getElementById('folder-list')?.addEventListener('click', (e) => {
+                const folderItem = e.target.closest('.folder-item');
+                const actionBtn = e.target.closest('.folder-action-btn');
+                
+                if (actionBtn) {
+                    e.stopPropagation();
+                    const action = actionBtn.dataset.action;
+                    const folderId = actionBtn.dataset.folderId;
+                    
+                    if (!folderId) {
+                        console.warn('Dashboard: Folder action button missing folderId');
+                        return;
+                    }
+                    
+                    if (action === 'edit-folder') {
+                        this._openFolderModal(folderId);
+                    } else if (action === 'delete-folder') {
+                        if (confirm('Delete this folder? SOPs will be moved to General.')) {
+                            this.deleteFolder(folderId);
+                        }
+                    } else {
+                        console.warn('Dashboard: Unknown folder action:', action);
+                    }
+                    return;
+                }
+                
+                if (folderItem) {
+                    const folderId = folderItem.dataset.folderId || null;
+                    this.state.selectedFolderId = folderId;
+                    this._applyFiltersAndSort();
+                    this.refresh();
+                }
+            });
+            
+            // Create SOP buttons
+            document.getElementById('btn-create-sop')?.addEventListener('click', () => {
+                if (this.callbacks.onCreateSOP) {
+                    this.callbacks.onCreateSOP();
+                } else {
+                    console.warn('Dashboard: onCreateSOP callback not registered');
+                }
+            });
+            
+            document.getElementById('btn-create-sop-empty')?.addEventListener('click', () => {
+                if (this.callbacks.onCreateSOP) {
+                    this.callbacks.onCreateSOP();
+                } else {
+                    console.warn('Dashboard: onCreateSOP callback not registered');
+                }
+            });
+            
+            // Add folder button
+            document.getElementById('btn-add-folder')?.addEventListener('click', () => {
+                this._openFolderModal();
+            });
+            
+            // SOP groups (collapse, edit, delete, hashtag clicks)
+            document.getElementById('sop-groups')?.addEventListener('click', (e) => {
+                // Hashtag clicks
+                const hashtagEl = e.target.closest('.hashtag');
+                if (hashtagEl) {
+                    e.stopPropagation();
+                    const hashtag = hashtagEl.dataset.hashtag;
+                    if (!hashtag) return;
+                    
+                    // Toggle: if same hashtag clicked, clear filter; otherwise set filter
+                    if (this.state.hashtagFilter === hashtag) {
+                        this.state.hashtagFilter = null;
+                    } else {
+                        this.state.hashtagFilter = hashtag;
+                    }
+                    
+                    this._applyFiltersAndSort();
+                    this.refresh();
+                    return;
+                }
+                
+                // Collapse toggle
+                const collapseBtn = e.target.closest('[data-action="toggle-collapse"]');
+                if (collapseBtn) {
+                    const folderId = collapseBtn.dataset.folderId;
+                    if (folderId !== undefined) {
+                        this.toggleFolderCollapse(folderId);
+                    } else {
+                        console.warn('Dashboard: Collapse button missing folderId');
+                    }
+                    return;
+                }
+                
+                // SOP actions
+                const actionBtn = e.target.closest('[data-action]');
+                if (actionBtn) {
+                    const action = actionBtn.dataset.action;
+                    const sopId = actionBtn.dataset.sopId;
+                    if (action && sopId) {
+                        this._handleSopAction(action, sopId);
+                    } else if (action && !sopId) {
+                        console.warn('Dashboard: Action button missing sopId for action:', action);
+                    }
+                }
+            });
+            
+            // Most used cards
+            document.getElementById('most-used-list')?.addEventListener('click', (e) => {
+                const card = e.target.closest('.most-used-card');
+                if (card) {
+                    const sopId = card.dataset.sopId;
+                    if (!sopId) {
+                        console.warn('Dashboard: Most used card missing sopId');
+                        return;
+                    }
+                    const sop = this.state.sops.find(s => s.id === sopId);
+                    if (!sop) {
+                        console.warn('Dashboard: SOP not found in most-used list:', sopId);
+                        return;
+                    }
+                    if (this.callbacks.onEditSOP) {
+                        this.trackUsage(sopId);
+                        this.callbacks.onEditSOP(sop);
+                    } else {
+                        console.warn('Dashboard: onEditSOP callback not registered');
+                    }
+                }
+            });
+            
+            // Clear filters
+            document.getElementById('btn-clear-filters')?.addEventListener('click', () => {
+                this.state.selectedFolderId = null;
+                this.state.searchQuery = '';
+                this.state.hashtagFilter = null;
+                this._applyFiltersAndSort();
+                this.refresh();
+            });
+            
+            // Resume checklist buttons
+            document.querySelectorAll('.btn-resume').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const checklistId = btn.dataset.checklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: Resume button missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onResumeChecklist) {
+                        this.callbacks.onResumeChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onResumeChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // In-progress checklist card click (resumes)
+            document.querySelectorAll('.checklist-card[data-checklist-id]').forEach(card => {
+                card.addEventListener('click', () => {
+                    const checklistId = card.dataset.checklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: Checklist card missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onResumeChecklist) {
+                        this.callbacks.onResumeChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onResumeChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // Toggle completed checklists section collapse
+            document.getElementById('btn-toggle-completed')?.addEventListener('click', () => {
+                this.state.completedCollapsed = !this.state.completedCollapsed;
+                this._savePreferences();
+                this.refresh();
+            });
+            
+            // Also allow clicking the header to toggle
+            document.getElementById('completed-section-header')?.addEventListener('click', (e) => {
+                // Don't toggle if clicking the button directly (it has its own handler)
+                if (e.target.id === 'btn-toggle-completed') return;
+                this.state.completedCollapsed = !this.state.completedCollapsed;
+                this._savePreferences();
+                this.refresh();
+            });
+            
+            // View completed checklist buttons
+            document.querySelectorAll('.btn-view-completed').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const checklistId = btn.dataset.completedChecklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: View completed button missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onViewCompletedChecklist) {
+                        this.callbacks.onViewCompletedChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onViewCompletedChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // Completed checklist card click (views)
+            document.querySelectorAll('.completed-checklist-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const checklistId = card.dataset.completedChecklistId;
+                    if (!checklistId) {
+                        console.warn('Dashboard: Completed checklist card missing checklistId');
+                        return;
+                    }
+                    if (this.callbacks.onViewCompletedChecklist) {
+                        this.callbacks.onViewCompletedChecklist(checklistId);
+                    } else {
+                        console.warn('Dashboard: onViewCompletedChecklist callback not registered');
+                    }
+                });
+            });
+            
+            // Filter badges remove
+            document.querySelectorAll('.filter-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const type = e.target.dataset.filterType;
+                    if (type === 'folder') this.state.selectedFolderId = null;
+                    if (type === 'search') this.state.searchQuery = '';
+                    if (type === 'hashtag') this.state.hashtagFilter = null;
+                    this._applyFiltersAndSort();
+                    this.refresh();
+                });
+            });
+            
+            // Folder modal
+            this._attachFolderModalListeners();
+        }
+        
+        /**
+         * Handle SOP action buttons
+         */
+        _handleSopAction(action, sopId) {
+            const sop = this.state.sops.find(s => s.id === sopId);
+            if (!sop) {
+                console.warn('Dashboard: SOP not found for action:', action, sopId);
+                return;
+            }
+            
+            switch (action) {
+                case 'edit':
+                    if (this.callbacks.onEditSOP) {
+                        this.trackUsage(sopId);
+                        this.callbacks.onEditSOP(sop);
+                    } else {
+                        console.warn('Dashboard: onEditSOP callback not registered');
+                    }
+                    break;
+                    
+                case 'checklist':
+                    if (this.callbacks.onRunChecklist) {
+                        this.trackUsage(sopId);
+                        this.callbacks.onRunChecklist(sop);
+                    } else {
+                        console.warn('Dashboard: onRunChecklist callback not registered');
+                    }
+                    break;
+                    
+                case 'delete':
+                    if (confirm(`Delete "${sop.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) {
+                        this.state.sops = this.state.sops.filter(s => s.id !== sopId);
+                        delete this.state.sopUsage[sopId];
+                        this._saveSops();
+                        this._saveUsage();
+                        this._showNotification('SOP deleted', 'success');
+                        if (this.callbacks.onDeleteSOP) this.callbacks.onDeleteSOP(sop);
+                        this.refresh();
+                    }
+                    break;
+                    
+                default:
+                    console.warn('Dashboard: Unknown action:', action);
+            }
+        }
+        
+        /**
+         * Update SOP list without full re-render
+         */
+        _updateSopList() {
+            const sopGroups = document.getElementById('sop-groups');
+            const sopCount = document.getElementById('sop-count');
+            
+            if (sopGroups) {
+                sopGroups.innerHTML = this._renderSopGroups();
+            }
+            
+            if (sopCount) {
+                sopCount.textContent = `${this.state.filteredSops.length} of ${this.state.sops.length} SOPs`;
+            }
+        }
+        
+        // ====================================================================
+        // FOLDER MODAL
+        // ====================================================================
+        
+        _openFolderModal(folderId = null) {
+            this.state.editingFolder = folderId ? this.state.folders.find(f => f.id === folderId) : null;
+            
+            const modal = document.getElementById('folder-modal');
+            const title = document.getElementById('folder-modal-title');
+            const nameInput = document.getElementById('folder-name-input');
+            
+            if (this.state.editingFolder) {
+                title.textContent = 'Edit Folder';
+                nameInput.value = this.state.editingFolder.name;
+                this._selectIcon(this.state.editingFolder.icon);
+                this._selectColor(this.state.editingFolder.color);
+            } else {
+                title.textContent = 'Add Folder';
+                nameInput.value = '';
+                this._selectIcon('📁');
+                this._selectColor(FOLDER_COLORS[0]);
+            }
+            
+            modal.style.display = 'flex';
+            nameInput.focus();
+        }
+        
+        _closeFolderModal() {
+            document.getElementById('folder-modal').style.display = 'none';
+            this.state.editingFolder = null;
+        }
+        
+        _selectIcon(icon) {
+            document.querySelectorAll('.icon-option').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.icon === icon);
+            });
+        }
+        
+        _selectColor(color) {
+            document.querySelectorAll('.color-option').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.color === color);
+            });
+        }
+        
+        _attachFolderModalListeners() {
+            document.getElementById('btn-close-folder-modal')?.addEventListener('click', () => this._closeFolderModal());
+            document.getElementById('btn-cancel-folder')?.addEventListener('click', () => this._closeFolderModal());
+            
+            document.getElementById('folder-modal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'folder-modal') this._closeFolderModal();
+            });
+            
+            document.getElementById('icon-picker')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.icon-option');
+                if (btn) this._selectIcon(btn.dataset.icon);
+            });
+            
+            document.getElementById('color-picker')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.color-option');
+                if (btn) this._selectColor(btn.dataset.color);
+            });
+            
+            document.getElementById('btn-save-folder')?.addEventListener('click', () => {
+                const name = document.getElementById('folder-name-input').value.trim();
+                const icon = document.querySelector('.icon-option.selected')?.dataset.icon || '📁';
+                const color = document.querySelector('.color-option.selected')?.dataset.color || FOLDER_COLORS[0];
+                
+                if (!name) {
+                    this._showNotification('Please enter a folder name', 'error');
+                    return;
+                }
+                
+                if (this.state.editingFolder) {
+                    this.updateFolder(this.state.editingFolder.id, { name, icon, color });
+                    this._showNotification('Folder updated', 'success');
+                } else {
+                    this.createFolder({ name, icon, color });
+                    this._showNotification('Folder created', 'success');
+                }
+                
+                this._closeFolderModal();
+            });
+        }
+        
+        // ====================================================================
+        // NOTIFICATIONS
+        // ====================================================================
+        
+        _showNotification(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            if (!toast) {
+                console.warn('Dashboard: Notification toast element not found');
+                return;
+            }
+            
+            const msgEl = toast.querySelector('.notification-message');
+            if (!msgEl) {
+                console.warn('Dashboard: Notification message element not found');
+                return;
+            }
+            
+            toast.className = `notification-toast ${type}`;
+            msgEl.textContent = message;
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+        
+        // ====================================================================
+        // STYLES
+        // ====================================================================
+        
         _injectStyles() {
-            // Check if styles already injected
-            if (document.getElementById('dashboard-styles')) return;
+            if (document.getElementById('dashboard-styles-v2')) return;
             
             const styles = document.createElement('style');
-            styles.id = 'dashboard-styles';
+            styles.id = 'dashboard-styles-v2';
             styles.textContent = `
                 /* ============================================
-                   Dashboard Module - Minimal CSS
+                   Enhanced Dashboard Styles v2
                    ============================================ */
                 
-                /* Layout */
                 .dashboard-container {
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     color: #1f2937;
@@ -561,46 +1490,71 @@
                 
                 .dashboard-layout {
                     display: grid;
-                    grid-template-columns: 250px 1fr;
-                    gap: 0;
+                    grid-template-columns: 260px 1fr;
                     min-height: 100vh;
                 }
                 
                 /* Sidebar */
                 .dashboard-sidebar {
-                    background: #ffffff;
+                    background: #fff;
                     border-right: 1px solid #e5e7eb;
-                    padding: 1.5rem 0;
+                    display: flex;
+                    flex-direction: column;
+                    height: 100vh;
                     position: sticky;
                     top: 0;
-                    height: 100vh;
                     overflow-y: auto;
                 }
                 
                 .sidebar-header {
-                    padding: 0 1.5rem 1rem;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1.25rem 1rem;
                     border-bottom: 1px solid #e5e7eb;
-                    margin-bottom: 1rem;
                 }
                 
                 .sidebar-header h3 {
                     margin: 0;
                     font-size: 1rem;
-                    font-weight: 600;
+                }
+                
+                .btn-icon {
+                    width: 28px;
+                    height: 28px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    background: #fff;
+                    cursor: pointer;
+                    font-size: 0.8rem;
+                }
+                
+                .btn-icon:hover {
+                    background: #f3f4f6;
+                }
+                
+                .folder-list {
+                    flex: 1;
+                    padding: 0.5rem 0;
                 }
                 
                 .folder-item {
                     display: flex;
                     align-items: center;
-                    gap: 0.75rem;
-                    padding: 0.75rem 1.5rem;
+                    gap: 0.5rem;
+                    padding: 0.625rem 1rem;
                     cursor: pointer;
-                    transition: background 0.15s;
                     border-left: 3px solid transparent;
+                    transition: all 0.15s;
+                    position: relative;
                 }
                 
                 .folder-item:hover {
                     background: #f3f4f6;
+                }
+                
+                .folder-item:hover .folder-actions {
+                    opacity: 1;
                 }
                 
                 .folder-item.active {
@@ -608,51 +1562,63 @@
                     border-left-color: var(--folder-color, #6366f1);
                 }
                 
-                .folder-icon {
-                    font-size: 1.1rem;
-                }
-                
-                .folder-name {
-                    flex: 1;
-                    font-size: 0.9rem;
-                }
-                
+                .folder-icon { font-size: 1rem; }
+                .folder-name { flex: 1; font-size: 0.875rem; }
                 .folder-count {
                     background: #e5e7eb;
                     color: #6b7280;
                     padding: 0.125rem 0.5rem;
                     border-radius: 999px;
+                    font-size: 0.7rem;
+                }
+                
+                .folder-actions {
+                    display: flex;
+                    gap: 0.25rem;
+                    opacity: 0;
+                    transition: opacity 0.15s;
+                }
+                
+                .folder-action-btn {
+                    width: 24px;
+                    height: 24px;
+                    border: none;
+                    background: none;
+                    cursor: pointer;
                     font-size: 0.75rem;
+                    border-radius: 4px;
                 }
                 
-                /* Main Content */
+                .folder-action-btn:hover {
+                    background: #e5e7eb;
+                }
+                
+                /* Main */
                 .dashboard-main {
-                    padding: 2rem;
-                    max-width: 1200px;
+                    padding: 1.5rem 2rem;
+                    max-width: 1000px;
                 }
                 
-                /* Header */
                 .dashboard-header {
                     display: flex;
-                    gap: 1.5rem;
+                    gap: 1rem;
                     align-items: center;
                     flex-wrap: wrap;
-                    margin-bottom: 2rem;
+                    margin-bottom: 1.5rem;
                 }
                 
                 .search-container {
                     position: relative;
                     flex: 1;
-                    min-width: 250px;
+                    min-width: 200px;
                 }
                 
                 .search-input {
                     width: 100%;
-                    padding: 0.75rem 1rem 0.75rem 2.5rem;
+                    padding: 0.625rem 1rem 0.625rem 2.25rem;
                     border: 1px solid #d1d5db;
                     border-radius: 8px;
-                    font-size: 0.95rem;
-                    transition: border-color 0.15s, box-shadow 0.15s;
+                    font-size: 0.9rem;
                     box-sizing: border-box;
                 }
                 
@@ -667,94 +1633,157 @@
                     left: 0.75rem;
                     top: 50%;
                     transform: translateY(-50%);
-                    opacity: 0.5;
+                    opacity: 0.4;
+                }
+                
+                .sort-toggle-btn {
+                    padding: 0.625rem 1rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    background: #fff;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    white-space: nowrap;
+                }
+                
+                .sort-toggle-btn:hover {
+                    background: #f3f4f6;
+                    border-color: #9ca3af;
                 }
                 
                 .quick-actions {
                     display: flex;
-                    gap: 0.75rem;
+                    gap: 0.5rem;
                 }
                 
                 /* Buttons */
                 .btn {
-                    padding: 0.75rem 1.25rem;
+                    padding: 0.625rem 1.25rem;
                     border: none;
                     border-radius: 8px;
-                    font-size: 0.9rem;
+                    font-size: 0.875rem;
                     font-weight: 500;
                     cursor: pointer;
-                    transition: background 0.15s, transform 0.1s;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
                 }
                 
-                .btn:hover {
-                    transform: translateY(-1px);
-                }
-                
-                .btn:active {
-                    transform: translateY(0);
+                .btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
                 }
                 
                 .btn-primary {
                     background: #6366f1;
-                    color: white;
+                    color: #fff;
+                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
                 }
                 
-                .btn-primary:hover {
+                .btn-primary:hover { 
                     background: #4f46e5;
+                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
                 }
                 
                 .btn-secondary {
-                    background: #e5e7eb;
+                    background: #f3f4f6;
                     color: #374151;
+                    border: 1px solid #e5e7eb;
                 }
                 
-                .btn-secondary:hover {
-                    background: #d1d5db;
+                .btn-secondary:hover { 
+                    background: #e5e7eb;
+                    border-color: #d1d5db;
                 }
+                
+                .btn-link {
+                    background: none;
+                    border: none;
+                    color: #6366f1;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    text-decoration: underline;
+                }
+                
+                /* Active Filters */
+                .active-filters {
+                    display: flex;
+                    gap: 0.5rem;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    margin-bottom: 1.5rem;
+                    padding: 0.75rem;
+                    background: #f3f4f6;
+                    border-radius: 8px;
+                }
+                
+                .filter-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #fff;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.8rem;
+                }
+                
+                .filter-remove {
+                    border: none;
+                    background: none;
+                    cursor: pointer;
+                    font-size: 0.7rem;
+                    color: #6b7280;
+                }
+                
+                .filter-remove:hover { color: #dc2626; }
                 
                 /* Sections */
                 .section-header {
                     display: flex;
-                    align-items: center;
                     justify-content: space-between;
+                    align-items: center;
                     margin-bottom: 1rem;
                 }
                 
                 .section-header h3 {
                     margin: 0;
-                    font-size: 1.1rem;
+                    font-size: 1rem;
                     font-weight: 600;
                 }
                 
                 .sop-count {
                     color: #6b7280;
-                    font-size: 0.875rem;
+                    font-size: 0.8rem;
                 }
                 
-                /* Most Used Section */
+                /* Most Used */
                 .most-used-section {
                     margin-bottom: 2rem;
-                    padding-bottom: 2rem;
+                    padding-bottom: 1.5rem;
                     border-bottom: 1px solid #e5e7eb;
                 }
                 
                 .most-used-list {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-                    gap: 1rem;
+                    display: flex;
+                    gap: 0.75rem;
+                    overflow-x: auto;
+                    padding-bottom: 0.5rem;
                 }
                 
                 .most-used-card {
-                    background: white;
+                    flex-shrink: 0;
+                    width: 160px;
+                    background: #fff;
                     border: 1px solid #e5e7eb;
-                    border-radius: 10px;
-                    padding: 1rem;
+                    border-radius: 8px;
+                    padding: 0.875rem;
                     cursor: pointer;
-                    transition: box-shadow 0.15s, transform 0.15s;
+                    transition: all 0.15s;
                 }
                 
                 .most-used-card:hover {
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
                     transform: translateY(-2px);
                 }
                 
@@ -765,265 +1794,700 @@
                     margin-bottom: 0.5rem;
                 }
                 
-                .card-icon {
-                    font-size: 1.25rem;
-                }
+                .card-icon { font-size: 1.25rem; }
                 
                 .usage-badge {
                     background: #fef3c7;
                     color: #92400e;
-                    padding: 0.125rem 0.5rem;
-                    border-radius: 999px;
-                    font-size: 0.7rem;
+                    padding: 0.125rem 0.375rem;
+                    border-radius: 4px;
+                    font-size: 0.65rem;
                     font-weight: 500;
                 }
                 
                 .card-title {
-                    margin: 0 0 0.25rem;
-                    font-size: 0.9rem;
+                    margin: 0;
+                    font-size: 0.85rem;
                     font-weight: 600;
                     line-height: 1.3;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
                 
-                .card-folder {
-                    margin: 0;
-                    font-size: 0.75rem;
-                    font-weight: 500;
-                }
-                
-                /* SOP List */
-                .sop-list {
+                /* SOP Groups */
+                .sop-groups {
                     display: flex;
                     flex-direction: column;
                     gap: 1rem;
                 }
                 
-                .sop-card {
-                    background: white;
+                .sop-group {
+                    background: #fff;
                     border: 1px solid #e5e7eb;
                     border-radius: 10px;
-                    padding: 1.25rem;
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 1rem;
-                    transition: box-shadow 0.15s;
+                    overflow: hidden;
                 }
                 
-                .sop-card:hover {
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-                }
-                
-                .sop-card-main {
-                    flex: 1;
-                }
-                
-                .sop-card-header {
+                .sop-group-header {
                     display: flex;
                     align-items: center;
-                    gap: 0.75rem;
-                    margin-bottom: 0.5rem;
+                    gap: 0.5rem;
+                    padding: 0.75rem 1rem;
+                    background: linear-gradient(to right, var(--folder-color, #6366f1)10, transparent);
+                    border-bottom: 1px solid #e5e7eb;
+                    cursor: pointer;
                 }
                 
-                .sop-icon {
-                    font-size: 1.25rem;
+                .sop-group-header:hover {
+                    background: linear-gradient(to right, var(--folder-color, #6366f1)15, #f9fafb);
                 }
                 
-                .sop-status {
+                .collapse-btn {
+                    width: 20px;
+                    height: 20px;
+                    border: none;
+                    background: none;
+                    cursor: pointer;
+                    font-size: 0.7rem;
+                    color: #6b7280;
+                }
+                
+                .group-icon { font-size: 1rem; }
+                .group-name { flex: 1; font-weight: 600; font-size: 0.9rem; }
+                .group-count {
+                    background: var(--folder-color, #6366f1);
+                    color: #fff;
                     padding: 0.125rem 0.5rem;
                     border-radius: 999px;
                     font-size: 0.7rem;
                     font-weight: 500;
+                }
+                
+                .sop-group-content {
+                    max-height: 2000px;
+                    overflow: hidden;
+                    transition: max-height 0.3s ease;
+                }
+                
+                .sop-group-content.collapsed {
+                    max-height: 0;
+                }
+                
+                /* SOP Cards */
+                .sop-card {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 1rem;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #f3f4f6;
+                    position: relative;
+                    transition: background 0.2s ease;
+                }
+                
+                .sop-card:last-child {
+                    border-bottom: none;
+                }
+                
+                .sop-card:hover {
+                    background: #fafafa;
+                }
+                
+                .sop-card.recently-edited {
+                    background: linear-gradient(to right, #fef3c710, transparent);
+                    border-left: 3px solid #f59e0b;
+                }
+                
+                .recent-badge {
+                    position: absolute;
+                    top: 0.5rem;
+                    right: 0.5rem;
+                    background: #fef3c7;
+                    color: #92400e;
+                    padding: 0.125rem 0.5rem;
+                    border-radius: 4px;
+                    font-size: 0.65rem;
+                    font-weight: 500;
+                }
+                
+                .sop-card-main {
+                    flex: 1;
+                    min-width: 0;
+                }
+                
+                .sop-card-header {
+                    margin-bottom: 0.375rem;
+                }
+                
+                .sop-status {
+                    padding: 0.125rem 0.5rem;
+                    border-radius: 4px;
+                    font-size: 0.65rem;
+                    font-weight: 500;
                     text-transform: uppercase;
                 }
                 
-                .status-active {
-                    background: #d1fae5;
-                    color: #065f46;
-                }
-                
-                .status-draft {
-                    background: #fef3c7;
-                    color: #92400e;
-                }
-                
-                .status-archived {
-                    background: #e5e7eb;
-                    color: #6b7280;
-                }
+                .status-active { background: #d1fae5; color: #065f46; }
+                .status-draft { background: #fef3c7; color: #92400e; }
+                .status-archived { background: #e5e7eb; color: #6b7280; }
                 
                 .sop-title {
-                    margin: 0 0 0.25rem;
-                    font-size: 1rem;
+                    margin: 0 0 0.375rem;
+                    font-size: 0.95rem;
                     font-weight: 600;
+                    line-height: 1.4;
                 }
                 
                 .sop-description {
-                    margin: 0 0 0.75rem;
+                    margin: 0 0 0.5rem;
                     color: #6b7280;
-                    font-size: 0.875rem;
-                    line-height: 1.4;
+                    font-size: 0.8rem;
+                    line-height: 1.5;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
                 
                 .sop-meta {
                     display: flex;
-                    flex-wrap: wrap;
-                    gap: 0.75rem;
-                    font-size: 0.8rem;
-                }
-                
-                .meta-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.25rem;
-                }
-                
-                .folder-tag {
-                    padding: 0.125rem 0.5rem;
-                    border-radius: 4px;
-                    font-weight: 500;
+                    gap: 1rem;
+                    font-size: 0.75rem;
+                    color: #9ca3af;
+                    line-height: 1.4;
                 }
                 
                 .sop-tags {
-                    margin-top: 0.75rem;
+                    margin-top: 0.5rem;
                     display: flex;
                     gap: 0.5rem;
                 }
                 
                 .tag {
                     color: #6366f1;
-                    font-size: 0.75rem;
+                    font-size: 0.7rem;
                 }
                 
-                /* Action Buttons */
+                /* Hashtag styling */
+                .hashtag {
+                    color: #6366f1;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                    border-radius: 3px;
+                    padding: 0 2px;
+                }
+                
+                .hashtag:hover {
+                    background: #e0e7ff;
+                    color: #4338ca;
+                }
+                
+                .hashtag.active {
+                    background: #6366f1;
+                    color: #fff;
+                }
+                
+                .filter-badge-hashtag {
+                    background: #e0e7ff !important;
+                    color: #4338ca !important;
+                }
+                
                 .sop-card-actions {
                     display: flex;
                     flex-direction: column;
-                    gap: 0.5rem;
+                    gap: 0.375rem;
+                    flex-shrink: 0;
                 }
                 
                 .action-btn {
-                    width: 36px;
-                    height: 36px;
+                    padding: 0.375rem 0.75rem;
                     border: 1px solid #e5e7eb;
-                    border-radius: 8px;
-                    background: white;
+                    border-radius: 6px;
+                    background: #fff;
                     cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    transition: background 0.15s, border-color 0.15s;
+                    font-size: 0.75rem;
+                    transition: all 0.2s ease;
+                    line-height: 1.4;
                 }
                 
-                .action-btn:hover {
-                    background: #f3f4f6;
+                .action-btn:hover { 
+                    background: #f9fafb;
+                    border-color: #d1d5db;
+                }
+                
+                .edit-btn:hover {
+                    background: #eff6ff;
+                    border-color: #bfdbfe;
+                    color: #1d4ed8;
+                }
+                
+                .delete-btn {
+                    color: #6b7280;
                 }
                 
                 .delete-btn:hover {
                     background: #fef2f2;
                     border-color: #fecaca;
+                    color: #b91c1c;
                 }
                 
-                .ai-btn-icon {
-                    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                    border-color: #a7f3d0;
+                .checklist-btn {
+                    background: #f0fdf4;
+                    border-color: #bbf7d0;
+                    color: #15803d;
                 }
                 
-                .ai-btn-icon:hover {
-                    background: linear-gradient(135deg, #dcfce7, #cffafe);
+                .checklist-btn:hover {
+                    background: #dcfce7;
+                    border-color: #86efac;
                 }
                 
-                /* AI Touchpoints */
-                .ai-touchpoint {
-                    padding: 1rem 1.5rem;
-                    margin-top: auto;
-                    border-top: 1px solid #e5e7eb;
+                /* Recent Checklists */
+                .recent-checklists-section {
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e5e7eb;
                 }
                 
-                .ai-touchpoint-inline {
-                    margin-bottom: 1rem;
+                .checklists-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
                 }
                 
-                .ai-btn {
-                    width: 100%;
+                .checklist-card {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 1rem;
                     padding: 0.75rem 1rem;
-                    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                    border: 1px solid #a7f3d0;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
                     border-radius: 8px;
-                    color: #065f46;
-                    font-size: 0.85rem;
-                    font-weight: 500;
                     cursor: pointer;
-                    transition: background 0.15s;
+                    transition: all 0.15s;
                 }
                 
-                .ai-btn:hover {
-                    background: linear-gradient(135deg, #dcfce7, #cffafe);
+                .checklist-card:hover {
+                    border-color: #d1d5db;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
                 }
                 
-                .ai-btn-small {
-                    padding: 0.5rem 0.75rem;
-                    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
-                    border: 1px solid #a7f3d0;
+                .checklist-card-main {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    flex: 1;
+                    min-width: 0;
+                }
+                
+                .checklist-folder {
+                    font-size: 1.25rem;
+                }
+                
+                .checklist-info {
+                    flex: 1;
+                    min-width: 0;
+                }
+                
+                .checklist-info h4 {
+                    margin: 0 0 0.25rem;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                
+                .checklist-progress {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                }
+                
+                .mini-progress-bar {
+                    width: 80px;
+                    height: 4px;
+                    background: #e5e7eb;
+                    border-radius: 2px;
+                    overflow: hidden;
+                }
+                
+                .mini-progress-fill {
+                    height: 100%;
+                    background: #6366f1;
+                    border-radius: 2px;
+                }
+                
+                .btn-resume {
+                    padding: 0.375rem 0.75rem;
+                    background: #6366f1;
+                    color: #fff;
+                    border: none;
                     border-radius: 6px;
-                    color: #065f46;
                     font-size: 0.75rem;
                     font-weight: 500;
                     cursor: pointer;
-                    transition: background 0.15s;
+                    white-space: nowrap;
                 }
                 
-                .ai-btn-small:hover {
-                    background: linear-gradient(135deg, #dcfce7, #cffafe);
+                .btn-resume:hover {
+                    background: #4f46e5;
+                }
+                
+                /* Completed Checklists Section */
+                .completed-checklists-section {
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .completed-checklists-section.collapsed {
+                    padding-bottom: 0.75rem;
+                    margin-bottom: 1rem;
+                }
+                
+                .section-header-collapsible {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                
+                .section-header-collapsible:hover {
+                    opacity: 0.8;
+                }
+                
+                .collapse-arrow {
+                    background: none;
+                    border: none;
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    cursor: pointer;
+                    padding: 0.25rem 0.5rem;
+                    transition: transform 0.2s ease;
+                }
+                
+                .collapse-arrow:hover {
+                    color: #374151;
+                }
+                
+                .collapse-arrow.collapsed {
+                    transform: rotate(-90deg);
+                }
+                
+                .completed-count {
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    color: #6b7280;
+                }
+                
+                .checklists-list.hidden {
+                    display: none;
+                }
+                
+                .completed-checklist-card {
+                    background: #f9fafb;
+                }
+                
+                .completed-checklist-card:hover {
+                    background: #f3f4f6;
+                }
+                
+                .checklist-complete-icon {
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #22c55e;
+                    color: #fff;
+                    border-radius: 50%;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                }
+                
+                .checklist-completed-date {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                }
+                
+                .btn-view-completed {
+                    padding: 0.375rem 0.75rem;
+                    background: #e5e7eb;
+                    color: #374151;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                
+                .btn-view-completed:hover {
+                    background: #d1d5db;
                 }
                 
                 /* Empty State */
                 .empty-state {
                     text-align: center;
-                    padding: 3rem;
-                    background: white;
+                    padding: 3rem 2rem;
+                    background: #fff;
                     border: 2px dashed #e5e7eb;
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }
                 
                 .empty-state p {
                     margin: 0 0 1rem;
                     color: #6b7280;
+                    line-height: 1.5;
+                }
+                
+                .empty-state-welcome {
+                    padding: 2.5rem 2rem;
+                    max-width: 480px;
+                    margin: 0 auto;
+                    border-style: solid;
+                    border-color: #e5e7eb;
+                }
+                
+                .welcome-header {
+                    margin-bottom: 1.75rem;
+                }
+                
+                .welcome-title {
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin: 0 0 0.625rem;
+                    line-height: 1.4;
+                }
+                
+                .welcome-subtitle {
+                    font-size: 0.9rem;
+                    color: #6b7280;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .welcome-why {
+                    background: #f9fafb;
+                    border-radius: 8px;
+                    padding: 1.125rem 1.25rem;
+                    margin-bottom: 1.75rem;
+                    text-align: left;
+                }
+                
+                .why-title {
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: #374151;
+                    margin: 0 0 0.5rem;
+                    line-height: 1.4;
+                }
+                
+                .why-text {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .welcome-actions {
+                    margin-bottom: 1.75rem;
+                }
+                
+                .welcome-starter {
+                    margin-bottom: 1.5rem;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .starter-label {
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    color: #6b7280;
+                    margin: 0 0 0.375rem;
+                    line-height: 1.4;
+                }
+                
+                .starter-idea {
+                    font-size: 0.8rem;
+                    color: #9ca3af;
+                    margin: 0;
+                    line-height: 1.6;
+                }
+                
+                .trust-notice {
+                    margin-top: 0;
+                    padding-top: 0;
+                    border-top: none;
+                }
+                
+                .trust-notice p {
+                    font-size: 0.75rem;
+                    color: #9ca3af;
+                    margin: 0 0 0.5rem;
+                    line-height: 1.4;
+                }
+                
+                .trust-notice p:last-child {
+                    margin-bottom: 0;
                 }
                 
                 .empty-message {
-                    color: #6b7280;
-                    font-size: 0.875rem;
+                    color: #9ca3af;
+                    font-size: 0.8rem;
                     text-align: center;
-                    padding: 1rem;
+                }
+                
+                /* Modal */
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                }
+                
+                .modal-content {
+                    background: #fff;
+                    border-radius: 12px;
+                    width: 90%;
+                    max-width: 400px;
+                    overflow: hidden;
+                }
+                
+                .modal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .modal-header h3 { margin: 0; font-size: 1rem; }
+                
+                .btn-close {
+                    width: 28px;
+                    height: 28px;
+                    border: none;
+                    background: #f3f4f6;
+                    border-radius: 6px;
+                    cursor: pointer;
+                }
+                
+                .btn-close:hover { background: #e5e7eb; }
+                
+                .modal-body {
+                    padding: 1.25rem;
+                }
+                
+                .modal-footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.5rem;
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                    background: #f9fafb;
+                }
+                
+                .form-group {
+                    margin-bottom: 1rem;
+                }
+                
+                .form-group:last-child { margin-bottom: 0; }
+                
+                .form-group label {
+                    display: block;
+                    margin-bottom: 0.375rem;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    color: #374151;
+                }
+                
+                .form-input {
+                    width: 100%;
+                    padding: 0.625rem 0.75rem;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 0.9rem;
+                    box-sizing: border-box;
+                }
+                
+                .form-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                }
+                
+                .icon-picker, .color-picker {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.375rem;
+                }
+                
+                .icon-option {
+                    width: 36px;
+                    height: 36px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    background: #fff;
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                }
+                
+                .icon-option:hover { background: #f3f4f6; }
+                .icon-option.selected {
+                    border-color: #6366f1;
+                    background: #eff6ff;
+                }
+                
+                .color-option {
+                    width: 28px;
+                    height: 28px;
+                    border: 2px solid transparent;
+                    border-radius: 6px;
+                    cursor: pointer;
+                }
+                
+                .color-option:hover { transform: scale(1.1); }
+                .color-option.selected { border-color: #1f2937; }
+                
+                /* Notification */
+                .notification-toast {
+                    position: fixed;
+                    bottom: 1.5rem;
+                    right: 1.5rem;
+                    padding: 0.875rem 1.25rem;
+                    background: #1f2937;
+                    color: #fff;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    z-index: 1001;
+                    animation: slideIn 0.3s ease;
+                }
+                
+                .notification-toast.success { background: #059669; }
+                .notification-toast.error { background: #dc2626; }
+                
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
                 }
                 
                 /* Responsive */
                 @media (max-width: 768px) {
-                    .dashboard-layout {
-                        grid-template-columns: 1fr;
-                    }
-                    
-                    .dashboard-sidebar {
-                        display: none; /* Or implement a mobile menu */
-                    }
-                    
-                    .dashboard-header {
-                        flex-direction: column;
-                        align-items: stretch;
-                    }
-                    
-                    .quick-actions {
-                        justify-content: center;
-                    }
-                    
-                    .sop-card {
-                        flex-direction: column;
-                    }
-                    
-                    .sop-card-actions {
-                        flex-direction: row;
-                        justify-content: flex-end;
-                    }
+                    .dashboard-layout { grid-template-columns: 1fr; }
+                    .dashboard-sidebar { display: none; }
+                    .sop-card { flex-direction: column; }
+                    .sop-card-actions { flex-direction: row; }
                 }
             `;
             
@@ -1031,577 +2495,36 @@
         }
         
         // ====================================================================
-        // EVENT HANDLING
-        // ====================================================================
-        
-        /**
-         * Attach all event listeners
-         * @private
-         */
-        _attachEventListeners() {
-            // Search input
-            const searchInput = document.getElementById('sop-search');
-            if (searchInput) {
-                searchInput.addEventListener('input', (e) => {
-                    this._handleSearch(e.target.value);
-                });
-            }
-            
-            // Folder selection
-            const folderList = document.getElementById('folder-list');
-            if (folderList) {
-                folderList.addEventListener('click', (e) => {
-                    const folderItem = e.target.closest('.folder-item');
-                    if (folderItem) {
-                        const folderId = folderItem.dataset.folderId;
-                        this._handleFolderSelect(folderId || null);
-                    }
-                });
-            }
-            
-            // Quick action buttons
-            document.getElementById('btn-create-sop')?.addEventListener('click', () => {
-                this._handleCreateSOP();
-            });
-            
-            document.getElementById('btn-view-checklists')?.addEventListener('click', () => {
-                this._handleViewChecklists();
-            });
-            
-            // SOP list actions (event delegation)
-            const sopList = document.getElementById('sop-list');
-            if (sopList) {
-                sopList.addEventListener('click', (e) => {
-                    const actionBtn = e.target.closest('[data-action]');
-                    const aiBtn = e.target.closest('[data-ai-action]');
-                    
-                    if (actionBtn) {
-                        const action = actionBtn.dataset.action;
-                        const sopId = actionBtn.dataset.sopId;
-                        this._handleSopAction(action, sopId);
-                    }
-                    
-                    if (aiBtn) {
-                        const aiAction = aiBtn.dataset.aiAction;
-                        const sopId = aiBtn.dataset.sopId;
-                        this._handleAIAction(aiAction, sopId);
-                    }
-                });
-            }
-            
-            // Most used cards click
-            const mostUsedList = document.getElementById('most-used-list');
-            if (mostUsedList) {
-                mostUsedList.addEventListener('click', (e) => {
-                    const card = e.target.closest('.most-used-card');
-                    if (card) {
-                        const sopId = card.dataset.sopId;
-                        this._handleSopAction('view', sopId);
-                    }
-                });
-            }
-            
-            // AI touchpoint buttons (global)
-            document.querySelectorAll('[data-ai-action]').forEach(btn => {
-                if (!btn.closest('#sop-list')) { // Don't double-bind
-                    btn.addEventListener('click', (e) => {
-                        const aiAction = e.currentTarget.dataset.aiAction;
-                        this._handleAIAction(aiAction);
-                    });
-                }
-            });
-            
-            // Empty state create button
-            document.getElementById('btn-create-sop-empty')?.addEventListener('click', () => {
-                this._handleCreateSOP();
-            });
-        }
-        
-        /**
-         * Handle search input
-         * @private
-         * @param {string} query - Search query
-         */
-        _handleSearch(query) {
-            this.state.searchQuery = query.toLowerCase().trim();
-            this._applyFilters();
-        }
-        
-        /**
-         * Handle folder selection
-         * @private
-         * @param {string|null} folderId - Selected folder ID or null for all
-         */
-        _handleFolderSelect(folderId) {
-            this.state.selectedFolderId = folderId;
-            this._applyFilters();
-            this._updateFolderActiveState();
-        }
-        
-        /**
-         * Apply all active filters (search + folder) and update display
-         * @private
-         */
-        _applyFilters() {
-            // Start with all SOPs
-            let filtered = [...this.state.sops];
-            
-            // Apply folder filter
-            if (this.state.selectedFolderId) {
-                filtered = filtered.filter(sop => sop.folderId === this.state.selectedFolderId);
-            }
-            
-            // Apply search filter
-            if (this.state.searchQuery) {
-                filtered = filtered.filter(sop => {
-                    const titleMatch = sop.title.toLowerCase().includes(this.state.searchQuery);
-                    const descMatch = sop.description.toLowerCase().includes(this.state.searchQuery);
-                    const tagMatch = sop.tags?.some(tag => 
-                        tag.toLowerCase().includes(this.state.searchQuery)
-                    );
-                    return titleMatch || descMatch || tagMatch;
-                });
-            }
-            
-            this.state.filteredSops = filtered;
-            
-            // Update the SOP list
-            const sopListEl = document.getElementById('sop-list');
-            const sopCountEl = document.getElementById('sop-count');
-            
-            if (sopListEl) {
-                sopListEl.innerHTML = this._renderSopList();
-            }
-            
-            if (sopCountEl) {
-                sopCountEl.textContent = `${filtered.length} SOPs`;
-            }
-        }
-        
-        /**
-         * Update folder active state in sidebar
-         * @private
-         */
-        _updateFolderActiveState() {
-            const folderItems = document.querySelectorAll('.folder-item');
-            folderItems.forEach(item => {
-                const folderId = item.dataset.folderId;
-                if (folderId === (this.state.selectedFolderId || '')) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
-            });
-        }
-        
-        /**
-         * Handle SOP action (view, edit, checklist, delete)
-         * @private
-         * @param {string} action - Action type
-         * @param {string} sopId - SOP ID
-         */
-        _handleSopAction(action, sopId) {
-            const sop = this.state.sops.find(s => s.id === sopId);
-            if (!sop) return;
-            
-            switch (action) {
-                case 'view':
-                    // Track usage for "Most Used" feature
-                    this.trackUsage(sopId);
-                    
-                    if (this.callbacks.onViewSOP) {
-                        this.callbacks.onViewSOP(sop);
-                    } else {
-                        console.log('View SOP:', sop);
-                        // Default behavior - could show a modal
-                    }
-                    break;
-                    
-                case 'edit':
-                    if (this.callbacks.onEditSOP) {
-                        this.callbacks.onEditSOP(sop);
-                    } else {
-                        console.log('Edit SOP:', sop);
-                    }
-                    break;
-                    
-                case 'checklist':
-                    this.trackUsage(sopId);
-                    
-                    if (this.callbacks.onViewChecklists) {
-                        // Could navigate to checklist with this SOP
-                        this.callbacks.onViewChecklists(sop);
-                    } else {
-                        console.log('Run as checklist:', sop);
-                    }
-                    break;
-                    
-                case 'delete':
-                    if (confirm(`Are you sure you want to delete "${sop.title}"?`)) {
-                        this._deleteSOP(sopId);
-                        
-                        if (this.callbacks.onDeleteSOP) {
-                            this.callbacks.onDeleteSOP(sop);
-                        }
-                    }
-                    break;
-            }
-        }
-        
-        /**
-         * Handle Create SOP button click
-         * @private
-         */
-        _handleCreateSOP() {
-            if (this.callbacks.onCreateSOP) {
-                this.callbacks.onCreateSOP();
-            } else {
-                console.log('Create New SOP clicked');
-                // Default behavior - could show a creation modal
-            }
-        }
-        
-        /**
-         * Handle View Checklists button click
-         * @private
-         */
-        _handleViewChecklists() {
-            if (this.callbacks.onViewChecklists) {
-                this.callbacks.onViewChecklists();
-            } else {
-                console.log('View Recent Checklists clicked');
-            }
-        }
-        
-        // ====================================================================
-        // AI TOUCHPOINT HANDLERS
-        // ====================================================================
-        
-        /**
-         * Handle AI action triggers
-         * These are placeholder hooks for AI integration
-         * 
-         * @private
-         * @param {string} action - AI action type
-         * @param {string} [sopId] - Optional SOP ID for SOP-specific actions
-         */
-        _handleAIAction(action, sopId = null) {
-            /**
-             * AI TOUCHPOINT DOCUMENTATION
-             * 
-             * This method handles various AI-powered features. Each action
-             * is designed to be connected to an AI service (e.g., OpenAI, Claude).
-             * 
-             * Integration points:
-             * 1. Replace console.log with actual API calls
-             * 2. Add loading states while AI processes
-             * 3. Handle responses and update UI accordingly
-             * 4. Add error handling for failed API calls
-             */
-            
-            switch (action) {
-                case 'organize-folders':
-                    /**
-                     * AI Touchpoint: Suggest Folder Organization
-                     * 
-                     * Purpose: Analyze existing SOPs and suggest better folder structure
-                     * 
-                     * Input: All SOPs, current folders
-                     * Expected Output: Suggested folder structure with SOP assignments
-                     * 
-                     * Example prompt: "Analyze these SOPs and suggest an optimal
-                     * folder organization based on their content and purpose..."
-                     */
-                    console.log('🤖 AI Action: Suggest Folder Organization');
-                    console.log('Input data:', {
-                        sops: this.state.sops,
-                        currentFolders: this.state.folders
-                    });
-                    
-                    // Placeholder for AI integration
-                    this._showAIPlaceholderMessage(
-                        'Analyzing your SOPs to suggest an optimal folder structure...'
-                    );
-                    break;
-                    
-                case 'analyze-usage':
-                    /**
-                     * AI Touchpoint: Analyze Usage Patterns
-                     * 
-                     * Purpose: Identify trends and suggest improvements based on usage
-                     * 
-                     * Input: Usage data, SOPs
-                     * Expected Output: Insights about usage patterns, recommendations
-                     * 
-                     * Example prompt: "Analyze these SOP usage patterns and provide
-                     * insights about which procedures might need updating..."
-                     */
-                    console.log('🤖 AI Action: Analyze Usage Patterns');
-                    console.log('Input data:', {
-                        usage: this.state.sopUsage,
-                        sops: this.state.sops
-                    });
-                    
-                    this._showAIPlaceholderMessage(
-                        'Analyzing usage patterns to identify trends and recommendations...'
-                    );
-                    break;
-                    
-                case 'bulk-improve':
-                    /**
-                     * AI Touchpoint: Bulk Review for Improvements
-                     * 
-                     * Purpose: Review all SOPs for clarity, completeness, consistency
-                     * 
-                     * Input: All SOPs
-                     * Expected Output: List of suggestions per SOP
-                     * 
-                     * Example prompt: "Review these SOPs for clarity, completeness,
-                     * and consistency. Suggest improvements for each..."
-                     */
-                    console.log('🤖 AI Action: Bulk Review SOPs');
-                    console.log('Input data:', this.state.sops);
-                    
-                    this._showAIPlaceholderMessage(
-                        'Reviewing all SOPs for potential improvements...'
-                    );
-                    break;
-                    
-                case 'improve-sop':
-                    /**
-                     * AI Touchpoint: Improve Specific SOP
-                     * 
-                     * Purpose: Suggest improvements for a single SOP
-                     * 
-                     * Input: Single SOP object
-                     * Expected Output: Specific suggestions for steps, language, structure
-                     * 
-                     * Example prompt: "Review this SOP and suggest improvements for
-                     * step clarity, action language, and completeness..."
-                     */
-                    const sop = this.state.sops.find(s => s.id === sopId);
-                    console.log('🤖 AI Action: Improve SOP', sopId);
-                    console.log('Input data:', sop);
-                    
-                    this._showAIPlaceholderMessage(
-                        `Analyzing "${sop?.title}" for improvement suggestions...`
-                    );
-                    break;
-                    
-                default:
-                    console.log('Unknown AI action:', action);
-            }
-        }
-        
-        /**
-         * Show a placeholder message for AI features
-         * Replace this with actual AI response handling
-         * @private
-         * @param {string} message - Loading/placeholder message
-         */
-        _showAIPlaceholderMessage(message) {
-            // Simple alert for demonstration
-            // In production, replace with a modal or toast notification
-            alert(`✨ AI Feature Placeholder\n\n${message}\n\nThis is where AI integration would happen.`);
-        }
-        
-        // ====================================================================
         // PUBLIC API
         // ====================================================================
         
-        /**
-         * Add a new SOP
-         * @public
-         * @param {Object} sop - SOP object to add
-         * @returns {Object} The added SOP with generated ID
-         */
-        addSOP(sop) {
-            const newSop = {
-                id: `sop_${Date.now()}`,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                status: 'draft',
-                tags: [],
-                steps: [],
-                ...sop
-            };
-            
-            this.state.sops.push(newSop);
-            this.state.sopUsage[newSop.id] = 0;
-            this._saveSops();
-            this._saveUsage();
-            this._applyFilters();
-            
-            // Update most used section if visible
-            const mostUsedList = document.getElementById('most-used-list');
-            if (mostUsedList) {
-                mostUsedList.innerHTML = this._renderMostUsedSops();
-            }
-            
-            return newSop;
-        }
-        
-        /**
-         * Update an existing SOP
-         * @public
-         * @param {string} sopId - ID of SOP to update
-         * @param {Object} updates - Fields to update
-         * @returns {Object|null} Updated SOP or null if not found
-         */
-        updateSOP(sopId, updates) {
-            const index = this.state.sops.findIndex(s => s.id === sopId);
-            if (index === -1) return null;
-            
-            this.state.sops[index] = {
-                ...this.state.sops[index],
-                ...updates,
-                updatedAt: Date.now()
-            };
-            
-            this._saveSops();
-            this._applyFilters();
-            
-            return this.state.sops[index];
-        }
-        
-        /**
-         * Delete an SOP
-         * @private
-         * @param {string} sopId - ID of SOP to delete
-         */
-        _deleteSOP(sopId) {
-            this.state.sops = this.state.sops.filter(s => s.id !== sopId);
-            delete this.state.sopUsage[sopId];
-            
-            this._saveSops();
-            this._saveUsage();
-            this._applyFilters();
-            
-            // Update folder counts
-            const folderList = document.getElementById('folder-list');
-            if (folderList) {
-                folderList.innerHTML = this._renderFolderList();
-            }
-            
-            // Update most used section
-            const mostUsedList = document.getElementById('most-used-list');
-            if (mostUsedList) {
-                mostUsedList.innerHTML = this._renderMostUsedSops();
-            }
-        }
-        
-        /**
-         * Get all SOPs
-         * @public
-         * @returns {Array} Array of all SOPs
-         */
-        getAllSOPs() {
-            return [...this.state.sops];
-        }
-        
-        /**
-         * Get SOP by ID
-         * @public
-         * @param {string} sopId - SOP ID
-         * @returns {Object|null} SOP object or null
-         */
-        getSOP(sopId) {
-            return this.state.sops.find(s => s.id === sopId) || null;
-        }
-        
-        /**
-         * Get all folders
-         * @public
-         * @returns {Array} Array of all folders
-         */
-        getFolders() {
-            return [...this.state.folders];
-        }
-        
-        /**
-         * Add a new folder
-         * @public
-         * @param {Object} folder - Folder object
-         * @returns {Object} The added folder
-         */
-        addFolder(folder) {
-            const newFolder = {
-                id: `folder_${Date.now()}`,
-                icon: '📁',
-                color: '#6366f1',
-                ...folder
-            };
-            
-            this.state.folders.push(newFolder);
-            this._saveFolders();
-            
-            // Update sidebar
-            const folderList = document.getElementById('folder-list');
-            if (folderList) {
-                folderList.innerHTML = this._renderFolderList();
-            }
-            
-            return newFolder;
-        }
-        
-        /**
-         * Register callback functions for integration with other modules
-         * @public
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         */
         on(event, callback) {
-            const validEvents = ['onCreateSOP', 'onViewSOP', 'onViewChecklists', 'onEditSOP', 'onDeleteSOP'];
-            
-            if (validEvents.includes(event)) {
+            const valid = ['onCreateSOP', 'onEditSOP', 'onDeleteSOP', 'onRunChecklist', 'onResumeChecklist', 'onViewCompletedChecklist'];
+            if (valid.includes(event)) {
                 this.callbacks[event] = callback;
-            } else {
-                console.warn(`Unknown event: ${event}. Valid events: ${validEvents.join(', ')}`);
             }
         }
         
-        /**
-         * Refresh the dashboard view
-         * @public
-         */
         refresh() {
             this._loadData();
             this._render();
             this._attachEventListeners();
         }
         
-        /**
-         * Render the dashboard (useful if autoRender was false)
-         * @public
-         */
-        render() {
-            this._render();
-            this._attachEventListeners();
+        getFolders() {
+            return [...this.state.folders];
         }
         
-        /**
-         * Destroy the dashboard and clean up
-         * @public
-         */
-        destroy() {
-            this.container.innerHTML = '';
-            const styles = document.getElementById('dashboard-styles');
-            if (styles) {
-                styles.remove();
-            }
+        getAllSOPs() {
+            return [...this.state.sops];
         }
         
-        // ====================================================================
-        // UTILITY FUNCTIONS
-        // ====================================================================
+        getSOP(sopId) {
+            return this.state.sops.find(s => s.id === sopId) || null;
+        }
         
-        /**
-         * Escape HTML to prevent XSS
-         * @private
-         * @param {string} text - Text to escape
-         * @returns {string} Escaped text
-         */
         _escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -1609,29 +2532,19 @@
     }
 
     // ========================================================================
-    // FACTORY FUNCTION
+    // EXPORTS
     // ========================================================================
 
-    /**
-     * Factory function to create a new Dashboard instance
-     * @param {HTMLElement|string} container - Container element or selector
-     * @param {Object} options - Configuration options
-     * @returns {Dashboard} Dashboard instance
-     */
     function createDashboard(container, options = {}) {
         return new Dashboard(container, options);
     }
 
-    // ========================================================================
-    // EXPOSE TO GLOBAL SCOPE
-    // ========================================================================
-
-    // Make Dashboard and createDashboard globally accessible
     global.Dashboard = Dashboard;
     global.createDashboard = createDashboard;
     global.DASHBOARD_STORAGE_KEYS = STORAGE_KEYS;
+    global.FOLDER_COLORS = FOLDER_COLORS;
+    global.FOLDER_ICONS = FOLDER_ICONS;
 
-    // Log successful load for debugging
-    console.log('✅ Dashboard module loaded successfully');
+    console.log('✅ Enhanced Dashboard module loaded');
 
 })(typeof window !== 'undefined' ? window : this);
