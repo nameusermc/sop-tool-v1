@@ -362,6 +362,37 @@
         editor.on('onSave', (sop) => {
             console.log('💾 SOP saved:', sop.title, '(ID:', sop.id + ')');
             
+            // CRITICAL: Ensure SOP is saved via StorageAdapter for cloud sync
+            // This is a safety net in case the localStorage override isn't working
+            console.log('[app.js] Ensuring SOP is persisted via StorageAdapter...');
+            
+            try {
+                // Get current SOPs from StorageAdapter
+                const currentSops = StorageAdapter.getSops();
+                console.log('[app.js] Current SOPs from StorageAdapter:', currentSops.length);
+                
+                // Check if this SOP already exists (by ID)
+                const existingIndex = currentSops.findIndex(s => s.id === sop.id);
+                
+                if (existingIndex !== -1) {
+                    // Update existing
+                    currentSops[existingIndex] = sop;
+                    console.log('[app.js] Updated existing SOP at index:', existingIndex);
+                } else {
+                    // Add new
+                    currentSops.push(sop);
+                    console.log('[app.js] Added new SOP, total count:', currentSops.length);
+                }
+                
+                // Save via StorageAdapter (this triggers cloud sync if authenticated)
+                console.log('[app.js] Calling StorageAdapter.saveSops() with', currentSops.length, 'SOPs');
+                StorageAdapter.saveSops(currentSops);
+                console.log('[app.js] StorageAdapter.saveSops() call COMPLETE');
+                
+            } catch (e) {
+                console.error('[app.js] Error saving via StorageAdapter:', e);
+            }
+            
             // Show success message (optional, editor already shows notification)
             console.log('Returning to Dashboard...');
             
