@@ -915,12 +915,12 @@
                 return `
                     <div class="empty-state empty-state-welcome">
                         <div class="welcome-header">
-                            <p class="welcome-title">Create clear procedures your team can follow</p>
-                            <p class="welcome-subtitle">A Standard Operating Procedure is a step-by-step guide for how work is done in your business — so tasks are completed the same way every time.</p>
+                            <p class="welcome-title">Stop being the bottleneck.</p>
+                            <p class="welcome-subtitle">Turn how you do work into clear steps your team can follow without you.</p>
                         </div>
                         
                         <div class="welcome-why">
-                            <p class="why-text">SOPs reduce mistakes, save training time, and make it easier for your team to work independently.</p>
+                            <p class="why-text">Write simple, step-by-step procedures for the tasks your business does every day — so work gets done consistently, even when you're not there.</p>
                         </div>
                         
                         <div class="welcome-actions">
