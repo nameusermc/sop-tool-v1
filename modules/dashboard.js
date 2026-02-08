@@ -541,7 +541,7 @@
                             
                             <div class="quick-actions">
                                 <button class="btn btn-primary" id="btn-create-sop">
-                                    ➕ Create New SOP
+                                    ➕ Create SOP
                                 </button>
                             </div>
                         </header>
@@ -549,11 +549,8 @@
                         <!-- Active Filters -->
                         ${this._renderActiveFilters()}
                         
-                        <!-- Recent Checklists Section -->
+                        <!-- Resume Section (primary action for returning users) -->
                         ${this._renderRecentChecklists()}
-                        
-                        <!-- Completed Checklists Section -->
-                        ${this._renderCompletedChecklists()}
                         
                         <!-- Most Used Section -->
                         ${this.options.showMostUsed && this.state.sops.length > 0 ? `
@@ -570,7 +567,7 @@
                         <!-- SOP List by Folders -->
                         <section class="sop-list-section">
                             <div class="section-header">
-                                <h3>📄 SOPs</h3>
+                                <h3>📄 Your SOPs</h3>
                                 <span class="sop-count" id="sop-count">
                                     ${this.state.filteredSops.length} of ${this.state.sops.length} SOPs
                                 </span>
@@ -580,6 +577,9 @@
                                 ${this._renderSopGroups()}
                             </div>
                         </section>
+                        
+                        <!-- Completed Checklists (archival) -->
+                        ${this._renderCompletedChecklists()}
                     </main>
                 </div>
                 
@@ -1775,11 +1775,16 @@
                 }
                 
                 .most-used-section .section-header h3,
-                .recent-checklists-section h3,
                 .completed-checklists-section h3 {
                     font-size: 0.9rem;
                     font-weight: 500;
                     color: #4b5563;
+                }
+
+                .recent-checklists-section .section-header h3 {
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    color: #1e293b;
                 }
 
                 .most-used-list {
@@ -2061,11 +2066,13 @@
                     border-color: #86efac;
                 }
                 
-                /* Recent Checklists */
+                /* Recent Checklists - primary action area when present */
                 .recent-checklists-section {
                     margin-bottom: 1.5rem;
-                    padding-bottom: 1.5rem;
-                    border-bottom: 1px solid #f3f4f6;
+                    padding: 1rem 1.25rem;
+                    background: #fafafe;
+                    border: 1px solid #e0e7ff;
+                    border-radius: 10px;
                 }
                 
                 .checklists-list {
@@ -2141,24 +2148,26 @@
                 }
                 
                 .btn-resume {
-                    padding: 0.375rem 0.75rem;
-                    background: #eff0fe;
-                    color: #6366f1;
-                    border: 1px solid #c7d2fe;
+                    padding: 0.375rem 0.875rem;
+                    background: #6366f1;
+                    color: #fff;
+                    border: none;
                     border-radius: 6px;
                     font-size: 0.75rem;
-                    font-weight: 500;
+                    font-weight: 600;
                     cursor: pointer;
                     white-space: nowrap;
+                    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.2);
                 }
                 
                 .btn-resume:hover {
-                    background: #e0e7ff;
-                    border-color: #a5b4fc;
+                    background: #4f46e5;
+                    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
                 }
                 
                 /* Completed Checklists Section */
                 .completed-checklists-section {
+                    margin-top: 1.5rem;
                     margin-bottom: 1.5rem;
                     padding-bottom: 1.5rem;
                     border-bottom: 1px solid #f3f4f6;

@@ -148,7 +148,21 @@
         
         _loadDraft() {
             const stored = localStorage.getItem(SOP_STORAGE_KEYS.DRAFTS);
-            return stored ? JSON.parse(stored) : null;
+            if (!stored) return null;
+            try {
+                const draft = JSON.parse(stored);
+                // Only return if draft has meaningful content
+                const hasTitle = draft.title && draft.title.trim() !== '';
+                const hasDescription = draft.description && draft.description.trim() !== '';
+                const hasSteps = Array.isArray(draft.steps) && draft.steps.length > 0;
+                if (hasTitle || hasDescription || hasSteps) return draft;
+                // Empty draft — clean it up
+                localStorage.removeItem(SOP_STORAGE_KEYS.DRAFTS);
+                return null;
+            } catch (e) {
+                localStorage.removeItem(SOP_STORAGE_KEYS.DRAFTS);
+                return null;
+            }
         }
         
         _clearDraft() {
@@ -1252,18 +1266,56 @@
             this._loadFolders();
             
             const draft = this._loadDraft();
-            if (draft && confirm('You have unsaved work. Continue where you left off?')) {
-                this.formState = { ...draft };
+            if (draft) {
+                this._showDraftRecoveryPrompt(draft, options);
             } else {
-                this.formState = {
-                    title: options.title || '',
-                    description: options.description || '',
-                    folderId: options.folderId || 'general',
-                    steps: options.steps || [],
-                    tags: options.tags || [],
-                    status: 'draft'
-                };
+                this._startFreshEditor(options);
             }
+        }
+        
+        _showDraftRecoveryPrompt(draft, options) {
+            const draftLabel = (draft.title && draft.title.trim()) 
+                ? `"${draft.title.trim()}"` 
+                : 'Untitled draft';
+            
+            // Render a minimal recovery screen inside the editor container
+            this.container.innerHTML = `
+                <div class="draft-recovery-overlay">
+                    <div class="draft-recovery-prompt">
+                        <h3>Unsaved work found</h3>
+                        <p>You have an unfinished SOP draft: <strong>${this._escapeHtml(draftLabel)}</strong></p>
+                        <p class="draft-recovery-sub">What would you like to do?</p>
+                        <div class="draft-recovery-actions">
+                            <button class="btn btn-primary" id="btn-continue-draft">Continue editing</button>
+                            <button class="btn btn-secondary" id="btn-start-new">Start a new SOP</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('btn-continue-draft')?.addEventListener('click', () => {
+                this.formState = { ...draft };
+                this._showNotification('Continuing your draft', 'info');
+                this._render();
+                this._attachEventListeners();
+            });
+            
+            document.getElementById('btn-start-new')?.addEventListener('click', () => {
+                this._clearDraft();
+                this._startFreshEditor(options);
+                this._showNotification('Started a new SOP', 'info');
+            });
+        }
+        
+        _startFreshEditor(options = {}) {
+            this.formState = {
+                title: options.title || '',
+                description: options.description || '',
+                folderId: options.folderId || 'general',
+                steps: options.steps || [],
+                tags: options.tags || [],
+                status: 'draft'
+            };
             
             this._render();
             this._attachEventListeners();
@@ -2136,6 +2188,54 @@
                     border-color: #fca5a5;
                 }
                 
+                /* Draft Recovery Prompt */
+                .draft-recovery-overlay {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 60vh;
+                    padding: 2rem;
+                }
+                .draft-recovery-prompt {
+                    background: #fff;
+                    border: 1px solid #f3f4f6;
+                    border-radius: 12px;
+                    padding: 2rem;
+                    max-width: 420px;
+                    width: 100%;
+                    text-align: center;
+                }
+                .draft-recovery-prompt h3 {
+                    margin: 0 0 0.75rem;
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    color: #1e293b;
+                }
+                .draft-recovery-prompt p {
+                    margin: 0 0 0.5rem;
+                    font-size: 0.9rem;
+                    color: #4b5563;
+                    line-height: 1.5;
+                }
+                .draft-recovery-prompt strong {
+                    color: #1e293b;
+                }
+                .draft-recovery-sub {
+                    margin-top: 0.25rem;
+                    color: #6b7280 !important;
+                    font-size: 0.85rem !important;
+                }
+                .draft-recovery-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.625rem;
+                    margin-top: 1.25rem;
+                }
+                .draft-recovery-actions .btn {
+                    width: 100%;
+                    padding: 0.75rem 1.25rem;
+                }
+
                 /* Preview Modal */
                 .preview-modal {
                     position: fixed;
