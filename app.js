@@ -732,6 +732,28 @@
                 .signin-reminder-close:hover {
                     color: #6b7280;
                 }
+                @media (max-width: 768px) {
+                    body {
+                        padding-top: 40px;
+                    }
+                    .auth-indicator {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        justify-content: flex-end;
+                        padding: 8px 12px;
+                        background: #fff;
+                        border-bottom: 1px solid #f3f4f6;
+                        z-index: 1000;
+                    }
+                    .auth-hint {
+                        right: 0;
+                    }
+                    .signin-reminder {
+                        margin: 0 0.75rem 1rem;
+                    }
+                }
             `;
             document.head.appendChild(style);
         }

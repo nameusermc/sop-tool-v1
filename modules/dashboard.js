@@ -2514,8 +2514,64 @@
                 
                 /* Responsive */
                 @media (max-width: 768px) {
-                    .dashboard-layout { grid-template-columns: 1fr; }
-                    .dashboard-sidebar { display: none; }
+                    .dashboard-layout {
+                        grid-template-columns: 1fr;
+                        grid-template-rows: auto 1fr;
+                    }
+                    .dashboard-sidebar {
+                        height: auto;
+                        position: static;
+                        border-right: none;
+                        border-bottom: 1px solid #e5e7eb;
+                        overflow: visible;
+                    }
+                    .sidebar-header {
+                        padding: 0.75rem 1rem;
+                        border-bottom: none;
+                    }
+                    .sidebar-header h3 {
+                        font-size: 0.85rem;
+                    }
+                    .folder-list {
+                        display: flex;
+                        overflow-x: auto;
+                        padding: 0 0.75rem 0.75rem;
+                        gap: 0.375rem;
+                        -webkit-overflow-scrolling: touch;
+                    }
+                    .folder-item {
+                        flex-shrink: 0;
+                        padding: 0.375rem 0.75rem;
+                        border-left: none;
+                        border-radius: 999px;
+                        border: 1px solid #e5e7eb;
+                        background: #fff;
+                        gap: 0.375rem;
+                        white-space: nowrap;
+                    }
+                    .folder-item.active {
+                        border-color: var(--folder-color, #6366f1);
+                        background: #eff6ff;
+                    }
+                    .folder-item:hover {
+                        background: #f9fafb;
+                    }
+                    .folder-actions {
+                        display: none;
+                    }
+                    .folder-count {
+                        font-size: 0.65rem;
+                        padding: 0.0625rem 0.375rem;
+                    }
+                    .dashboard-main {
+                        padding: 1rem;
+                    }
+                    .dashboard-header {
+                        gap: 0.5rem;
+                    }
+                    .search-container {
+                        min-width: 0;
+                    }
                     .sop-card { flex-direction: column; }
                     .sop-card-actions { flex-direction: row; }
                 }
