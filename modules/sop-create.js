@@ -1389,15 +1389,17 @@
                 
                 .form-section {
                     background: #fff;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f3f4f6;
                     border-radius: 10px;
-                    padding: 1.25rem;
+                    padding: 1.5rem;
                     margin-bottom: 1.25rem;
                 }
                 
                 .form-section h3 {
                     margin: 0 0 1rem;
-                    font-size: 1rem;
+                    font-size: 0.95rem;
+                    font-weight: 500;
+                    color: #374151;
                 }
                 
                 .section-header {
@@ -1431,6 +1433,7 @@
                     margin-bottom: 0.375rem;
                     font-size: 0.85rem;
                     font-weight: 500;
+                    color: #4b5563;
                 }
                 
                 .required { color: #ef4444; }
@@ -1964,13 +1967,13 @@
                     gap: 0.75rem;
                     padding: 1rem;
                     background: #fafafa;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f3f4f6;
                     border-radius: 8px;
                     margin-bottom: 0.75rem;
                     transition: all 0.2s ease;
                 }
                 
-                .step-item:hover { background: #f5f5f5; }
+                .step-item:hover { background: #f5f5f5; border-color: #e5e7eb; }
                 .step-item.dragging { opacity: 0.5; background: #dbeafe; }
                 .step-item.drag-over { border-color: #6366f1; border-style: dashed; }
                 
@@ -2076,7 +2079,7 @@
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding-top: 0.5rem;
+                    padding-top: 1rem;
                 }
                 
                 .actions-left, .actions-right {
@@ -2103,21 +2106,24 @@
                 .btn-primary { 
                     background: #6366f1; 
                     color: #fff;
-                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
+                    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.2);
+                    font-weight: 600;
                 }
                 .btn-primary:hover { 
                     background: #4f46e5;
-                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
                 }
                 
                 .btn-secondary { 
-                    background: #f3f4f6; 
-                    color: #374151;
+                    background: #fff; 
+                    color: #6b7280;
                     border: 1px solid #e5e7eb;
+                    font-weight: 400;
                 }
                 .btn-secondary:hover { 
-                    background: #e5e7eb;
+                    background: #f9fafb;
                     border-color: #d1d5db;
+                    color: #374151;
                 }
                 
                 .btn-danger {

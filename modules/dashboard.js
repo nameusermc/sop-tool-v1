@@ -1684,23 +1684,26 @@
                 .btn-primary {
                     background: #6366f1;
                     color: #fff;
-                    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.15);
+                    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.2);
+                    font-weight: 600;
                 }
                 
                 .btn-primary:hover { 
                     background: #4f46e5;
-                    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+                    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
                 }
                 
                 .btn-secondary {
-                    background: #f3f4f6;
-                    color: #374151;
+                    background: #fff;
+                    color: #6b7280;
                     border: 1px solid #e5e7eb;
+                    font-weight: 400;
                 }
                 
                 .btn-secondary:hover { 
-                    background: #e5e7eb;
+                    background: #f9fafb;
                     border-color: #d1d5db;
+                    color: #374151;
                 }
                 
                 .btn-link {
@@ -1768,9 +1771,17 @@
                 .most-used-section {
                     margin-bottom: 2rem;
                     padding-bottom: 1.5rem;
-                    border-bottom: 1px solid #e5e7eb;
+                    border-bottom: 1px solid #f3f4f6;
                 }
                 
+                .most-used-section .section-header h3,
+                .recent-checklists-section h3,
+                .completed-checklists-section h3 {
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    color: #4b5563;
+                }
+
                 .most-used-list {
                     display: flex;
                     gap: 0.75rem;
@@ -2007,11 +2018,12 @@
                 
                 .action-btn {
                     padding: 0.375rem 0.75rem;
-                    border: 1px solid #e5e7eb;
+                    border: 1px solid #f3f4f6;
                     border-radius: 6px;
                     background: #fff;
                     cursor: pointer;
                     font-size: 0.75rem;
+                    color: #9ca3af;
                     transition: all 0.2s ease;
                     line-height: 1.4;
                 }
@@ -2019,6 +2031,7 @@
                 .action-btn:hover { 
                     background: #f9fafb;
                     border-color: #d1d5db;
+                    color: #374151;
                 }
                 
                 .edit-btn:hover {
@@ -2052,7 +2065,7 @@
                 .recent-checklists-section {
                     margin-bottom: 1.5rem;
                     padding-bottom: 1.5rem;
-                    border-bottom: 1px solid #e5e7eb;
+                    border-bottom: 1px solid #f3f4f6;
                 }
                 
                 .checklists-list {
@@ -2129,9 +2142,9 @@
                 
                 .btn-resume {
                     padding: 0.375rem 0.75rem;
-                    background: #6366f1;
-                    color: #fff;
-                    border: none;
+                    background: #eff0fe;
+                    color: #6366f1;
+                    border: 1px solid #c7d2fe;
                     border-radius: 6px;
                     font-size: 0.75rem;
                     font-weight: 500;
@@ -2140,14 +2153,15 @@
                 }
                 
                 .btn-resume:hover {
-                    background: #4f46e5;
+                    background: #e0e7ff;
+                    border-color: #a5b4fc;
                 }
                 
                 /* Completed Checklists Section */
                 .completed-checklists-section {
                     margin-bottom: 1.5rem;
                     padding-bottom: 1.5rem;
-                    border-bottom: 1px solid #e5e7eb;
+                    border-bottom: 1px solid #f3f4f6;
                 }
                 
                 .completed-checklists-section.collapsed {
