@@ -358,7 +358,7 @@
                 '</div>';
             } else if (!isComplete) {
                 infoBanner = '<div class="info-banner info-banner-autosave">' +
-                    '<span class="info-text">Progress saves automatically to this browser.</span>' +
+                    '<span class="info-text">Progress saves automatically.</span>' +
                 '</div>';
             }
             
@@ -537,7 +537,7 @@
             
             // Reset button
             document.getElementById('btn-reset')?.addEventListener('click', () => {
-                if (confirm('Clear all progress on this checklist?\n\nAll checked steps and notes will be removed. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.')) this._resetAll();
+                if (confirm('Clear all progress on this checklist?\n\nAll checked steps and notes will be removed. This cannot be undone.')) this._resetAll();
             });
             
             // Other action buttons
@@ -703,7 +703,7 @@
             this._saveProgress();
             this._render();
             this._attachEventListeners();
-            this._showNotification('Checklist reset', 'info');
+            this._showNotification('Progress cleared', 'info');
         }
         
         _markAllComplete() {
@@ -723,7 +723,7 @@
         
         _saveAndExit() {
             if (this.currentChecklist) this._saveProgress();
-            this._showNotification('Progress saved to this browser', 'success');
+            this._showNotification('Progress saved', 'success');
             setTimeout(() => this._navigateBack(), 300);
         }
         
@@ -744,20 +744,21 @@
         }
         
         _showNotification(message, type) {
-            const toast = document.getElementById('notification-toast');
+            // Use a body-level toast so it survives view switches and re-renders
+            let toast = document.getElementById('app-notification-toast');
             if (!toast) {
-                console.warn('Checklist: Notification toast element not found');
-                return;
+                toast = document.createElement('div');
+                toast.id = 'app-notification-toast';
+                toast.innerHTML = '<span class="notification-message"></span>';
+                document.body.appendChild(toast);
             }
             const msgEl = toast.querySelector('.notification-message');
-            if (!msgEl) {
-                console.warn('Checklist: Notification message element not found');
-                return;
-            }
+            if (!msgEl) return;
             toast.className = 'notification-toast ' + (type || 'info');
             msgEl.textContent = message;
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 3000);
+            if (toast._hideTimer) clearTimeout(toast._hideTimer);
+            toast._hideTimer = setTimeout(() => toast.style.display = 'none', 3000);
         }
         
         on(event, callback) {

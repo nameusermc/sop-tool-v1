@@ -398,6 +398,9 @@
             
             // Return to Dashboard and refresh to show new/updated SOP
             showDashboard();
+            
+            // After first SOP creation, gently suggest sign-in
+            setTimeout(maybeShowSignInReminder, 300);
         });
         
         // Handle Cancel - return to Dashboard without saving
@@ -525,6 +528,43 @@
                     text-overflow: ellipsis;
                     white-space: nowrap;
                 }
+                .auth-hint-toggle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: #e5e7eb;
+                    color: #6b7280;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    line-height: 1;
+                }
+                .auth-hint-toggle:hover {
+                    background: #d1d5db;
+                }
+                .auth-hint {
+                    display: none;
+                    position: absolute;
+                    right: 0;
+                    top: calc(100% + 8px);
+                    width: 260px;
+                    padding: 10px 12px;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.5;
+                    margin: 0;
+                }
+                .auth-indicator:hover .auth-hint,
+                .auth-indicator:focus-within .auth-hint {
+                    display: block;
+                }
                 .auth-modal-overlay {
                     position: fixed;
                     inset: 0;
@@ -620,6 +660,78 @@
                     z-index: 1000;
                     display: none;
                 }
+                .signin-reminder {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    padding: 14px 16px;
+                    background: #f0f9ff;
+                    border: 1px solid #bae6fd;
+                    border-radius: 10px;
+                    margin-bottom: 1.25rem;
+                    animation: reminderFadeIn 0.3s ease;
+                }
+                @keyframes reminderFadeIn {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .signin-reminder-content {
+                    flex: 1;
+                }
+                .signin-reminder-content p {
+                    margin: 0 0 10px;
+                    font-size: 13px;
+                    color: #374151;
+                    line-height: 1.5;
+                }
+                .signin-reminder-content p strong {
+                    display: block;
+                    margin-bottom: 2px;
+                    font-size: 13px;
+                    color: #1e3a5f;
+                }
+                .signin-reminder-actions {
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                }
+                .signin-reminder-btn {
+                    padding: 6px 14px;
+                    background: #4f46e5;
+                    color: #fff;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+                .signin-reminder-btn:hover {
+                    background: #4338ca;
+                }
+                .signin-reminder-dismiss {
+                    padding: 6px 10px;
+                    background: none;
+                    border: none;
+                    color: #6b7280;
+                    font-size: 13px;
+                    cursor: pointer;
+                }
+                .signin-reminder-dismiss:hover {
+                    color: #374151;
+                }
+                .signin-reminder-close {
+                    background: none;
+                    border: none;
+                    color: #9ca3af;
+                    font-size: 16px;
+                    cursor: pointer;
+                    padding: 2px 4px;
+                    line-height: 1;
+                    flex-shrink: 0;
+                }
+                .signin-reminder-close:hover {
+                    color: #6b7280;
+                }
             `;
             document.head.appendChild(style);
         }
@@ -653,6 +765,62 @@
     }
 
     /**
+     * Show a gentle sign-in reminder after first SOP creation
+     * Only shows once, only if not signed in, only after first SOP
+     */
+    function maybeShowSignInReminder() {
+        // Don't show if already dismissed
+        if (localStorage.getItem('sop_tool_signin_reminder_dismissed')) return;
+
+        // Don't show if signed in
+        const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
+        if (isAuth) return;
+
+        // Only show if exactly 1 SOP exists (just created their first)
+        const sops = StorageAdapter?.getSops?.() || JSON.parse(localStorage.getItem('sop_tool_sops') || '[]');
+        if (sops.length !== 1) return;
+
+        // Don't show if banner already exists
+        if (document.getElementById('signin-reminder-banner')) return;
+
+        // Find injection point — after dashboard header
+        const header = document.querySelector('.dashboard-header');
+        if (!header) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'signin-reminder-banner';
+        banner.className = 'signin-reminder';
+        banner.innerHTML = `
+            <div class="signin-reminder-content">
+                <p><strong>Want to access this from another device?</strong>
+                Your SOPs are saved on this computer. Sign in to access them anywhere.</p>
+                <div class="signin-reminder-actions">
+                    <button class="signin-reminder-btn" id="reminder-sign-in">Sign in</button>
+                    <button class="signin-reminder-dismiss" id="reminder-dismiss">Not now</button>
+                </div>
+            </div>
+            <button class="signin-reminder-close" id="reminder-close" title="Dismiss">✕</button>
+        `;
+
+        header.insertAdjacentElement('afterend', banner);
+
+        // Sign in action
+        banner.querySelector('#reminder-sign-in')?.addEventListener('click', () => {
+            banner.remove();
+            localStorage.setItem('sop_tool_signin_reminder_dismissed', '1');
+            if (typeof showAuthModal === 'function') showAuthModal();
+        });
+
+        // Dismiss actions
+        const dismiss = () => {
+            banner.remove();
+            localStorage.setItem('sop_tool_signin_reminder_dismissed', '1');
+        };
+        banner.querySelector('#reminder-dismiss')?.addEventListener('click', dismiss);
+        banner.querySelector('#reminder-close')?.addEventListener('click', dismiss);
+    }
+
+    /**
      * Update the auth indicator based on current state
      */
     function updateAuthIndicator(container) {
@@ -664,7 +832,7 @@
 
         if (!hasSupabase) {
             // No Supabase config - show nothing or "local mode"
-            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Local Mode</span>`;
+            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Saved on this device</span>`;
             return;
         }
 
@@ -676,6 +844,10 @@
         } else {
             container.innerHTML = `
                 <button onclick="SOPToolApp.showAuthModal()">Sign In</button>
+                <span class="auth-hint-toggle" tabindex="0" title="Learn more">?</span>
+                <p class="auth-hint">Sign in to access your SOPs on another device.
+                If you don't sign in, everything stays saved on this computer.
+                Signing out will not delete your local SOPs.</p>
             `;
         }
     }
@@ -696,9 +868,9 @@
         overlay.innerHTML = `
             <div class="auth-modal" style="position:relative;">
                 <button class="close-btn" onclick="document.getElementById('auth-modal-overlay').remove()">×</button>
-                <h2>Sign In to Sync</h2>
+                <h2>Sign In</h2>
                 <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">
-                    Your SOPs are saved locally. Sign in to sync across devices.
+                    Sign in to access your SOPs from any device.
                 </p>
                 <div class="tabs">
                     <button class="tab active" data-tab="signin">Sign In</button>

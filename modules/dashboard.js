@@ -865,7 +865,7 @@
                 .slice(0, this.options.mostUsedLimit);
             
             if (sortedByUsage.length === 0) {
-                return '<p class="empty-message">No usage data yet</p>';
+                return '<p class="empty-message">No frequently used SOPs yet. SOPs you use often will appear here automatically.</p>';
             }
             
             return sortedByUsage.map(sop => {
@@ -892,9 +892,18 @@
                 const isFiltered = this.state.searchQuery || this.state.selectedFolderId || this.state.hashtagFilter;
                 
                 if (isFiltered) {
+                    // Contextual empty message based on which filter is active
+                    let emptyMsg = '';
+                    if (this.state.searchQuery && !this.state.selectedFolderId && !this.state.hashtagFilter) {
+                        emptyMsg = 'No results found. Try a different keyword or check your spelling.';
+                    } else if (this.state.selectedFolderId && !this.state.searchQuery && !this.state.hashtagFilter) {
+                        emptyMsg = 'No SOPs in this folder yet. Add an existing SOP or create a new one to get started.';
+                    } else {
+                        emptyMsg = 'No SOPs match these filters. Try adjusting your filters or clearing them to see all SOPs.';
+                    }
                     return `
                         <div class="empty-state">
-                            <p>📭 No SOPs found matching your filters.</p>
+                            <p>${emptyMsg}</p>
                             <button class="btn btn-primary" id="btn-create-sop-empty">
                                 ➕ Create New SOP
                             </button>
@@ -906,13 +915,12 @@
                 return `
                     <div class="empty-state empty-state-welcome">
                         <div class="welcome-header">
-                            <p class="welcome-title">No SOPs yet</p>
-                            <p class="welcome-subtitle">A Standard Operating Procedure helps your team follow the same steps every time.</p>
+                            <p class="welcome-title">Create clear procedures your team can follow</p>
+                            <p class="welcome-subtitle">A Standard Operating Procedure is a step-by-step guide for how work is done in your business — so tasks are completed the same way every time.</p>
                         </div>
                         
                         <div class="welcome-why">
-                            <p class="why-title">Why create one?</p>
-                            <p class="why-text">SOPs reduce mistakes, save training time, and make handoffs easier. Start with something your team does often.</p>
+                            <p class="why-text">SOPs reduce mistakes, save training time, and make it easier for your team to work independently.</p>
                         </div>
                         
                         <div class="welcome-actions">
@@ -922,13 +930,11 @@
                         </div>
                         
                         <div class="welcome-starter">
-                            <p class="starter-label">Not sure where to start?</p>
-                            <p class="starter-idea">Try documenting something simple: how to submit a request, onboard a new team member, or handle a common question.</p>
+                            <p class="starter-idea">Start with something your team does often — like onboarding a new hire, handling a request, or answering a common question.</p>
                         </div>
                         
                         <div class="trust-notice">
-                            <p>Your SOPs are saved locally in this browser. Nothing is uploaded or shared.</p>
-                            <p>Changes save automatically. Clearing browser data or switching devices will reset your data.</p>
+                            <p>Your SOPs are saved on this device and update automatically.</p>
                         </div>
                     </div>
                 `;
@@ -1325,12 +1331,12 @@
                     break;
                     
                 case 'delete':
-                    if (confirm(`Delete "${sop.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) {
+                    if (confirm(`Delete "${sop.title}"?\n\nThis SOP and all its steps will be permanently removed. This cannot be undone.`)) {
                         this.state.sops = this.state.sops.filter(s => s.id !== sopId);
                         delete this.state.sopUsage[sopId];
                         this._saveSops();
                         this._saveUsage();
-                        this._showNotification('SOP deleted', 'success');
+                        this._showNotification('SOP deleted', 'error');
                         if (this.callbacks.onDeleteSOP) this.callbacks.onDeleteSOP(sop);
                         this.refresh();
                     }
@@ -1446,23 +1452,24 @@
         // ====================================================================
         
         _showNotification(message, type = 'info') {
-            const toast = document.getElementById('notification-toast');
+            // Use a body-level toast so it survives view switches and re-renders
+            let toast = document.getElementById('app-notification-toast');
             if (!toast) {
-                console.warn('Dashboard: Notification toast element not found');
-                return;
+                toast = document.createElement('div');
+                toast.id = 'app-notification-toast';
+                toast.innerHTML = '<span class="notification-message"></span>';
+                document.body.appendChild(toast);
             }
             
             const msgEl = toast.querySelector('.notification-message');
-            if (!msgEl) {
-                console.warn('Dashboard: Notification message element not found');
-                return;
-            }
+            if (!msgEl) return;
             
             toast.className = `notification-toast ${type}`;
             msgEl.textContent = message;
             toast.style.display = 'block';
             
-            setTimeout(() => {
+            if (toast._hideTimer) clearTimeout(toast._hideTimer);
+            toast._hideTimer = setTimeout(() => {
                 toast.style.display = 'none';
             }, 3000);
         }

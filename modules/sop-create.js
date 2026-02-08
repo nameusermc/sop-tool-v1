@@ -194,7 +194,7 @@
                                 <div class="form-group">
                                     <label for="sop-title">Title <span class="required">*</span></label>
                                     <input type="text" id="sop-title" class="form-input" 
-                                        placeholder="e.g., New Employee Onboarding Process"
+                                        placeholder="Example: Opening the shop each morning"
                                         value="${this._escapeHtml(this.formState.title)}"
                                         maxlength="200" required />
                                     <span class="char-count"><span id="title-count">${this.formState.title.length}</span>/200</span>
@@ -203,7 +203,7 @@
                                 <div class="form-group">
                                     <label for="sop-description">Description</label>
                                     <textarea id="sop-description" class="form-textarea" rows="3"
-                                        placeholder="Brief description of what this SOP covers..."
+                                        placeholder="What this procedure covers and when it should be used"
                                         maxlength="500">${this._escapeHtml(this.formState.description)}</textarea>
                                     <span class="char-count"><span id="desc-count">${this.formState.description.length}</span>/500</span>
                                 </div>
@@ -229,7 +229,7 @@
                                 <div class="form-group">
                                     <label for="sop-tags">Keywords</label>
                                     <input type="text" id="sop-tags" class="form-input"
-                                        placeholder="e.g., training, safety, weekly"
+                                        placeholder="Optional — words your team might search for"
                                         value="${this.formState.tags.join(', ')}" />
                                 </div>
                             </section>
@@ -245,20 +245,20 @@
                                 <div class="ai-steps-panel" id="ai-steps-panel">
                                     <div class="ai-panel-header">
                                         <span class="ai-icon">🤖</span>
-                                        <span class="ai-title">Draft Steps with AI</span>
-                                        <span class="ai-badge">External Paste</span>
+                                        <span class="ai-title">Get Help Writing Steps</span>
+                                        <span class="ai-badge">Paste from AI</span>
                                     </div>
-                                    <p class="ai-description">Use an external AI tool to draft steps, then paste them here. All pasted steps are drafts you can edit freely.</p>
+                                    <p class="ai-description">Use an external AI tool to help write your steps, then paste them here. You can edit everything before saving.</p>
                                     <div class="ai-steps-actions">
                                         <button type="button" class="ai-btn" id="btn-ai-generate" data-ai-action="draft-steps">
-                                            📋 Paste Draft Steps
+                                            📋 Paste Steps
                                         </button>
                                         <button type="button" class="ai-btn ai-btn-secondary" id="btn-ai-improve" data-ai-action="improve-clarity"
                                             ${this.formState.steps.length === 0 ? 'disabled' : ''}>
                                             ✏️ Improve Clarity
                                         </button>
                                     </div>
-                                    <p class="ai-hint">AI drafts are optional and fully editable. You can always write steps manually.</p>
+                                    <p class="ai-hint">This is optional. You can always write steps yourself.</p>
                                 </div>
                                 ` : ''}
                                 
@@ -317,7 +317,7 @@
                     <div class="ai-modal" id="ai-paste-modal" style="display: none;">
                         <div class="ai-modal-content">
                             <div class="ai-modal-header">
-                                <h3>📋 Paste Draft Steps</h3>
+                                <h3>📋 Paste Steps</h3>
                                 <button class="btn-close" id="btn-close-ai-paste">✕</button>
                             </div>
                             <div class="ai-modal-body">
@@ -326,23 +326,23 @@
                                     <ol>
                                         <li>Copy your SOP title: <code id="copy-title-text"></code> <button type="button" class="btn-copy-small" id="btn-copy-title">Copy</button></li>
                                         <li>Open <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> or <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a></li>
-                                        <li>Ask: "Generate 5-8 simple steps for this SOP: [paste title]"</li>
-                                        <li>Copy the generated steps and paste below</li>
+                                        <li>Ask: "Create 5-8 simple steps for this SOP: [paste title]"</li>
+                                        <li>Copy the steps and paste below</li>
                                     </ol>
-                                    <p class="ai-draft-reminder">These will be added as draft steps. You can edit or delete any of them.</p>
+                                    <p class="ai-draft-reminder">You can edit or remove any of these after adding them.</p>
                                 </div>
                                 <div class="ai-paste-area">
-                                    <label for="ai-steps-input">Paste your draft steps here (one per line):</label>
+                                    <label for="ai-steps-input">Paste your steps here (one per line):</label>
                                     <textarea id="ai-steps-input" class="ai-textarea" rows="8" placeholder="1. First step here
 2. Second step here
 3. Third step here
 ..."></textarea>
-                                    <p class="ai-paste-hint">Tip: Numbers and bullet points will be automatically removed.</p>
+                                    <p class="ai-paste-hint">Tip: Numbers and bullet points are cleaned up for you.</p>
                                 </div>
                             </div>
                             <div class="ai-modal-footer">
                                 <button type="button" class="btn btn-secondary" id="btn-cancel-ai-paste">Cancel</button>
-                                <button type="button" class="btn btn-primary" id="btn-apply-ai-paste">Add as Drafts</button>
+                                <button type="button" class="btn btn-primary" id="btn-apply-ai-paste">Add Steps</button>
                             </div>
                         </div>
                     </div>
@@ -363,7 +363,7 @@
                                         <li>Ask: "Make these steps shorter and clearer for non-technical employees"</li>
                                         <li>Paste the improved steps in the second box</li>
                                     </ol>
-                                    <p class="ai-draft-reminder">Improved steps are drafts. You can edit them further or keep your originals.</p>
+                                    <p class="ai-draft-reminder">You can edit these further or keep your originals.</p>
                                 </div>
                                 <div class="ai-copy-area">
                                     <label>Your current steps (copy these):</label>
@@ -371,8 +371,8 @@
                                     <button type="button" class="btn btn-secondary btn-copy" id="btn-copy-steps">📋 Copy Steps</button>
                                 </div>
                                 <div class="ai-paste-area">
-                                    <label for="ai-improved-input">Paste improved draft steps here:</label>
-                                    <textarea id="ai-improved-input" class="ai-textarea" rows="6" placeholder="Paste the AI-improved steps here..."></textarea>
+                                    <label for="ai-improved-input">Paste the improved steps here:</label>
+                                    <textarea id="ai-improved-input" class="ai-textarea" rows="6" placeholder="Paste the improved steps here..."></textarea>
                                 </div>
                             </div>
                             <div class="ai-modal-footer">
@@ -391,7 +391,9 @@
         }
         
         _renderFolderOptions() {
-            return this.folders.map(folder => `
+            const placeholder = !this.formState.folderId ? 
+                '<option value="" disabled selected>Optional — used to group similar SOPs</option>' : '';
+            return placeholder + this.folders.map(folder => `
                 <option value="${folder.id}" ${this.formState.folderId === folder.id ? 'selected' : ''}>
                     ${folder.icon || '📁'} ${this._escapeHtml(folder.name)}
                 </option>
@@ -402,8 +404,8 @@
             if (this.formState.steps.length === 0) {
                 return `
                     <div class="steps-empty">
-                        <p>📭 No steps added yet</p>
-                        <p class="help-text">Click "Add Step" to begin</p>
+                        <p>No steps added yet</p>
+                        <p class="help-text">Start with the first action your team should take.</p>
                     </div>
                 `;
             }
@@ -1194,12 +1196,12 @@
                 console.warn('SOPCreate: _handleDelete called but no currentSOP');
                 return;
             }
-            if (!confirm(`Delete "${this.currentSOP.title}"?\n\nThis SOP and all its steps will be removed from this browser. This cannot be undone.\n\nYour data is stored locally and is not backed up anywhere.`)) return;
+            if (!confirm(`Delete "${this.currentSOP.title}"?\n\nThis SOP and all its steps will be permanently removed. This cannot be undone.`)) return;
             
             const sops = this._loadSOPs().filter(s => s.id !== this.currentSOP.id);
             this._saveSOPs(sops);
             
-            this._showNotification('SOP deleted', 'success');
+            this._showNotification('SOP deleted', 'error');
             if (this.callbacks.onDelete) {
                 setTimeout(() => this.callbacks.onDelete(this.currentSOP), 300);
             } else {
@@ -1223,20 +1225,21 @@
         }
         
         _showNotification(message, type = 'info') {
-            const toast = document.getElementById('notification-toast');
+            // Use a body-level toast so it survives view switches and re-renders
+            let toast = document.getElementById('app-notification-toast');
             if (!toast) {
-                console.warn('SOPCreate: Notification toast element not found');
-                return;
+                toast = document.createElement('div');
+                toast.id = 'app-notification-toast';
+                toast.innerHTML = '<span class="notification-message"></span>';
+                document.body.appendChild(toast);
             }
             const msgEl = toast.querySelector('.notification-message');
-            if (!msgEl) {
-                console.warn('SOPCreate: Notification message element not found');
-                return;
-            }
+            if (!msgEl) return;
             toast.className = `notification-toast ${type}`;
             msgEl.textContent = message;
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 3000);
+            if (toast._hideTimer) clearTimeout(toast._hideTimer);
+            toast._hideTimer = setTimeout(() => toast.style.display = 'none', 3000);
         }
         
         // ====================================================================
@@ -1249,7 +1252,7 @@
             this._loadFolders();
             
             const draft = this._loadDraft();
-            if (draft && confirm('Continue editing saved draft?')) {
+            if (draft && confirm('You have unsaved work. Continue where you left off?')) {
                 this.formState = { ...draft };
             } else {
                 this.formState = {
