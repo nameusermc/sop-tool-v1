@@ -637,15 +637,16 @@
         syncStatus.id = 'sync-status';
         document.body.appendChild(syncStatus);
 
-        // Listen for auth changes
+        // Listen for auth changes (backup listener for edge cases)
         if (StorageAdapter?.Auth?.onAuthStateChange) {
             StorageAdapter.Auth.onAuthStateChange((isAuth, user) => {
+                console.log('[app.js] Auth state change detected:', isAuth ? 'logged in' : 'logged out');
                 updateAuthIndicator(document.getElementById('auth-indicator'));
-                if (isAuth) {
-                    // Refresh dashboard to show synced data
-                    if (AppState.modules.dashboard) {
-                        AppState.modules.dashboard.refresh();
-                    }
+                
+                // Refresh dashboard on any auth state change
+                if (AppState.modules.dashboard) {
+                    console.log('[app.js] Refreshing dashboard due to auth state change');
+                    AppState.modules.dashboard.refresh();
                 }
             });
         }
@@ -747,6 +748,9 @@
                 }
                 overlay.remove();
                 
+                // Update auth indicator immediately
+                updateAuthIndicator(document.getElementById('auth-indicator'));
+                
                 // Show sync status briefly
                 const syncStatus = document.getElementById('sync-status');
                 if (syncStatus) {
@@ -754,6 +758,10 @@
                     syncStatus.style.display = 'block';
                     setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
                 }
+                
+                // CRITICAL: Refresh dashboard to show synced data
+                console.log('[app.js] Auth success - refreshing dashboard');
+                showDashboard();
             } catch (err) {
                 errorDiv.textContent = err.message || 'Authentication failed';
                 errorDiv.style.display = 'block';
@@ -772,7 +780,13 @@
     async function signOut() {
         if (confirm('Sign out? Your data will remain on this device.')) {
             await StorageAdapter.Auth.signOut();
+            
+            // Update auth indicator immediately
             updateAuthIndicator(document.getElementById('auth-indicator'));
+            
+            // CRITICAL: Refresh dashboard to show local-only state
+            console.log('[app.js] Sign out success - refreshing dashboard');
+            showDashboard();
         }
     }
 
