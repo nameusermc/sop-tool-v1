@@ -674,7 +674,7 @@
                 </div>
                 <div id="auth-error" class="error" style="display:none;"></div>
                 <form id="auth-form">
-                    <input type="email" id="auth-email" placeholder="Email" required />
+                    <input type="text" id="auth-email" placeholder="Email" required autocomplete="email" />
                     <input type="password" id="auth-password" placeholder="Password" required minlength="6" />
                     <button type="submit" class="btn-primary" id="auth-submit">Sign In</button>
                 </form>
