@@ -1004,6 +1004,87 @@
     }
 
     // ========================================================================
+    // DEBUG: OVERFLOW DETECTOR (enable: localStorage.setItem('debugOverflow','1'))
+    // ========================================================================
+
+    (function initOverflowDetector() {
+        if (localStorage.getItem('debugOverflow') !== '1') return;
+
+        function bestSelector(el) {
+            if (el.id) return '#' + el.id;
+            if (el.className && typeof el.className === 'string') {
+                return el.tagName.toLowerCase() + '.' + el.className.trim().split(/\s+/).join('.');
+            }
+            return el.tagName.toLowerCase();
+        }
+
+        function detectOverflow() {
+            const vw = document.documentElement.clientWidth;
+            const all = document.querySelectorAll('*');
+            const offenders = [];
+
+            all.forEach(el => {
+                const rect = el.getBoundingClientRect();
+                // Check right overflow
+                if (rect.right > vw + 1) {
+                    offenders.push({
+                        el,
+                        selector: bestSelector(el),
+                        right: Math.round(rect.right),
+                        width: Math.round(rect.width),
+                        overflow: Math.round(rect.right - vw),
+                        text: (el.textContent || '').slice(0, 80).replace(/\s+/g, ' ').trim()
+                    });
+                }
+                // Check left overflow
+                if (rect.left < -1) {
+                    offenders.push({
+                        el,
+                        selector: bestSelector(el),
+                        right: Math.round(rect.right),
+                        width: Math.round(rect.width),
+                        overflow: Math.round(-rect.left),
+                        text: (el.textContent || '').slice(0, 80).replace(/\s+/g, ' ').trim()
+                    });
+                }
+            });
+
+            // Sort by overflow amount, show top 5
+            offenders.sort((a, b) => b.overflow - a.overflow);
+            const top = offenders.slice(0, 5);
+
+            if (top.length > 0) {
+                console.warn(`🔴 OVERFLOW DETECTED — viewport: ${vw}px, ${offenders.length} offender(s)`);
+                top.forEach((o, i) => {
+                    console.warn(`  ${i + 1}. ${o.selector} — right:${o.right}px, width:${o.width}px, overflow:${o.overflow}px\n     text: "${o.text}"`);
+                    o.el.style.outline = '2px solid red';
+                    o.el.style.outlineOffset = '-2px';
+                });
+            } else {
+                console.log(`✅ No overflow — viewport: ${vw}px`);
+            }
+        }
+
+        // Run after each major DOM change (debounced)
+        let timer = null;
+        const observer = new MutationObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(detectOverflow, 500);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Also run on resize
+        window.addEventListener('resize', () => {
+            clearTimeout(timer);
+            timer = setTimeout(detectOverflow, 500);
+        });
+
+        // Initial run
+        setTimeout(detectOverflow, 1500);
+        console.log('🔍 Overflow detector ACTIVE (disable: localStorage.removeItem("debugOverflow"))');
+    })();
+
+    // ========================================================================
     // GLOBAL API (for debugging and external access)
     // ========================================================================
 

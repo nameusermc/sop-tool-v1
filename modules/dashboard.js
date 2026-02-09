@@ -1493,12 +1493,15 @@
                     color: #1f2937;
                     background: #f9fafb;
                     min-height: 100vh;
+                    overflow-x: hidden;
                 }
                 
                 .dashboard-layout {
                     display: grid;
                     grid-template-columns: 260px 1fr;
                     min-height: 100vh;
+                    overflow: hidden;
+                    max-width: 100%;
                 }
                 
                 /* Sidebar */
@@ -1604,6 +1607,8 @@
                 .dashboard-main {
                     padding: 1.5rem 2rem;
                     max-width: 1000px;
+                    min-width: 0;
+                    overflow-x: hidden;
                 }
                 
                 .dashboard-header {
@@ -1612,6 +1617,7 @@
                     align-items: center;
                     flex-wrap: wrap;
                     margin-bottom: 1.5rem;
+                    overflow: hidden;
                 }
                 
                 .search-container {
@@ -1772,6 +1778,8 @@
                     margin-bottom: 2rem;
                     padding-bottom: 1.5rem;
                     border-bottom: 1px solid #f3f4f6;
+                    min-width: 0;
+                    overflow: hidden;
                 }
                 
                 .most-used-section .section-header h3,
@@ -1860,6 +1868,7 @@
                     background: linear-gradient(to right, var(--folder-color, #6366f1)10, transparent);
                     border-bottom: 1px solid #e5e7eb;
                     cursor: pointer;
+                    overflow: hidden;
                 }
                 
                 .sop-group-header:hover {
@@ -1877,7 +1886,7 @@
                 }
                 
                 .group-icon { font-size: 1rem; }
-                .group-name { flex: 1; font-weight: 600; font-size: 0.9rem; }
+                .group-name { flex: 1; font-weight: 600; font-size: 0.9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .group-count {
                     background: var(--folder-color, #6366f1);
                     color: #fff;
@@ -1906,6 +1915,7 @@
                     border-bottom: 1px solid #f3f4f6;
                     position: relative;
                     transition: background 0.2s ease;
+                    overflow: hidden;
                 }
                 
                 .sop-card:last-child {
@@ -1959,6 +1969,8 @@
                     font-size: 0.95rem;
                     font-weight: 600;
                     line-height: 1.4;
+                    overflow-wrap: anywhere;
+                    word-break: break-word;
                 }
                 
                 .sop-description {
@@ -1983,6 +1995,8 @@
                     margin-top: 0.5rem;
                     display: flex;
                     gap: 0.5rem;
+                    flex-wrap: wrap;
+                    overflow: hidden;
                 }
                 
                 .tag {
@@ -2073,6 +2087,7 @@
                     background: #fafafe;
                     border: 1px solid #e0e7ff;
                     border-radius: 10px;
+                    overflow: hidden;
                 }
                 
                 .checklists-list {
@@ -2523,7 +2538,7 @@
                         position: static;
                         border-right: none;
                         border-bottom: 1px solid #e5e7eb;
-                        overflow: visible;
+                        overflow: hidden;
                     }
                     .sidebar-header {
                         padding: 0.75rem 1rem;
