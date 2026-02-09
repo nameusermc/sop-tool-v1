@@ -114,7 +114,12 @@
         
         _loadFolders() {
             const stored = localStorage.getItem(SOP_STORAGE_KEYS.FOLDERS);
-            this.folders = stored ? JSON.parse(stored) : [...DEFAULT_FOLDERS];
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                this.folders = (Array.isArray(parsed) && parsed.length > 0) ? parsed : [...DEFAULT_FOLDERS];
+            } else {
+                this.folders = [...DEFAULT_FOLDERS];
+            }
         }
         
         _loadSOPs() {
@@ -405,6 +410,10 @@
         }
         
         _renderFolderOptions() {
+            // If no folders loaded, ensure select is still usable
+            if (!this.folders || this.folders.length === 0) {
+                return '<option value="" selected>No category</option>';
+            }
             const placeholder = !this.formState.folderId ? 
                 '<option value="" disabled selected>Optional — used to group similar SOPs</option>' : '';
             return placeholder + this.folders.map(folder => `

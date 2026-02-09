@@ -166,7 +166,13 @@
             // Load folders
             const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
             if (storedFolders) {
-                this.state.folders = JSON.parse(storedFolders);
+                const parsed = JSON.parse(storedFolders);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    this.state.folders = parsed;
+                } else {
+                    this.state.folders = [...DEFAULT_FOLDERS];
+                    this._saveFolders();
+                }
             } else {
                 this.state.folders = [...DEFAULT_FOLDERS];
                 this._saveFolders();
