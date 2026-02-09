@@ -258,7 +258,13 @@
             
             // Filter by folder
             if (this.state.selectedFolderId) {
-                filtered = filtered.filter(sop => sop.folderId === this.state.selectedFolderId);
+                if (this.state.selectedFolderId === 'uncategorized') {
+                    // "Other" = SOPs with no folder or folder that no longer exists
+                    const validFolderIds = new Set(this.state.folders.map(f => f.id));
+                    filtered = filtered.filter(sop => !sop.folderId || !validFolderIds.has(sop.folderId));
+                } else {
+                    filtered = filtered.filter(sop => sop.folderId === this.state.selectedFolderId);
+                }
             }
             
             // Filter by search query
@@ -633,8 +639,9 @@
          */
         _renderFolderList() {
             const sopCounts = {};
+            const validFolderIds = new Set(this.state.folders.map(f => f.id));
             this.state.sops.forEach(sop => {
-                const folderId = sop.folderId || 'uncategorized';
+                const folderId = (sop.folderId && validFolderIds.has(sop.folderId)) ? sop.folderId : 'uncategorized';
                 sopCounts[folderId] = (sopCounts[folderId] || 0) + 1;
             });
             
