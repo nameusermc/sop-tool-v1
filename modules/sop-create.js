@@ -445,11 +445,11 @@
                     </div>
                     <div class="step-actions">
                         <button type="button" class="step-action-btn" data-action="move-up" 
-                            data-step-id="${step.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
+                            data-step-id="${step.id}" ${index === 0 ? 'disabled' : ''} title="Move step up" aria-label="Move step up">↑</button>
                         <button type="button" class="step-action-btn" data-action="move-down" 
-                            data-step-id="${step.id}" ${index === this.formState.steps.length - 1 ? 'disabled' : ''}>↓</button>
+                            data-step-id="${step.id}" ${index === this.formState.steps.length - 1 ? 'disabled' : ''} title="Move step down" aria-label="Move step down">↓</button>
                         <button type="button" class="step-action-btn step-delete-btn" 
-                            data-action="delete" data-step-id="${step.id}">🗑️</button>
+                            data-action="delete" data-step-id="${step.id}" title="Delete step" aria-label="Delete step">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -2160,6 +2160,7 @@
                 }
                 
                 .step-action-btn:hover:not(:disabled) { background: #f3f4f6; }
+                .step-action-btn:focus-visible { outline: 2px solid #6366f1; outline-offset: 1px; }
                 .step-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
                 .step-delete-btn:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; }
                 
