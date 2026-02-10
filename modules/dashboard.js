@@ -515,6 +515,10 @@
             this.container.innerHTML = '';
             this.container.className = 'dashboard-container';
             
+            // Pre-compute checklist state once (avoid repeated I/O in render helpers)
+            const checklists = this._loadChecklists();
+            this._cachedChecklists = checklists;
+            
             this.container.innerHTML = `
                 <div class="dashboard-layout">
                     <!-- Sidebar -->
@@ -560,6 +564,9 @@
                         
                         <!-- Active Filters -->
                         ${this._renderActiveFilters()}
+                        
+                        <!-- First-run nudge: explains what to do after creating first SOP -->
+                        ${this._renderFirstRunNudge()}
                         
                         <!-- Resume Section (primary action for returning users) -->
                         ${this._renderRecentChecklists()}
@@ -750,7 +757,7 @@
          * Render recent/in-progress checklists section
          */
         _renderRecentChecklists() {
-            const checklists = this._loadChecklists();
+            const checklists = this._cachedChecklists || [];
             const inProgress = checklists.filter(c => c.status === 'in_progress').slice(0, 5);
             
             if (inProgress.length === 0) return '';
@@ -793,7 +800,7 @@
          * Render completed checklists section
          */
         _renderCompletedChecklists() {
-            const checklists = this._loadChecklists();
+            const checklists = this._cachedChecklists || [];
             const completed = checklists
                 .filter(c => c.status === 'completed')
                 .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
@@ -839,6 +846,28 @@
             `;
         }
         
+        /**
+         * First-run nudge: shown once after creating first SOP, before any checklist run.
+         * Answers the "now what?" moment by explaining SOPs are meant to be run.
+         * Self-removes: dismissed manually, or auto-hidden once a checklist exists.
+         */
+        _renderFirstRunNudge() {
+            // Only show when: SOPs exist, no checklists ever started, not dismissed
+            if (this.state.sops.length === 0) return '';
+            if ((this._cachedChecklists || []).length > 0) return '';
+            if (localStorage.getItem('sop_tool_run_nudge_dismissed')) return '';
+
+            return `
+                <div class="run-nudge" id="run-nudge">
+                    <div class="run-nudge-content">
+                        <p><strong>Next step: put it to use</strong></p>
+                        <p>Click <strong>✅ Use</strong> on any SOP to start the checklist and check off each step as you go.</p>
+                    </div>
+                    <button class="run-nudge-close" data-action="dismiss-run-nudge" title="Dismiss">✕</button>
+                </div>
+            `;
+        }
+
         /**
          * Load checklists from localStorage
          */
@@ -1054,6 +1083,14 @@
         // ====================================================================
         
         _attachEventListeners() {
+            // Dismiss first-run nudge (delegated — survives re-renders)
+            this.container.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action="dismiss-run-nudge"]');
+                if (!btn) return;
+                localStorage.setItem('sop_tool_run_nudge_dismissed', '1');
+                btn.closest('.run-nudge')?.remove();
+            });
+            
             // Search
             document.getElementById('sop-search')?.addEventListener('input', (e) => {
                 this.state.searchQuery = e.target.value;
@@ -2093,6 +2130,51 @@
                     border-color: #86efac;
                 }
                 
+                /* First-run nudge: "how to run your SOP" */
+                .run-nudge {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    padding: 14px 16px;
+                    background: #f0fdf4;
+                    border: 1px solid #bbf7d0;
+                    border-radius: 10px;
+                    margin-bottom: 1.25rem;
+                    animation: nudgeFadeIn 0.3s ease;
+                }
+                @keyframes nudgeFadeIn {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .run-nudge-content {
+                    flex: 1;
+                }
+                .run-nudge-content p {
+                    margin: 0 0 4px;
+                    font-size: 13px;
+                    color: #374151;
+                    line-height: 1.5;
+                }
+                .run-nudge-content p:last-child {
+                    margin-bottom: 0;
+                }
+                .run-nudge-content strong {
+                    color: #166534;
+                }
+                .run-nudge-close {
+                    background: none;
+                    border: none;
+                    color: #9ca3af;
+                    font-size: 16px;
+                    cursor: pointer;
+                    padding: 2px 4px;
+                    line-height: 1;
+                    flex-shrink: 0;
+                }
+                .run-nudge-close:hover {
+                    color: #6b7280;
+                }
+
                 /* Recent Checklists - primary action area when present */
                 .recent-checklists-section {
                     margin-bottom: 1.5rem;
