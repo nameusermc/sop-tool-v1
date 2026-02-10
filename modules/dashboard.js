@@ -1153,10 +1153,13 @@
                 }
             });
             
-            // Create SOP buttons
+            // Create SOP buttons — pass selected folder so new SOP defaults to it
             document.getElementById('btn-create-sop')?.addEventListener('click', () => {
                 if (this.callbacks.onCreateSOP) {
-                    this.callbacks.onCreateSOP();
+                    // Pass real folder ID (not 'uncategorized' virtual bucket or null/all)
+                    const folderId = this.state.selectedFolderId && this.state.selectedFolderId !== 'uncategorized'
+                        ? this.state.selectedFolderId : null;
+                    this.callbacks.onCreateSOP({ folderId });
                 } else {
                     console.warn('Dashboard: onCreateSOP callback not registered');
                 }
@@ -1164,7 +1167,9 @@
             
             document.getElementById('btn-create-sop-empty')?.addEventListener('click', () => {
                 if (this.callbacks.onCreateSOP) {
-                    this.callbacks.onCreateSOP();
+                    const folderId = this.state.selectedFolderId && this.state.selectedFolderId !== 'uncategorized'
+                        ? this.state.selectedFolderId : null;
+                    this.callbacks.onCreateSOP({ folderId });
                 } else {
                     console.warn('Dashboard: onCreateSOP callback not registered');
                 }

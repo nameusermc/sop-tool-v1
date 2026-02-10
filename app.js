@@ -109,7 +109,7 @@
      * Show the SOP Create/Edit view
      * @param {Object|null} sop - SOP to edit, or null for create mode
      */
-    function showEditor(sop = null) {
+    function showEditor(sop = null, createOptions = {}) {
         const mode = sop ? 'edit' : 'create';
         console.log(`📝 Switching to Editor view (mode: ${mode})`);
         
@@ -148,7 +148,7 @@
             AppState.modules.editor.edit(sop);
         } else {
             console.log('Opening editor in CREATE mode');
-            AppState.modules.editor.create();
+            AppState.modules.editor.create(createOptions);
         }
     }
 
@@ -284,9 +284,9 @@
         }
         
         // Handle "Create New SOP" button click
-        dashboard.on('onCreateSOP', () => {
-            console.log('🆕 Create New SOP clicked');
-            showEditor(null);  // null = create mode
+        dashboard.on('onCreateSOP', ({ folderId } = {}) => {
+            console.log('🆕 Create New SOP clicked', folderId ? `(folder: ${folderId})` : '');
+            showEditor(null, { folderId });  // null = create mode, pass folder context
         });
         
         // Handle SOP edit
