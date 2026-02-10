@@ -82,8 +82,8 @@
             
             this.dragState = {
                 dragging: false,
-                draggedIndex: null,
-                dragOverIndex: null
+                draggedId: null,
+                dragOverId: null
             };
             
             this.autoSaveTimer = null;
@@ -434,22 +434,22 @@
             }
             
             return this.formState.steps.map((step, index) => `
-                <div class="step-item" data-step-index="${index}" draggable="true">
+                <div class="step-item" data-step-id="${step.id}">
                     <div class="step-drag-handle">⋮⋮</div>
                     <div class="step-number">${index + 1}</div>
                     <div class="step-content">
-                        <textarea class="step-input" data-step-index="${index}"
+                        <textarea class="step-input" data-step-id="${step.id}"
                             placeholder="Describe this step..." rows="2">${this._escapeHtml(step.text)}</textarea>
-                        <input type="text" class="step-note-input" data-step-index="${index}"
+                        <input type="text" class="step-note-input" data-step-id="${step.id}"
                             placeholder="Add note (optional)" value="${this._escapeHtml(step.note || '')}" />
                     </div>
                     <div class="step-actions">
                         <button type="button" class="step-action-btn" data-action="move-up" 
-                            data-step-index="${index}" ${index === 0 ? 'disabled' : ''}>↑</button>
+                            data-step-id="${step.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
                         <button type="button" class="step-action-btn" data-action="move-down" 
-                            data-step-index="${index}" ${index === this.formState.steps.length - 1 ? 'disabled' : ''}>↓</button>
+                            data-step-id="${step.id}" ${index === this.formState.steps.length - 1 ? 'disabled' : ''}>↓</button>
                         <button type="button" class="step-action-btn step-delete-btn" 
-                            data-action="delete" data-step-index="${index}">🗑️</button>
+                            data-action="delete" data-step-id="${step.id}">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -552,64 +552,88 @@
         
         _attachStepsListeners() {
             const stepsList = document.getElementById('steps-list');
-            if (!stepsList) return;
+            if (!stepsList || stepsList._listenersAttached) return;
+            stepsList._listenersAttached = true;
             
+            // Input: update formState by step ID (not index)
             stepsList.addEventListener('input', (e) => {
-                const index = parseInt(e.target.dataset.stepIndex);
-                if (e.target.classList.contains('step-input') && this.formState.steps[index]) {
-                    this.formState.steps[index].text = e.target.value;
+                const stepId = e.target.dataset.stepId;
+                if (!stepId) return;
+                const step = this.formState.steps.find(s => s.id === stepId);
+                if (!step) return;
+                if (e.target.classList.contains('step-input')) {
+                    step.text = e.target.value;
                 }
-                if (e.target.classList.contains('step-note-input') && this.formState.steps[index]) {
-                    this.formState.steps[index].note = e.target.value;
+                if (e.target.classList.contains('step-note-input')) {
+                    step.note = e.target.value;
                 }
             });
             
+            // Click: move/delete by step ID
             stepsList.addEventListener('click', (e) => {
                 const btn = e.target.closest('[data-action]');
                 if (!btn) return;
                 
                 const action = btn.dataset.action;
-                const index = parseInt(btn.dataset.stepIndex);
+                const stepId = btn.dataset.stepId;
+                if (!stepId) return;
+                const index = this.formState.steps.findIndex(s => s.id === stepId);
+                if (index === -1) return;
                 
                 if (action === 'move-up') this._moveStep(index, index - 1);
                 else if (action === 'move-down') this._moveStep(index, index + 1);
                 else if (action === 'delete') this._deleteStep(index);
             });
             
-            // Drag and drop
+            // Drag: restrict to handle only.
+            // Mousedown on handle sets draggable on parent; dragend removes it.
+            stepsList.addEventListener('mousedown', (e) => {
+                const handle = e.target.closest('.step-drag-handle');
+                if (!handle) return;
+                const item = handle.closest('.step-item');
+                if (item) item.setAttribute('draggable', 'true');
+            });
+            
             stepsList.addEventListener('dragstart', (e) => {
                 const item = e.target.closest('.step-item');
                 if (item) {
                     this.dragState.dragging = true;
-                    this.dragState.draggedIndex = parseInt(item.dataset.stepIndex);
+                    this.dragState.draggedId = item.dataset.stepId;
                     item.classList.add('dragging');
                 }
             });
             
             stepsList.addEventListener('dragend', (e) => {
                 const item = e.target.closest('.step-item');
-                if (item) item.classList.remove('dragging');
-                this.dragState = { dragging: false, draggedIndex: null, dragOverIndex: null };
-                document.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+                if (item) {
+                    item.classList.remove('dragging');
+                    item.removeAttribute('draggable');
+                }
+                this.dragState = { dragging: false, draggedId: null, dragOverId: null };
+                stepsList.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
             });
             
             stepsList.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 const item = e.target.closest('.step-item');
                 if (item && this.dragState.dragging) {
-                    document.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
-                    const overIndex = parseInt(item.dataset.stepIndex);
-                    if (overIndex !== this.dragState.draggedIndex) {
+                    stepsList.querySelectorAll('.step-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+                    const overId = item.dataset.stepId;
+                    if (overId !== this.dragState.draggedId) {
                         item.classList.add('drag-over');
-                        this.dragState.dragOverIndex = overIndex;
+                        this.dragState.dragOverId = overId;
                     }
                 }
             });
             
             stepsList.addEventListener('drop', (e) => {
                 e.preventDefault();
-                if (this.dragState.draggedIndex !== null && this.dragState.dragOverIndex !== null) {
-                    this._moveStep(this.dragState.draggedIndex, this.dragState.dragOverIndex);
+                if (this.dragState.draggedId != null && this.dragState.dragOverId != null) {
+                    const from = this.formState.steps.findIndex(s => s.id === this.dragState.draggedId);
+                    const to = this.formState.steps.findIndex(s => s.id === this.dragState.dragOverId);
+                    if (from !== -1 && to !== -1) {
+                        this._moveStep(from, to);
+                    }
                 }
             });
         }
@@ -654,8 +678,11 @@
         
         _moveStep(from, to) {
             if (to < 0 || to >= this.formState.steps.length) return;
-            const [moved] = this.formState.steps.splice(from, 1);
-            this.formState.steps.splice(to, 0, moved);
+            // Create new array to avoid in-place mutation issues
+            const steps = [...this.formState.steps];
+            const [moved] = steps.splice(from, 1);
+            steps.splice(to, 0, moved);
+            this.formState.steps = steps;
             this._reorderSteps();
             this._updateStepsList();
         }
@@ -672,7 +699,11 @@
             
             if (list) {
                 list.innerHTML = this._renderStepsList();
-                this._attachStepsListeners();
+                // Listeners are delegated on #steps-list — only need attaching once.
+                // See _attachStepsListeners() guard.
+                if (!list._listenersAttached) {
+                    this._attachStepsListeners();
+                }
             }
             if (count) count.textContent = `${this.formState.steps.length} / ${this.options.maxSteps}`;
             if (addBtn) addBtn.disabled = this.formState.steps.length >= this.options.maxSteps;
@@ -1184,11 +1215,14 @@
             if (status) this.formState.status = status.value;
             if (tags) this.formState.tags = tags.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
             
-            document.querySelectorAll('.step-input').forEach((input, i) => {
-                if (this.formState.steps[i]) this.formState.steps[i].text = input.value;
+            // Collect step values by stable ID, not DOM order
+            document.querySelectorAll('.step-input').forEach(input => {
+                const step = this.formState.steps.find(s => s.id === input.dataset.stepId);
+                if (step) step.text = input.value;
             });
-            document.querySelectorAll('.step-note-input').forEach((input, i) => {
-                if (this.formState.steps[i]) this.formState.steps[i].note = input.value;
+            document.querySelectorAll('.step-note-input').forEach(input => {
+                const step = this.formState.steps.find(s => s.id === input.dataset.stepId);
+                if (step) step.note = input.value;
             });
         }
         
@@ -1304,6 +1338,13 @@
             
             document.getElementById('btn-continue-draft')?.addEventListener('click', () => {
                 this.formState = { ...draft };
+                // Ensure all steps have stable IDs
+                if (Array.isArray(this.formState.steps)) {
+                    this.formState.steps = this.formState.steps.map((s, i) => ({
+                        ...s,
+                        id: s.id || `step_${Date.now()}_${i}`
+                    }));
+                }
                 this._showNotification('Continuing your draft', 'info');
                 this._render();
                 this._attachEventListeners();
@@ -1317,11 +1358,15 @@
         }
         
         _startFreshEditor(options = {}) {
+            const steps = (options.steps || []).map((s, i) => ({
+                ...s,
+                id: s.id || `step_${Date.now()}_${i}`
+            }));
             this.formState = {
                 title: options.title || '',
                 description: options.description || '',
                 folderId: options.folderId || 'general',
-                steps: options.steps || [],
+                steps,
                 tags: options.tags || [],
                 status: 'draft'
             };
@@ -1349,7 +1394,10 @@
                 title: sop.title || '',
                 description: sop.description || '',
                 folderId: sop.folderId || 'general',
-                steps: sop.steps ? [...sop.steps] : [],
+                steps: sop.steps ? sop.steps.map((s, i) => ({
+                    ...s,
+                    id: s.id || `step_${Date.now()}_${i}`
+                })) : [],
                 tags: sop.tags ? [...sop.tags] : [],
                 status: sop.status || 'draft'
             };
