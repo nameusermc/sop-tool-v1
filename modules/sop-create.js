@@ -87,6 +87,7 @@
             };
             
             this.autoSaveTimer = null;
+            this._draftDebounceTimer = null;
             
             this.callbacks = {
                 onSave: null,
@@ -144,6 +145,40 @@
         _saveDraft() {
             if (this.options.mode === 'create' && this._hasContent()) {
                 this._collectFormData();
+                localStorage.setItem(SOP_STORAGE_KEYS.DRAFTS, JSON.stringify({
+                    ...this.formState,
+                    savedAt: Date.now()
+                }));
+            }
+        }
+        
+        /**
+         * Debounced draft save for typing events (500ms).
+         * formState is already current from input handlers — skip _collectFormData.
+         */
+        _saveDraftDebounced() {
+            if (!this.options.autoSaveDrafts) return;
+            clearTimeout(this._draftDebounceTimer);
+            this._draftDebounceTimer = setTimeout(() => {
+                this._saveDraftFromState();
+            }, 500);
+        }
+        
+        /**
+         * Immediate draft save for structural changes (add/delete/reorder).
+         */
+        _saveDraftNow() {
+            if (!this.options.autoSaveDrafts) return;
+            clearTimeout(this._draftDebounceTimer);
+            this._saveDraftFromState();
+        }
+        
+        /**
+         * Write current formState to draft storage (no _collectFormData needed
+         * when called right after a handler that already updated formState).
+         */
+        _saveDraftFromState() {
+            if (this.options.mode === 'create' && this._hasContent()) {
                 localStorage.setItem(SOP_STORAGE_KEYS.DRAFTS, JSON.stringify({
                     ...this.formState,
                     savedAt: Date.now()
@@ -514,11 +549,13 @@
             document.getElementById('sop-title')?.addEventListener('input', (e) => {
                 this.formState.title = e.target.value;
                 document.getElementById('title-count').textContent = e.target.value.length;
+                this._saveDraftDebounced();
             });
             
             document.getElementById('sop-description')?.addEventListener('input', (e) => {
                 this.formState.description = e.target.value;
                 document.getElementById('desc-count').textContent = e.target.value.length;
+                this._saveDraftDebounced();
             });
             
             document.getElementById('sop-folder')?.addEventListener('change', (e) => {
@@ -532,6 +569,7 @@
             
             document.getElementById('sop-tags')?.addEventListener('input', (e) => {
                 this.formState.tags = e.target.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+                this._saveDraftDebounced();
             });
             
             document.getElementById('btn-add-step')?.addEventListener('click', () => this._addStep());
@@ -567,6 +605,7 @@
                 if (e.target.classList.contains('step-note-input')) {
                     step.note = e.target.value;
                 }
+                this._saveDraftDebounced();
             });
             
             // Click: move/delete by step ID
@@ -661,6 +700,7 @@
             });
             
             this._updateStepsList();
+            this._saveDraftNow();
             
             setTimeout(() => {
                 const inputs = document.querySelectorAll('.step-input');
@@ -673,6 +713,7 @@
                 this.formState.steps.splice(index, 1);
                 this._reorderSteps();
                 this._updateStepsList();
+                this._saveDraftNow();
             }
         }
         
@@ -685,6 +726,7 @@
             this.formState.steps = steps;
             this._reorderSteps();
             this._updateStepsList();
+            this._saveDraftNow();
         }
         
         _reorderSteps() {
@@ -839,6 +881,7 @@
             }));
             
             this._updateStepsList();
+            this._saveDraftNow();
             this._showNotification(`✨ Added ${steps.length} steps. Review and edit as needed.`, 'success');
             this._showAIPastedNotice();
         }
@@ -1123,6 +1166,7 @@
             }));
             
             this._updateStepsList();
+            this._saveDraftNow();
             this._showNotification('✨ Steps updated with improved clarity!', 'success');
             this._showAIImprovedNotice();
         }
@@ -1419,6 +1463,7 @@
         
         destroy() {
             if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
+            clearTimeout(this._draftDebounceTimer);
             this.container.innerHTML = '';
             document.getElementById('sop-create-styles')?.remove();
         }
