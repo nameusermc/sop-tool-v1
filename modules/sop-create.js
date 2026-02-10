@@ -140,6 +140,19 @@
             this.autoSaveTimer = setInterval(() => {
                 this._saveDraft();
             }, this.options.autoSaveInterval);
+            
+            // Flush any pending debounced write on page unload (refresh/close)
+            if (this._beforeUnloadHandler) {
+                window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+            }
+            this._beforeUnloadHandler = () => {
+                if (this._draftDebounceTimer) {
+                    clearTimeout(this._draftDebounceTimer);
+                    this._draftDebounceTimer = null;
+                    try { this._saveDraftFromState(); } catch (e) { /* quota/serialization — best effort */ }
+                }
+            };
+            window.addEventListener('beforeunload', this._beforeUnloadHandler);
         }
         
         _saveDraft() {
@@ -1464,6 +1477,9 @@
         destroy() {
             if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
             clearTimeout(this._draftDebounceTimer);
+            if (this._beforeUnloadHandler) {
+                window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+            }
             this.container.innerHTML = '';
             document.getElementById('sop-create-styles')?.remove();
         }
