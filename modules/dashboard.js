@@ -1609,7 +1609,7 @@
                     gap: 0.5rem;
                     padding: 0.625rem 1rem;
                     cursor: pointer;
-                    border-left: 3px solid transparent;
+                    border-left: 3px solid var(--folder-color, transparent);
                     transition: all 0.15s;
                     position: relative;
                 }
@@ -1624,7 +1624,6 @@
                 
                 .folder-item.active {
                     background: #eff6ff;
-                    border-left-color: var(--folder-color, #6366f1);
                 }
                 
                 .folder-icon { font-size: 1rem; }
