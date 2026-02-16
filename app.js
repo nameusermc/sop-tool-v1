@@ -796,8 +796,10 @@
                 console.log('[app.js] Auth state change detected:', isAuth ? 'logged in' : 'logged out');
                 updateAuthIndicator(document.getElementById('auth-indicator'));
                 
-                // Refresh dashboard on any auth state change
-                if (AppState.modules.dashboard) {
+                // Only refresh dashboard if we're actually on the dashboard view
+                // Supabase fires TOKEN_REFRESHED on window focus — refreshing here
+                // would overwrite the editor/checklist container with dashboard HTML
+                if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
                     console.log('[app.js] Refreshing dashboard due to auth state change');
                     AppState.modules.dashboard.refresh();
                 }
