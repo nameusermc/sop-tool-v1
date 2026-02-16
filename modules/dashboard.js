@@ -1055,6 +1055,9 @@
                         <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
                             ✏️ Edit
                         </button>
+                        <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
+                            📋
+                        </button>
                         <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
                             🗑️
                         </button>
@@ -1395,6 +1398,26 @@
                         if (this.callbacks.onDeleteSOP) this.callbacks.onDeleteSOP(sop);
                         this.refresh();
                     }
+                    break;
+                    
+                case 'duplicate':
+                    const now = Date.now();
+                    const duplicatedSop = {
+                        ...sop,
+                        id: `sop_${now}`,
+                        title: `Copy of ${sop.title}`,
+                        status: 'draft',
+                        steps: sop.steps ? sop.steps.map(step => ({
+                            ...step,
+                            id: `step_${now}_${Math.random().toString(36).substr(2, 9)}`
+                        })) : [],
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    this.state.sops.unshift(duplicatedSop);
+                    this._saveSops();
+                    this._showNotification('SOP duplicated', 'success');
+                    this.refresh();
                     break;
                     
                 default:
@@ -2121,6 +2144,12 @@
                     background: #fef2f2;
                     border-color: #fecaca;
                     color: #b91c1c;
+                }
+                
+                .duplicate-btn:hover {
+                    background: #f5f3ff;
+                    border-color: #ddd6fe;
+                    color: #6d28d9;
                 }
                 
                 .checklist-btn {
