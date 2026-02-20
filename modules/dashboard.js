@@ -1058,6 +1058,9 @@
                         <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
                             📋
                         </button>
+                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
+                            🖨️
+                        </button>
                         <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
                             🗑️
                         </button>
@@ -1420,8 +1423,117 @@
                     this.refresh();
                     break;
                     
+                case 'print':
+                    this._printSop(sop);
+                    break;
+                    
                 default:
                     console.warn('Dashboard: Unknown action:', action);
+            }
+        }
+        
+        /**
+         * Print / Export SOP as a clean document
+         */
+        _printSop(sop) {
+            const folder = this.state.folders.find(f => f.id === sop.folderId);
+            const folderName = folder ? folder.name : 'Uncategorized';
+            const updatedDate = new Date(sop.updatedAt || Date.now()).toLocaleDateString();
+            const steps = sop.steps || [];
+            const tags = sop.tags || [];
+            
+            const stepsHtml = steps.map((step, i) => `
+                <div class="step">
+                    <div class="step-number">${i + 1}</div>
+                    <div class="step-content">
+                        <div class="step-text">${this._escapeHtml(step.text)}</div>
+                        ${step.note ? `<div class="step-note">Note: ${this._escapeHtml(step.note)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            const tagsHtml = tags.length > 0 
+                ? `<div class="tags">${tags.map(t => `<span class="tag">#${this._escapeHtml(t)}</span>`).join(' ')}</div>` 
+                : '';
+            
+            const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${this._escapeHtml(sop.title)} — SOP</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1f2937; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        
+        .header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 24px; }
+        .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+        .meta-item { display: flex; align-items: center; gap: 4px; }
+        .status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+        .status-draft { background: #fef3c7; color: #92400e; }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-archived { background: #f3f4f6; color: #6b7280; }
+        
+        .description { font-size: 15px; color: #374151; margin-bottom: 24px; }
+        .tags { margin-bottom: 24px; }
+        .tag { font-size: 12px; color: #6366f1; background: #eef2ff; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+        
+        .steps-header { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #374151; }
+        .step { display: flex; gap: 14px; margin-bottom: 16px; }
+        .step-number { width: 28px; height: 28px; background: #6366f1; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+        .step-content { flex: 1; padding-top: 3px; }
+        .step-text { font-size: 14px; color: #1f2937; }
+        .step-note { font-size: 12px; color: #6b7280; margin-top: 4px; font-style: italic; }
+        
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+        
+        .no-print { text-align: center; margin-bottom: 24px; }
+        .no-print button { padding: 10px 24px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; margin: 0 6px; }
+        .no-print button:hover { background: #4f46e5; }
+        .no-print .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+        .no-print .btn-secondary:hover { background: #f9fafb; }
+        
+        @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+            .step-number { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .status { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+        <button class="btn-secondary" onclick="window.close()">Close</button>
+    </div>
+    
+    <div class="header">
+        <div class="title">${this._escapeHtml(sop.title)}</div>
+        <div class="meta">
+            <span class="meta-item"><span class="status status-${sop.status || 'draft'}">${sop.status || 'draft'}</span></span>
+            <span class="meta-item">📂 ${this._escapeHtml(folderName)}</span>
+            <span class="meta-item">📝 ${steps.length} steps</span>
+            <span class="meta-item">🕐 Updated ${updatedDate}</span>
+        </div>
+    </div>
+    
+    ${sop.description ? `<div class="description">${this._escapeHtml(sop.description)}</div>` : ''}
+    ${tagsHtml}
+    
+    <div class="steps-header">Steps</div>
+    ${stepsHtml || '<p style="color: #9ca3af; font-style: italic;">No steps added yet.</p>'}
+    
+    <div class="footer">Generated from SOP Tool · ${updatedDate}</div>
+</body>
+</html>`;
+            
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(html);
+                printWindow.document.close();
+            } else {
+                this._showNotification('Pop-up blocked — please allow pop-ups for this site', 'error');
             }
         }
         
@@ -2150,6 +2262,12 @@
                     background: #f5f3ff;
                     border-color: #ddd6fe;
                     color: #6d28d9;
+                }
+                
+                .print-btn:hover {
+                    background: #f0f9ff;
+                    border-color: #bae6fd;
+                    color: #0369a1;
                 }
                 
                 .checklist-btn {
