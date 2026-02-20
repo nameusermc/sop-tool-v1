@@ -53,6 +53,9 @@
         - Checklist: Run SOPs as step-by-step checklists
     -->
     
+    <!-- Paddle.js SDK (for billing - loads async) -->
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    
     <!-- Supabase SDK (for cloud sync - optional) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -69,6 +72,9 @@
     
     <!-- Supabase Client (after storage-adapter, before modules) -->
     <script src="lib/supabase-client.js"></script>
+    
+    <!-- Paddle Billing (plan state, checkout, pricing UI) -->
+    <script src="lib/paddle-billing.js"></script>
     
     <!-- Module Scripts -->
     <script src="modules/landing.js"></script>

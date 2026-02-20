@@ -534,6 +534,11 @@
             }
         }
         
+        // Initialize Paddle billing
+        if (typeof PaddleBilling !== 'undefined') {
+            PaddleBilling.init();
+        }
+        
         // Check if this is a new visitor who should see the landing page
         if (shouldShowLanding()) {
             console.log('🏠 New visitor — showing landing page');
@@ -956,6 +961,26 @@
                     z-index: 1000;
                     display: none;
                 }
+                .plan-badge {
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    letter-spacing: 0.02em;
+                }
+                .plan-free {
+                    background: #f1f5f9;
+                    color: #6366f1;
+                    cursor: pointer;
+                    transition: background 0.15s;
+                }
+                .plan-free:hover {
+                    background: #e0e7ff;
+                }
+                .plan-pro {
+                    background: #4338ca;
+                    color: #fff;
+                }
                 .signin-reminder {
                     display: flex;
                     align-items: flex-start;
@@ -1191,6 +1216,14 @@
                 }
             });
         }
+        
+        // Listen for plan changes (after Paddle checkout)
+        window.addEventListener('withoutme:plan-changed', () => {
+            updateAuthIndicator(document.getElementById('auth-indicator'));
+            if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
+                AppState.modules.dashboard.refresh();
+            }
+        });
     }
 
     /**
@@ -1258,20 +1291,30 @@
         const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
         const user = StorageAdapter?.Auth?.getUser?.();
         const hasSupabase = StorageAdapter?.hasSupabase?.() || false;
+        const hasPaddle = typeof PaddleBilling !== 'undefined';
+        const isPro = hasPaddle && PaddleBilling.isPro();
+
+        // Plan badge
+        const planBadge = hasPaddle
+            ? isPro 
+                ? '<span class="plan-badge plan-pro">Pro</span>'
+                : '<span class="plan-badge plan-free" onclick="PaddleBilling.showPricingModal()" title="View pricing">Free · Upgrade</span>'
+            : '';
 
         if (!hasSupabase) {
-            // No Supabase config - show nothing or "local mode"
-            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Saved on this device</span>`;
+            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Saved on this device</span>${planBadge}`;
             return;
         }
 
         if (isAuth && user) {
             container.innerHTML = `
+                ${planBadge}
                 <span class="user-email">☁️ ${user.email}</span>
                 <button onclick="SOPToolApp.signOut()">Sign Out</button>
             `;
         } else {
             container.innerHTML = `
+                ${planBadge}
                 <button onclick="SOPToolApp.showAuthModal()">Sign In</button>
                 <span class="auth-hint-toggle" tabindex="0" title="Learn more">?</span>
                 <p class="auth-hint">Sign in to access your SOPs on another device.

@@ -2024,6 +2024,12 @@
             if (!createInviteBtn) return;
             
             createInviteBtn.addEventListener('click', async () => {
+                // Pro feature gate — team access requires Pro plan
+                if (typeof PaddleBilling !== 'undefined' && !PaddleBilling.isPro()) {
+                    PaddleBilling.showUpgradePrompt('team access');
+                    return;
+                }
+                
                 if (!window.SupabaseClient) {
                     this._showNotification('Sign in to manage your team', 'error');
                     return;

@@ -211,6 +211,38 @@
                 <p class="landing-section-subtitle">HVAC, plumbing, cleaning, landscaping, electrical, pest control — if your team does the same tasks every day, this tool is for&nbsp;you.</p>
             </section>
 
+            <!-- PRICING -->
+            <section class="landing-section landing-pricing">
+                <h2 class="landing-section-title">Simple pricing</h2>
+                <p class="landing-section-subtitle">Start free. Upgrade when you're ready to share with your team.</p>
+                <div class="landing-pricing-cards">
+                    <div class="landing-price-card">
+                        <h3 class="landing-price-name">Free</h3>
+                        <div class="landing-price-amount">$0</div>
+                        <ul class="landing-price-features">
+                            <li>Unlimited SOPs</li>
+                            <li>All templates</li>
+                            <li>PDF export</li>
+                            <li>Works offline</li>
+                        </ul>
+                        <button class="landing-cta-primary" data-action="start-now" style="background:#475569;">Start free</button>
+                    </div>
+                    <div class="landing-price-card landing-price-card-pro">
+                        <div class="landing-price-badge">Most popular</div>
+                        <h3 class="landing-price-name">Pro</h3>
+                        <div class="landing-price-amount">$39<span class="landing-price-period">/mo</span></div>
+                        <ul class="landing-price-features">
+                            <li>Everything in Free</li>
+                            <li><strong>Team access — share via link</strong></li>
+                            <li><strong>Cloud sync — access anywhere</strong></li>
+                            <li>Unlimited team members</li>
+                        </ul>
+                        <button class="landing-cta-primary" data-action="start-now">Start free, upgrade later</button>
+                    </div>
+                </div>
+                <p class="landing-pricing-note">Cancel anytime. Your SOPs stay yours even if you downgrade.</p>
+            </section>
+
             <!-- FINAL CTA -->
             <section class="landing-section landing-final-cta">
                 <h2 class="landing-final-title">Ready to stop repeating yourself?</h2>
@@ -693,6 +725,100 @@
                 color: #334155;
             }
 
+            /* ---- PRICING ---- */
+
+            .landing-pricing {
+                padding: 4rem 2rem;
+            }
+
+            .landing-pricing-cards {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.25rem;
+                max-width: 580px;
+                margin: 0 auto;
+            }
+
+            .landing-price-card {
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 1.75rem 1.5rem;
+                display: flex;
+                flex-direction: column;
+                background: #fff;
+                position: relative;
+            }
+
+            .landing-price-card-pro {
+                border-color: #4338ca;
+                border-width: 2px;
+            }
+
+            .landing-price-badge {
+                position: absolute;
+                top: -10px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #4338ca;
+                color: #fff;
+                font-size: 0.72rem;
+                font-weight: 600;
+                padding: 2px 12px;
+                border-radius: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                white-space: nowrap;
+            }
+
+            .landing-price-name {
+                font-size: 1.1rem;
+                font-weight: 600;
+                margin: 0 0 0.25rem;
+                color: #1e293b;
+            }
+
+            .landing-price-amount {
+                font-size: 2.2rem;
+                font-weight: 700;
+                color: #0f172a;
+                margin-bottom: 1rem;
+            }
+
+            .landing-price-period {
+                font-size: 0.95rem;
+                font-weight: 400;
+                color: #64748b;
+            }
+
+            .landing-price-features {
+                list-style: none;
+                padding: 0;
+                margin: 0 0 1.5rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+                flex: 1;
+            }
+
+            .landing-price-features li {
+                font-size: 0.88rem;
+                color: #334155;
+                line-height: 1.4;
+            }
+
+            .landing-price-card .landing-cta-primary {
+                width: 100%;
+                padding: 0.7rem;
+                font-size: 0.92rem;
+            }
+
+            .landing-pricing-note {
+                text-align: center;
+                font-size: 0.82rem;
+                color: #94a3b8;
+                margin: 1.25rem 0 0;
+            }
+
             /* ---- AUDIENCE ---- */
 
             .landing-audience {
@@ -793,6 +919,11 @@
 
                 .landing-template-grid {
                     grid-template-columns: 1fr;
+                }
+
+                .landing-pricing-cards {
+                    grid-template-columns: 1fr;
+                    max-width: 340px;
                 }
 
                 .landing-diff-compare {
