@@ -539,6 +539,11 @@
                 
                 // Check team role for authenticated users
                 await checkTeamRole();
+                
+                // Sync subscription state from server (restores Pro even if localStorage was cleared)
+                if (typeof PaddleBilling !== 'undefined' && user?.email) {
+                    await PaddleBilling.syncFromServer(user.email);
+                }
             } else {
                 console.log('👤 Running in local-only mode');
             }
@@ -1784,6 +1789,11 @@
                 // Check team role (owner, member, or solo)
                 await checkTeamRole();
                 
+                // Sync subscription state from server (restores Pro if they have an active subscription)
+                if (typeof PaddleBilling !== 'undefined') {
+                    await PaddleBilling.syncFromServer(email);
+                }
+                
                 // Force dashboard recreation so team mode takes effect
                 AppState.modules.dashboard = null;
                 
@@ -1812,6 +1822,11 @@
             // Reset team state
             AppState.teamRole = null;
             AppState.modules.dashboard = null;  // Force recreation without team mode
+            
+            // Reset plan state (will be restored from server on next login)
+            if (typeof PaddleBilling !== 'undefined') {
+                PaddleBilling.setPlan('free');
+            }
             
             // Update account button immediately
             updateAccountButton(document.getElementById('account-btn'));
