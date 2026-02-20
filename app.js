@@ -544,6 +544,10 @@
             // Store invite code for potential refresh
             AppState.activeInviteCode = inviteCode;
             
+            // Write team SOPs to localStorage so checklist module can find them
+            // (checklist._getSOP reads from localStorage)
+            localStorage.setItem('sop_tool_sops', JSON.stringify(result.sops));
+            
             // Set team role for dashboard rendering
             AppState.teamRole = {
                 role: 'member',

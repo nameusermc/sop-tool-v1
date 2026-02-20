@@ -1539,6 +1539,14 @@
                         console.warn('Dashboard: SOP not found in most-used list:', sopId);
                         return;
                     }
+                    // Team SOPs: run checklist instead of edit
+                    if (sop._teamSop) {
+                        if (this.callbacks.onRunChecklist) {
+                            this.trackUsage(sopId);
+                            this.callbacks.onRunChecklist(sop);
+                        }
+                        return;
+                    }
                     if (this.callbacks.onEditSOP) {
                         this.trackUsage(sopId);
                         this.callbacks.onEditSOP(sop);
