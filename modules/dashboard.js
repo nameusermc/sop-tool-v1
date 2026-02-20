@@ -1818,7 +1818,7 @@
     <div class="steps-header">Steps</div>
     ${stepsHtml || '<p style="color: #9ca3af; font-style: italic;">No steps added yet.</p>'}
     
-    <div class="footer">Generated from SOP Tool · ${updatedDate}</div>
+    <div class="footer">Generated from WithoutMe · ${updatedDate}</div>
 </body>
 </html>`;
             

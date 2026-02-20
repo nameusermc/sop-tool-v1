@@ -1,5 +1,5 @@
 /**
- * Landing Page Module - SOP Tool
+ * Landing Page Module - WithoutMe
  * 
  * Marketing page shown to first-time visitors before the app loads.
  * Explains what the tool does, who it's for, and lets them start immediately.
@@ -90,7 +90,7 @@
             <!-- HERO -->
             <section class="landing-hero">
                 <div class="landing-hero-content">
-                    <p class="landing-eyebrow">Free SOP tool for small teams</p>
+                    <p class="landing-eyebrow">WithoutMe — Free SOP tool for small teams</p>
                     <h1 class="landing-headline">Stop being the bottleneck.</h1>
                     <p class="landing-subheadline">Turn how you do work into clear steps your team can follow — without&nbsp;you.</p>
                     <div class="landing-hero-actions">
@@ -196,7 +196,7 @@
                             <span class="landing-diff-item">❌ $99–$249/mo to start</span>
                         </div>
                         <div class="landing-diff-us">
-                            <span class="landing-diff-label">This tool</span>
+                            <span class="landing-diff-label">WithoutMe</span>
                             <span class="landing-diff-item">✅ Start immediately</span>
                             <span class="landing-diff-item">✅ No account needed</span>
                             <span class="landing-diff-item">✅ Free to use</span>
@@ -221,7 +221,7 @@
 
             <!-- FOOTER -->
             <footer class="landing-footer">
-                <p>SOP Tool — Simple procedures for small teams.</p>
+                <p>WithoutMe — Simple procedures for small teams.</p>
             </footer>
 
         </div>

@@ -704,7 +704,7 @@
                     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;color:#6b7280;gap:12px;">
                         <p style="font-size:18px;font-weight:600;color:#1f2937;">Invalid or expired invite link</p>
                         <p>${result.error || 'This link may have been revoked by the team owner.'}</p>
-                        <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to SOP Tool →</a>
+                        <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to WithoutMe →</a>
                     </div>
                 `;
                 return;
@@ -752,7 +752,7 @@
                 <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;color:#6b7280;gap:12px;">
                     <p style="font-size:18px;font-weight:600;color:#1f2937;">Something went wrong</p>
                     <p>Could not load team SOPs. Please try again.</p>
-                    <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to SOP Tool →</a>
+                    <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to WithoutMe →</a>
                 </div>
             `;
         }
