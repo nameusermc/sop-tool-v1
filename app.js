@@ -54,6 +54,10 @@
         // App container element
         container: null,
         
+        // Team state
+        teamRole: null,  // { role: 'owner'|'member'|'solo', teamId, teamName, ownerId }
+        pendingInviteCode: null,
+        
         // Initialization status
         initialized: false
     };
@@ -94,12 +98,18 @@
                 enableSorting: true,
                 enableFiltering: true,
                 highlightRecentEdits: true,
-                autoRender: true
+                autoRender: true,
+                teamRole: AppState.teamRole || null,
+                teamSOPs: AppState.teamSOPs || null
             });
             
             // Register Dashboard callbacks
             setupDashboardCallbacks();
         } else {
+            // Update team role in case it changed (e.g., after accepting invite)
+            if (AppState.teamRole) {
+                AppState.modules.dashboard.options.teamRole = AppState.teamRole;
+            }
             console.log('Refreshing existing Dashboard');
             AppState.modules.dashboard.refresh();
         }
@@ -443,6 +453,24 @@
             return;
         }
         
+        // Check for invite code in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('invite');
+        if (inviteCode) {
+            console.log('🔗 Invite code detected:', inviteCode.substring(0, 6) + '...');
+            AppState.pendingInviteCode = inviteCode;
+            // Clean URL without reload
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+        // Also check sessionStorage for invite code that survived a signup/login redirect
+        if (!AppState.pendingInviteCode) {
+            const stored = sessionStorage.getItem('sop_tool_pending_invite');
+            if (stored) {
+                AppState.pendingInviteCode = stored;
+                sessionStorage.removeItem('sop_tool_pending_invite');
+            }
+        }
+        
         // Check for required modules
         const modulesLoaded = {
             Dashboard: typeof Dashboard === 'function',
@@ -472,19 +500,104 @@
             if (StorageAdapter.Auth.isAuthenticated()) {
                 const user = StorageAdapter.Auth.getUser();
                 console.log('✅ Logged in as:', user?.email);
+                
+                // Handle pending invite if user is already logged in
+                await handlePendingInvite();
+                
+                // Check team role
+                await checkTeamRole();
             } else {
                 console.log('👤 Running in local-only mode');
+                
+                // If there's a pending invite, store it and prompt login
+                if (AppState.pendingInviteCode) {
+                    sessionStorage.setItem('sop_tool_pending_invite', AppState.pendingInviteCode);
+                    console.log('📋 Invite code stored — will process after sign in');
+                }
             }
         }
         
         // Start with Dashboard view
         showDashboard();
         
+        // If there's a pending invite and user isn't logged in, show auth modal
+        if (AppState.pendingInviteCode && !(StorageAdapter?.Auth?.isAuthenticated?.())) {
+            setTimeout(() => {
+                showAuthModal();
+                // Add a note about the invite
+                const errorDiv = document.getElementById('auth-error');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Sign in or create an account to join the team.';
+                    errorDiv.style.display = 'block';
+                    errorDiv.style.color = '#6366f1';
+                    errorDiv.style.background = '#eef2ff';
+                }
+            }, 300);
+        }
+        
         // Inject auth UI
         injectAuthUI();
         
         AppState.initialized = true;
         console.log('✅ SOP Tool Application initialized');
+    }
+    
+    /**
+     * Check the current user's team role and update AppState
+     */
+    async function checkTeamRole() {
+        if (!SupabaseClient) return;
+        
+        try {
+            const role = await SupabaseClient.getUserRole();
+            AppState.teamRole = role;
+            console.log('👥 Team role:', role.role, role.teamName ? `(${role.teamName})` : '');
+            
+            // Pre-fetch team SOPs for members
+            if (role.role === 'member') {
+                console.log('📥 Fetching team SOPs...');
+                AppState.teamSOPs = await SupabaseClient.fetchTeamSOPs();
+                console.log(`📥 Loaded ${AppState.teamSOPs.length} team SOPs`);
+            }
+        } catch (e) {
+            console.warn('Could not check team role:', e);
+            AppState.teamRole = { role: 'solo', teamId: null, teamName: null, ownerId: null };
+        }
+    }
+    
+    /**
+     * Process a pending invite code after authentication
+     */
+    async function handlePendingInvite() {
+        if (!AppState.pendingInviteCode || !SupabaseClient) return;
+        
+        const code = AppState.pendingInviteCode;
+        AppState.pendingInviteCode = null;
+        sessionStorage.removeItem('sop_tool_pending_invite');
+        
+        console.log('🤝 Accepting invite...');
+        try {
+            const result = await SupabaseClient.acceptInvite(code);
+            if (result.success) {
+                console.log('✅ Invite accepted! Team:', result.team_name);
+                // Toast will show after dashboard renders
+                setTimeout(() => {
+                    const toast = document.getElementById('app-notification-toast') || document.createElement('div');
+                    toast.id = 'app-notification-toast';
+                    toast.innerHTML = '<span class="notification-message"></span>';
+                    if (!toast.parentNode) document.body.appendChild(toast);
+                    const msg = toast.querySelector('.notification-message');
+                    if (msg) msg.textContent = `You've joined ${result.team_name}!`;
+                    toast.className = 'notification-toast success';
+                    toast.style.display = 'block';
+                    setTimeout(() => { toast.style.display = 'none'; }, 4000);
+                }, 500);
+            } else {
+                console.warn('Invite error:', result.error);
+            }
+        } catch (e) {
+            console.error('Invite acceptance failed:', e);
+        }
     }
 
     // ========================================================================
@@ -974,6 +1087,15 @@
                     setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
                 }
                 
+                // Handle pending invite (if user clicked an invite link)
+                await handlePendingInvite();
+                
+                // Check team role (owner, member, or solo)
+                await checkTeamRole();
+                
+                // Force dashboard recreation so team mode takes effect
+                AppState.modules.dashboard = null;
+                
                 // CRITICAL: Refresh dashboard to show synced data
                 console.log('[app.js] Auth success - refreshing dashboard');
                 showDashboard();
@@ -995,6 +1117,10 @@
     async function signOut() {
         if (confirm('Sign out? Your data will remain on this device.')) {
             await StorageAdapter.Auth.signOut();
+            
+            // Reset team state
+            AppState.teamRole = null;
+            AppState.modules.dashboard = null;  // Force recreation without team mode
             
             // Update auth indicator immediately
             updateAuthIndicator(document.getElementById('auth-indicator'));

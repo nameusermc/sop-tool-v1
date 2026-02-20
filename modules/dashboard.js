@@ -347,27 +347,42 @@
          * Load all data from localStorage
          */
         _loadData() {
+            const isTeamMember = this.options.teamRole?.role === 'member';
+            
             // Load folders
-            const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
-            if (storedFolders) {
-                const parsed = JSON.parse(storedFolders);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    this.state.folders = parsed;
+            if (isTeamMember) {
+                // Team members get default folders only (owner's folders aren't synced)
+                this.state.folders = [...DEFAULT_FOLDERS];
+            } else {
+                const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
+                if (storedFolders) {
+                    const parsed = JSON.parse(storedFolders);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        this.state.folders = parsed;
+                    } else {
+                        this.state.folders = [...DEFAULT_FOLDERS];
+                        this._saveFolders();
+                    }
                 } else {
                     this.state.folders = [...DEFAULT_FOLDERS];
                     this._saveFolders();
                 }
-            } else {
-                this.state.folders = [...DEFAULT_FOLDERS];
-                this._saveFolders();
             }
             
             // Sort folders by order
             this.state.folders.sort((a, b) => (a.order || 0) - (b.order || 0));
             
             // Load SOPs
-            const storedSops = localStorage.getItem(STORAGE_KEYS.SOPS);
-            this.state.sops = storedSops ? JSON.parse(storedSops) : [];
+            if (isTeamMember && this.options.teamSOPs) {
+                // Team members see owner's active SOPs from cloud
+                this.state.sops = this.options.teamSOPs.map(sop => ({
+                    ...sop,
+                    _teamSop: true  // Flag for read-only rendering
+                }));
+            } else {
+                const storedSops = localStorage.getItem(STORAGE_KEYS.SOPS);
+                this.state.sops = storedSops ? JSON.parse(storedSops) : [];
+            }
             
             // Load usage data
             const storedUsage = localStorage.getItem(STORAGE_KEYS.SOP_USAGE);
@@ -376,7 +391,7 @@
             // Apply current filters
             this._applyFiltersAndSort();
             
-            console.log(`Dashboard: Loaded ${this.state.sops.length} SOPs, ${this.state.folders.length} folders`);
+            console.log(`Dashboard: Loaded ${this.state.sops.length} SOPs, ${this.state.folders.length} folders${isTeamMember ? ' (team member mode)' : ''}`);
         }
         
         /**
@@ -699,6 +714,10 @@
             this.container.innerHTML = '';
             this.container.className = 'dashboard-container';
             
+            const isTeamMember = this.options.teamRole?.role === 'member';
+            const isTeamOwner = this.options.teamRole?.role === 'owner';
+            const teamName = this.options.teamRole?.teamName || 'Team';
+            
             // Pre-compute checklist state once (avoid repeated I/O in render helpers)
             const checklists = this._loadChecklists();
             this._cachedChecklists = checklists;
@@ -709,7 +728,7 @@
                     <aside class="dashboard-sidebar" id="folder-sidebar">
                         <div class="sidebar-header">
                             <h3>📂 Folders</h3>
-                            ${this.options.enableFolderManagement ? `
+                            ${(!isTeamMember && this.options.enableFolderManagement) ? `
                             <button class="btn-icon" id="btn-add-folder" title="Add Folder">➕</button>
                             ` : ''}
                         </div>
@@ -720,6 +739,14 @@
                     
                     <!-- Main Content -->
                     <main class="dashboard-main">
+                        ${isTeamMember ? `
+                        <!-- Team Member Banner -->
+                        <div class="team-banner">
+                            <span class="team-banner-icon">👥</span>
+                            <span class="team-banner-text">${this._escapeHtml(teamName)}</span>
+                        </div>
+                        ` : ''}
+                        
                         <!-- Header -->
                         <header class="dashboard-header">
                             <div class="search-container">
@@ -739,6 +766,7 @@
                             </button>
                             ` : ''}
                             
+                            ${!isTeamMember ? `
                             <div class="quick-actions">
                                 <button class="btn btn-secondary" id="btn-browse-templates">
                                     📄 Start from Template
@@ -747,13 +775,16 @@
                                     ➕ Create SOP
                                 </button>
                             </div>
+                            ` : ''}
                         </header>
                         
                         <!-- Active Filters -->
                         ${this._renderActiveFilters()}
                         
+                        ${!isTeamMember ? `
                         <!-- First-run nudge: explains what to do after creating first SOP -->
                         ${this._renderFirstRunNudge()}
+                        ` : ''}
                         
                         <!-- Resume Section (primary action for returning users) -->
                         ${this._renderRecentChecklists()}
@@ -773,7 +804,7 @@
                         <!-- SOP List by Folders -->
                         <section class="sop-list-section">
                             <div class="section-header">
-                                <h3>📄 Your SOPs</h3>
+                                <h3>${isTeamMember ? '📋 Team SOPs' : '📄 Your SOPs'}</h3>
                                 <span class="sop-count" id="sop-count">
                                     ${this.state.filteredSops.length} of ${this.state.sops.length} SOPs
                                 </span>
@@ -786,9 +817,12 @@
                         
                         <!-- Completed Checklists (archival) -->
                         ${this._renderCompletedChecklists()}
+                        
+                        ${(isTeamOwner || (!isTeamMember && this.options.teamRole)) ? this._renderTeamManagement() : ''}
                     </main>
                 </div>
                 
+                ${!isTeamMember ? `
                 <!-- Folder Modal -->
                 <div class="modal-overlay" id="folder-modal" style="display: none;">
                     <div class="modal-content folder-modal-content">
@@ -846,6 +880,7 @@
                         </div>
                     </div>
                 </div>
+                ` : ''}
                 
                 <!-- Notification Toast -->
                 <div class="notification-toast" id="notification-toast" style="display: none;">
@@ -1141,6 +1176,7 @@
         _renderSopGroups() {
             if (this.state.filteredSops.length === 0) {
                 const isFiltered = this.state.searchQuery || this.state.selectedFolderId || this.state.hashtagFilter;
+                const isTeamMember = this.options.teamRole?.role === 'member';
                 
                 if (isFiltered) {
                     // Contextual empty message based on which filter is active
@@ -1148,10 +1184,15 @@
                     if (this.state.searchQuery && !this.state.selectedFolderId && !this.state.hashtagFilter) {
                         emptyMsg = 'No results found. Try a different keyword or check your spelling.';
                     } else if (this.state.selectedFolderId && !this.state.searchQuery && !this.state.hashtagFilter) {
-                        emptyMsg = 'No SOPs in this folder yet. Add an existing SOP or create a new one to get started.';
+                        emptyMsg = 'No SOPs in this folder yet.';
                     } else {
                         emptyMsg = 'No SOPs match these filters. Try adjusting your filters or clearing them to see all SOPs.';
                     }
+                    
+                    if (isTeamMember) {
+                        return `<div class="empty-state"><p>${emptyMsg}</p></div>`;
+                    }
+                    
                     return `
                         <div class="empty-state">
                             <p>${emptyMsg}</p>
@@ -1163,6 +1204,16 @@
                                     ➕ Create New SOP
                                 </button>
                             </div>
+                        </div>
+                    `;
+                }
+                
+                // Team member with no SOPs
+                if (isTeamMember) {
+                    return `
+                        <div class="empty-state">
+                            <p class="welcome-title">No SOPs shared yet.</p>
+                            <p>Your team owner hasn't published any Active SOPs yet. Check back soon.</p>
                         </div>
                     `;
                 }
@@ -1241,6 +1292,37 @@
             const updatedDate = new Date(sop.updatedAt || sop.createdAt).toLocaleDateString();
             const stepCount = sop.steps?.length || 0;
             const isRecent = this._isRecentlyEdited(sop);
+            const isReadOnly = sop._teamSop || false;
+            
+            // Team members see Use + Print only; owners/solo see all actions
+            const actionsHtml = isReadOnly ? `
+                    <div class="sop-card-actions">
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
+                        </button>
+                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
+                            🖨️
+                        </button>
+                    </div>
+            ` : `
+                    <div class="sop-card-actions">
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
+                        </button>
+                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
+                            ✏️ Edit
+                        </button>
+                        <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
+                            📋
+                        </button>
+                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
+                            🖨️
+                        </button>
+                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
+                            🗑️
+                        </button>
+                    </div>
+            `;
             
             return `
                 <div class="sop-card ${isRecent ? 'recently-edited' : ''}" data-sop-id="${sop.id}">
@@ -1264,24 +1346,7 @@
                         </div>
                         ` : ''}
                     </div>
-                    
-                    <div class="sop-card-actions">
-                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
-                            ✅ Use
-                        </button>
-                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
-                            ✏️ Edit
-                        </button>
-                        <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
-                            📋
-                        </button>
-                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
-                            🖨️
-                        </button>
-                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
-                            🗑️
-                        </button>
-                    </div>
+                    ${actionsHtml}
                 </div>
             `;
         }
@@ -1588,6 +1653,12 @@
             
             // Folder modal
             this._attachFolderModalListeners();
+            
+            // Team management (owner or solo authenticated user — not team members)
+            const role = this.options.teamRole?.role;
+            if (role === 'owner' || role === 'solo') {
+                this._attachTeamManagementListeners();
+            }
         }
         
         /**
@@ -1597,6 +1668,12 @@
             const sop = this.state.sops.find(s => s.id === sopId);
             if (!sop) {
                 console.warn('Dashboard: SOP not found for action:', action, sopId);
+                return;
+            }
+            
+            // Block destructive actions on team SOPs (read-only)
+            if (sop._teamSop && ['edit', 'delete', 'duplicate'].includes(action)) {
+                this._showNotification('This SOP is read-only', 'error');
                 return;
             }
             
@@ -1861,6 +1938,132 @@
                 
                 this._closeFolderModal();
             });
+        }
+        
+        // ====================================================================
+        // TEAM MANAGEMENT (Owner only)
+        // ====================================================================
+        
+        _renderTeamManagement() {
+            return `
+                <section class="team-management-section" id="team-management">
+                    <div class="section-header">
+                        <h3>👥 Team</h3>
+                    </div>
+                    <div class="team-panel">
+                        <div class="team-invite-area">
+                            <p class="team-invite-desc">Invite team members to view your Active SOPs and run checklists.</p>
+                            <button class="btn btn-primary" id="btn-create-invite">
+                                🔗 Create Invite Link
+                            </button>
+                            <div class="invite-link-area" id="invite-link-area" style="display:none;">
+                                <input type="text" class="form-input invite-link-input" id="invite-link-input" readonly />
+                                <button class="btn btn-secondary" id="btn-copy-invite">📋 Copy</button>
+                            </div>
+                        </div>
+                        <div class="team-member-list" id="team-member-list">
+                            <p class="team-loading">Loading team members...</p>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
+        
+        async _loadTeamMembers() {
+            if (!window.SupabaseClient) return;
+            
+            const members = await SupabaseClient.fetchTeamMembers();
+            const listEl = document.getElementById('team-member-list');
+            if (!listEl) return;
+            
+            // Filter out owner from the display list
+            const displayMembers = members.filter(m => m.role !== 'owner');
+            
+            if (displayMembers.length === 0) {
+                listEl.innerHTML = '<p class="team-empty">No team members yet. Share an invite link to get started.</p>';
+                return;
+            }
+            
+            listEl.innerHTML = displayMembers.map(m => `
+                <div class="team-member-row" data-member-id="${m.id}">
+                    <div class="member-info">
+                        <span class="member-email">${this._escapeHtml(m.email || 'Pending invite')}</span>
+                        <span class="member-status status-badge-${m.status}">${m.status}</span>
+                    </div>
+                    <button class="btn-icon member-remove" data-member-id="${m.id}" title="Remove">🗑️</button>
+                </div>
+            `).join('');
+            
+            // Attach remove listeners
+            listEl.querySelectorAll('.member-remove').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const memberId = e.currentTarget.dataset.memberId;
+                    if (confirm('Remove this team member?')) {
+                        const result = await SupabaseClient.removeTeamMember(memberId);
+                        if (result.success) {
+                            this._showNotification('Team member removed', 'success');
+                            this._loadTeamMembers();
+                        } else {
+                            this._showNotification('Failed to remove: ' + result.error, 'error');
+                        }
+                    }
+                });
+            });
+        }
+        
+        _attachTeamManagementListeners() {
+            const createInviteBtn = document.getElementById('btn-create-invite');
+            if (!createInviteBtn) return;
+            
+            createInviteBtn.addEventListener('click', async () => {
+                if (!window.SupabaseClient) {
+                    this._showNotification('Sign in to manage your team', 'error');
+                    return;
+                }
+                
+                createInviteBtn.disabled = true;
+                createInviteBtn.textContent = 'Creating...';
+                
+                const result = await SupabaseClient.createInvite();
+                
+                createInviteBtn.disabled = false;
+                createInviteBtn.textContent = '🔗 Create Invite Link';
+                
+                if (result.success) {
+                    const link = `${window.location.origin}${window.location.pathname}?invite=${result.inviteCode}`;
+                    const linkArea = document.getElementById('invite-link-area');
+                    const linkInput = document.getElementById('invite-link-input');
+                    
+                    if (linkArea && linkInput) {
+                        linkInput.value = link;
+                        linkArea.style.display = 'flex';
+                        linkInput.select();
+                    }
+                    
+                    this._showNotification('Invite link created', 'success');
+                    
+                    // Refresh member list to show new pending invite
+                    this._loadTeamMembers();
+                } else {
+                    this._showNotification('Failed: ' + result.error, 'error');
+                }
+            });
+            
+            document.getElementById('btn-copy-invite')?.addEventListener('click', () => {
+                const input = document.getElementById('invite-link-input');
+                if (input) {
+                    navigator.clipboard.writeText(input.value).then(() => {
+                        this._showNotification('Link copied to clipboard', 'success');
+                    }).catch(() => {
+                        input.select();
+                        document.execCommand('copy');
+                        this._showNotification('Link copied', 'success');
+                    });
+                }
+            });
+            
+            // Load team members
+            this._loadTeamMembers();
         }
         
         // ====================================================================
@@ -3022,6 +3225,95 @@
                     justify-content: center;
                     flex-wrap: wrap;
                     margin-top: 12px;
+                }
+                
+                /* Team Banner (member view) */
+                .team-banner {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #eef2ff;
+                    border: 1px solid #c7d2fe;
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                }
+                .team-banner-icon { font-size: 18px; }
+                .team-banner-text { font-size: 14px; font-weight: 600; color: #4338ca; }
+                
+                /* Team Management (owner view) */
+                .team-management-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .team-panel {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 16px;
+                }
+                .team-invite-desc {
+                    font-size: 13px;
+                    color: #6b7280;
+                    margin-bottom: 12px;
+                }
+                .invite-link-area {
+                    display: flex;
+                    gap: 8px;
+                    margin-top: 12px;
+                }
+                .invite-link-input {
+                    flex: 1;
+                    font-size: 12px;
+                    padding: 8px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    background: #fff;
+                }
+                .team-member-list {
+                    margin-top: 16px;
+                }
+                .team-member-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                .team-member-row:last-child { border-bottom: none; }
+                .member-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .member-email {
+                    font-size: 13px;
+                    color: #1f2937;
+                }
+                .status-badge-active {
+                    font-size: 11px;
+                    padding: 1px 8px;
+                    border-radius: 999px;
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .status-badge-pending {
+                    font-size: 11px;
+                    padding: 1px 8px;
+                    border-radius: 999px;
+                    background: #fef3c7;
+                    color: #92400e;
+                }
+                .member-remove {
+                    opacity: 0.4;
+                    transition: opacity 0.15s;
+                }
+                .member-remove:hover { opacity: 1; }
+                .team-empty, .team-loading {
+                    font-size: 13px;
+                    color: #9ca3af;
+                    font-style: italic;
                 }
                 
                 .modal-body {
