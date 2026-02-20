@@ -1798,7 +1798,7 @@
         .step-text { font-size: 14px; color: #1f2937; }
         .step-note { font-size: 12px; color: #6b7280; margin-top: 4px; font-style: italic; }
         
-        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #4b5563; text-align: center; }
     </style>
 </head>
 <body>
