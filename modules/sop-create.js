@@ -1425,7 +1425,7 @@
                 folderId: options.folderId || 'general',
                 steps,
                 tags: options.tags || [],
-                status: 'draft'
+                status: options.status || 'draft'
             };
             
             this._render();

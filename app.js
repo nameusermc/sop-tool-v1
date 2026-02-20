@@ -116,12 +116,28 @@
     }
 
     /**
+     * Check if the user hasn't saved any SOPs yet (first-SOP experience).
+     */
+    function isFirstSOP() {
+        try {
+            const sops = JSON.parse(localStorage.getItem('sop_tool_sops') || '[]');
+            return sops.length === 0;
+        } catch (e) { return false; }
+    }
+
+    /**
      * Show the SOP Create/Edit view
      * @param {Object|null} sop - SOP to edit, or null for create mode
      */
     function showEditor(sop = null, createOptions = {}) {
         const mode = sop ? 'edit' : 'create';
         console.log(`📝 Switching to Editor view (mode: ${mode})`);
+        
+        // For first SOP creation, default status to Active (skip Draft concept)
+        const firstSOP = !sop && isFirstSOP();
+        if (firstSOP && !createOptions.status) {
+            createOptions.status = 'active';
+        }
         
         AppState.previousView = AppState.currentView;
         AppState.currentView = mode;
@@ -159,6 +175,11 @@
         } else {
             console.log('Opening editor in CREATE mode');
             AppState.modules.editor.create(createOptions);
+        }
+        
+        // Inject first-SOP welcome hint (after editor renders)
+        if (firstSOP) {
+            injectFirstSOPHint();
         }
     }
 
@@ -372,6 +393,9 @@
         editor.on('onSave', (sop) => {
             console.log('💾 SOP saved:', sop.title, '(ID:', sop.id + ')');
             
+            // Detect first SOP save (before persisting, check count)
+            const wasFirstSOP = !localStorage.getItem('sop_tool_first_sop_saved');
+            
             // CRITICAL: Ensure SOP is saved via StorageAdapter for cloud sync
             // This is a safety net in case the localStorage override isn't working
             console.log('[app.js] Ensuring SOP is persisted via StorageAdapter...');
@@ -405,6 +429,13 @@
             
             // Show success message (optional, editor already shows notification)
             console.log('Returning to Dashboard...');
+            
+            // First SOP: show celebration interstitial
+            if (wasFirstSOP) {
+                localStorage.setItem('sop_tool_first_sop_saved', '1');
+                showFirstSOPCelebration(sop);
+                return;
+            }
             
             // Return to Dashboard and refresh to show new/updated SOP
             showDashboard();
@@ -586,6 +617,71 @@
         });
         
         landing.render();
+    }
+
+    /**
+     * Inject a welcome hint into the editor for first-SOP creation.
+     * Dismisses when the user focuses the title field.
+     */
+    function injectFirstSOPHint() {
+        const main = document.querySelector('.sop-create-main');
+        if (!main) return;
+        
+        const hint = document.createElement('div');
+        hint.id = 'first-sop-hint';
+        hint.className = 'first-sop-hint';
+        hint.innerHTML = `
+            <p><strong>You're creating your first SOP.</strong> Pick a task your team does regularly, add a few steps, and save. That's it — your team can follow this without you.</p>
+        `;
+        
+        main.insertBefore(hint, main.firstChild);
+        
+        // Dismiss on title focus
+        const titleInput = document.getElementById('sop-title');
+        if (titleInput) {
+            const dismiss = () => {
+                hint.style.opacity = '0';
+                hint.style.transform = 'translateY(-8px)';
+                setTimeout(() => hint.remove(), 300);
+                titleInput.removeEventListener('focus', dismiss);
+            };
+            titleInput.addEventListener('focus', dismiss);
+        }
+    }
+    
+    /**
+     * Show a celebration interstitial after saving the first SOP.
+     * Offers to run as checklist or go to dashboard.
+     */
+    function showFirstSOPCelebration(sop) {
+        console.log('🎉 First SOP celebration for:', sop.title);
+        
+        AppState.currentView = 'celebration';
+        
+        AppState.container.innerHTML = `
+            <div class="celebration-overlay">
+                <div class="celebration-card">
+                    <div class="celebration-icon">✅</div>
+                    <h2 class="celebration-title">Your first SOP is ready.</h2>
+                    <p class="celebration-subtitle">Your team can now follow <strong>"${sop.title.replace(/"/g, '&quot;')}"</strong> without you.</p>
+                    <p class="celebration-body">Share it with your team or try running it yourself as a checklist to see what they'll experience.</p>
+                    <div class="celebration-actions">
+                        <button class="btn celebration-btn-primary" id="celebration-run-checklist">Run as checklist</button>
+                        <button class="btn celebration-btn-secondary" id="celebration-to-dashboard">Go to dashboard</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('celebration-run-checklist')?.addEventListener('click', () => {
+            showChecklist(sop, false);
+            // Show sign-in reminder after they return from checklist
+        });
+        
+        document.getElementById('celebration-to-dashboard')?.addEventListener('click', () => {
+            showDashboard();
+            setTimeout(maybeShowSignInReminder, 300);
+        });
     }
     
     /**
@@ -972,6 +1068,96 @@
                     .auth-hint {
                         right: 0;
                     }
+                }
+
+                /* ---- FIRST-SOP ONBOARDING ---- */
+
+                .first-sop-hint {
+                    background: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin-bottom: 16px;
+                    transition: opacity 0.3s ease, transform 0.3s ease;
+                }
+                .first-sop-hint p {
+                    margin: 0;
+                    font-size: 0.9rem;
+                    color: #1e40af;
+                    line-height: 1.5;
+                }
+
+                .celebration-overlay {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 80vh;
+                    padding: 2rem;
+                }
+                .celebration-card {
+                    text-align: center;
+                    max-width: 440px;
+                    width: 100%;
+                    background: #fff;
+                    border-radius: 12px;
+                    padding: 3rem 2rem;
+                    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+                }
+                .celebration-icon {
+                    font-size: 3rem;
+                    margin-bottom: 0.75rem;
+                }
+                .celebration-title {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    margin: 0 0 0.5rem;
+                    color: #0f172a;
+                }
+                .celebration-subtitle {
+                    font-size: 1rem;
+                    color: #475569;
+                    margin: 0 0 0.75rem;
+                    line-height: 1.5;
+                }
+                .celebration-body {
+                    font-size: 0.92rem;
+                    color: #64748b;
+                    margin: 0 0 1.75rem;
+                    line-height: 1.5;
+                }
+                .celebration-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                    align-items: center;
+                }
+                .celebration-btn-primary {
+                    padding: 0.75rem 2rem;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: #fff;
+                    background: #4338ca;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: background 0.15s;
+                    width: 100%;
+                    max-width: 280px;
+                }
+                .celebration-btn-primary:hover {
+                    background: #3730a3;
+                }
+                .celebration-btn-secondary {
+                    padding: 0.6rem 1.5rem;
+                    font-size: 0.9rem;
+                    color: #64748b;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    transition: color 0.15s;
+                }
+                .celebration-btn-secondary:hover {
+                    color: #1e293b;
                 }
             `;
             document.head.appendChild(style);
