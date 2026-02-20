@@ -56,7 +56,7 @@
         
         // Team state
         teamRole: null,  // { role: 'owner'|'member'|'solo', teamId, teamName, ownerId }
-        pendingInviteCode: null,
+        activeInviteCode: null,  // For link-based team access refresh
         
         // Initialization status
         initialized: false
@@ -453,22 +453,17 @@
             return;
         }
         
-        // Check for invite code in URL
+        // Check for invite code in URL (link-based team access — no auth required)
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCode = urlParams.get('invite');
-        if (inviteCode) {
-            console.log('🔗 Invite code detected:', inviteCode.substring(0, 6) + '...');
-            AppState.pendingInviteCode = inviteCode;
+        
+        if (inviteCode && typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+            console.log('🔗 Invite link detected — loading team view...');
             // Clean URL without reload
             window.history.replaceState({}, '', window.location.pathname);
-        }
-        // Also check sessionStorage for invite code that survived a signup/login redirect
-        if (!AppState.pendingInviteCode) {
-            const stored = sessionStorage.getItem('sop_tool_pending_invite');
-            if (stored) {
-                AppState.pendingInviteCode = stored;
-                sessionStorage.removeItem('sop_tool_pending_invite');
-            }
+            
+            await initTeamLinkAccess(inviteCode);
+            return;  // Team link view is self-contained, skip normal init
         }
         
         // Check for required modules
@@ -501,39 +496,15 @@
                 const user = StorageAdapter.Auth.getUser();
                 console.log('✅ Logged in as:', user?.email);
                 
-                // Handle pending invite if user is already logged in
-                await handlePendingInvite();
-                
-                // Check team role
+                // Check team role for authenticated users
                 await checkTeamRole();
             } else {
                 console.log('👤 Running in local-only mode');
-                
-                // If there's a pending invite, store it and prompt login
-                if (AppState.pendingInviteCode) {
-                    sessionStorage.setItem('sop_tool_pending_invite', AppState.pendingInviteCode);
-                    console.log('📋 Invite code stored — will process after sign in');
-                }
             }
         }
         
         // Start with Dashboard view
         showDashboard();
-        
-        // If there's a pending invite and user isn't logged in, show auth modal
-        if (AppState.pendingInviteCode && !(StorageAdapter?.Auth?.isAuthenticated?.())) {
-            setTimeout(() => {
-                showAuthModal();
-                // Add a note about the invite
-                const errorDiv = document.getElementById('auth-error');
-                if (errorDiv) {
-                    errorDiv.textContent = 'Sign in or create an account to join the team.';
-                    errorDiv.style.display = 'block';
-                    errorDiv.style.color = '#6366f1';
-                    errorDiv.style.background = '#eef2ff';
-                }
-            }, 300);
-        }
         
         // Inject auth UI
         injectAuthUI();
@@ -543,7 +514,78 @@
     }
     
     /**
-     * Check the current user's team role and update AppState
+     * Initialize link-based team access (no auth required).
+     * Team member clicks an invite link → sees owner's Active SOPs immediately.
+     */
+    async function initTeamLinkAccess(inviteCode) {
+        // Show loading state
+        AppState.container.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;height:60vh;color:#6b7280;">
+                <p>Loading team SOPs...</p>
+            </div>
+        `;
+        
+        try {
+            const result = await SupabaseClient.fetchSOPsByInviteCode(inviteCode);
+            
+            if (!result.success) {
+                AppState.container.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;color:#6b7280;gap:12px;">
+                        <p style="font-size:18px;font-weight:600;color:#1f2937;">Invalid or expired invite link</p>
+                        <p>${result.error || 'This link may have been revoked by the team owner.'}</p>
+                        <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to SOP Tool →</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            console.log(`✅ Team link access: ${result.teamName} — ${result.sops.length} SOPs`);
+            
+            // Store invite code for potential refresh
+            AppState.activeInviteCode = inviteCode;
+            
+            // Set team role for dashboard rendering
+            AppState.teamRole = {
+                role: 'member',
+                teamId: result.teamId,
+                teamName: result.teamName,
+                ownerId: null
+            };
+            
+            // Create dashboard in team member mode with the fetched SOPs
+            AppState.currentView = 'dashboard';
+            AppState.modules.dashboard = new Dashboard(AppState.container, {
+                showMostUsed: true,
+                enableFolderManagement: false,
+                enableSorting: true,
+                enableFiltering: true,
+                highlightRecentEdits: false,
+                autoRender: true,
+                teamRole: AppState.teamRole,
+                teamSOPs: result.sops
+            });
+            
+            // Set up callbacks for team member actions (checklist + print)
+            setupDashboardCallbacks();
+            
+            AppState.initialized = true;
+            console.log('✅ Team link view initialized');
+            
+        } catch (e) {
+            console.error('Team link access failed:', e);
+            AppState.container.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;color:#6b7280;gap:12px;">
+                    <p style="font-size:18px;font-weight:600;color:#1f2937;">Something went wrong</p>
+                    <p>Could not load team SOPs. Please try again.</p>
+                    <a href="${window.location.pathname}" style="color:#6366f1;text-decoration:underline;margin-top:8px;">Go to SOP Tool →</a>
+                </div>
+            `;
+        }
+    }
+    
+    /**
+     * Check the current user's team role and update AppState.
+     * Used for authenticated users (owner/manager tier — future expansion).
      */
     async function checkTeamRole() {
         if (!SupabaseClient) return;
@@ -553,7 +595,7 @@
             AppState.teamRole = role;
             console.log('👥 Team role:', role.role, role.teamName ? `(${role.teamName})` : '');
             
-            // Pre-fetch team SOPs for members
+            // Pre-fetch team SOPs for authenticated members (future manager role)
             if (role.role === 'member') {
                 console.log('📥 Fetching team SOPs...');
                 AppState.teamSOPs = await SupabaseClient.fetchTeamSOPs();
@@ -564,41 +606,7 @@
             AppState.teamRole = { role: 'solo', teamId: null, teamName: null, ownerId: null };
         }
     }
-    
-    /**
-     * Process a pending invite code after authentication
-     */
-    async function handlePendingInvite() {
-        if (!AppState.pendingInviteCode || !SupabaseClient) return;
-        
-        const code = AppState.pendingInviteCode;
-        AppState.pendingInviteCode = null;
-        sessionStorage.removeItem('sop_tool_pending_invite');
-        
-        console.log('🤝 Accepting invite...');
-        try {
-            const result = await SupabaseClient.acceptInvite(code);
-            if (result.success) {
-                console.log('✅ Invite accepted! Team:', result.team_name);
-                // Toast will show after dashboard renders
-                setTimeout(() => {
-                    const toast = document.getElementById('app-notification-toast') || document.createElement('div');
-                    toast.id = 'app-notification-toast';
-                    toast.innerHTML = '<span class="notification-message"></span>';
-                    if (!toast.parentNode) document.body.appendChild(toast);
-                    const msg = toast.querySelector('.notification-message');
-                    if (msg) msg.textContent = `You've joined ${result.team_name}!`;
-                    toast.className = 'notification-toast success';
-                    toast.style.display = 'block';
-                    setTimeout(() => { toast.style.display = 'none'; }, 4000);
-                }, 500);
-            } else {
-                console.warn('Invite error:', result.error);
-            }
-        } catch (e) {
-            console.error('Invite acceptance failed:', e);
-        }
-    }
+
 
     // ========================================================================
     // AUTH UI
@@ -1086,9 +1094,6 @@
                     syncStatus.style.display = 'block';
                     setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
                 }
-                
-                // Handle pending invite (if user clicked an invite link)
-                await handlePendingInvite();
                 
                 // Check team role (owner, member, or solo)
                 await checkTeamRole();
