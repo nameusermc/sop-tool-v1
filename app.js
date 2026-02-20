@@ -1686,8 +1686,8 @@
             submitBtn.textContent = 'Updating...';
 
             try {
-                const { error } = await StorageAdapter.Auth._supabase.auth.updateUser({ password: newPw });
-                if (error) throw error;
+                const result = await SupabaseClient.updatePassword(newPw);
+                if (!result.success) throw new Error(result.error);
                 successEl.textContent = 'Password updated successfully.';
                 successEl.style.display = 'block';
                 document.getElementById('change-pw-form').reset();
