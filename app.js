@@ -801,70 +801,205 @@
             const style = document.createElement('style');
             style.id = 'auth-ui-styles';
             style.textContent = `
-                .auth-indicator {
+                .account-btn {
                     position: fixed;
                     top: 12px;
                     right: 16px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    border: 1px solid #d1d5db;
+                    background: #fff;
+                    cursor: pointer;
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    font-size: 13px;
+                    justify-content: center;
+                    font-size: 16px;
                     z-index: 1000;
+                    transition: border-color 0.15s, box-shadow 0.15s;
+                    color: #6b7280;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
                 }
-                .auth-indicator button {
-                    padding: 6px 12px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 6px;
+                .account-btn:hover {
+                    border-color: #4338ca;
+                    color: #4338ca;
+                }
+                .account-btn.signed-in {
+                    border-color: #4338ca;
+                    background: #f5f3ff;
+                    color: #4338ca;
+                }
+                .account-panel-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.3);
+                    z-index: 9998;
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                }
+                .account-panel-overlay.visible {
+                    opacity: 1;
+                }
+                .account-panel {
+                    position: fixed;
+                    top: 0;
+                    right: -340px;
+                    width: 320px;
+                    max-width: 90vw;
+                    height: 100vh;
                     background: #fff;
-                    cursor: pointer;
-                    font-size: 13px;
+                    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+                    z-index: 9999;
+                    display: flex;
+                    flex-direction: column;
+                    transition: right 0.25s ease;
+                    overflow-y: auto;
                 }
-                .auth-indicator button:hover {
+                .account-panel.open {
+                    right: 0;
+                }
+                .account-panel-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 1.25rem 1.25rem 1rem;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .account-panel-header h3 {
+                    margin: 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: #0f172a;
+                }
+                .account-panel-close {
+                    background: none;
+                    border: none;
+                    font-size: 18px;
+                    cursor: pointer;
+                    color: #9ca3af;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                }
+                .account-panel-close:hover {
+                    color: #374151;
                     background: #f3f4f6;
                 }
-                .auth-indicator .user-email {
-                    color: #6b7280;
-                    max-width: 150px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                .account-panel-body {
+                    padding: 1.25rem;
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.25rem;
                 }
-                .auth-hint-toggle {
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 50%;
-                    background: #e5e7eb;
-                    color: #6b7280;
-                    font-size: 11px;
+                .account-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.4rem;
+                }
+                .account-label {
+                    font-size: 0.75rem;
                     font-weight: 600;
-                    display: inline-flex;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    color: #94a3b8;
+                }
+                .account-value {
+                    font-size: 0.92rem;
+                    color: #1e293b;
+                    word-break: break-all;
+                }
+                .account-value-muted {
+                    font-size: 0.85rem;
+                    color: #94a3b8;
+                }
+                .account-plan-row {
+                    display: flex;
                     align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    line-height: 1;
+                    gap: 0.5rem;
                 }
-                .auth-hint-toggle:hover {
-                    background: #d1d5db;
+                .account-plan-badge {
+                    display: inline-block;
+                    font-size: 0.78rem;
+                    font-weight: 600;
+                    padding: 2px 10px;
+                    border-radius: 4px;
                 }
-                .auth-hint {
-                    display: none;
-                    position: absolute;
-                    right: 0;
-                    top: calc(100% + 8px);
-                    width: 260px;
-                    padding: 10px 12px;
-                    background: #fff;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-                    font-size: 12px;
-                    color: #6b7280;
-                    line-height: 1.5;
+                .account-plan-badge.free {
+                    background: #f1f5f9;
+                    color: #6366f1;
+                }
+                .account-plan-badge.pro {
+                    background: #4338ca;
+                    color: #fff;
+                }
+                .account-divider {
+                    border: none;
+                    border-top: 1px solid #f3f4f6;
                     margin: 0;
                 }
-                .auth-indicator:hover .auth-hint,
-                .auth-indicator:focus-within .auth-hint {
+                .account-link {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.6rem 0;
+                    font-size: 0.9rem;
+                    color: #374151;
+                    cursor: pointer;
+                    border: none;
+                    background: none;
+                    width: 100%;
+                    text-align: left;
+                    border-radius: 6px;
+                    transition: color 0.15s;
+                }
+                .account-link:hover {
+                    color: #4338ca;
+                }
+                .account-link-icon {
+                    font-size: 1rem;
+                    width: 20px;
+                    text-align: center;
+                }
+                .account-upgrade-btn {
                     display: block;
+                    width: 100%;
+                    padding: 0.65rem;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    color: #fff;
+                    background: #4338ca;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    text-align: center;
+                    transition: background 0.15s;
+                }
+                .account-upgrade-btn:hover {
+                    background: #3730a3;
+                }
+                .account-signin-btn {
+                    display: block;
+                    width: 100%;
+                    padding: 0.65rem;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    color: #fff;
+                    background: #4f46e5;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    text-align: center;
+                    transition: background 0.15s;
+                }
+                .account-signin-btn:hover {
+                    background: #4338ca;
+                }
+                .account-panel-footer {
+                    padding: 1rem 1.25rem;
+                    border-top: 1px solid #f3f4f6;
+                    font-size: 0.78rem;
+                    color: #94a3b8;
+                    text-align: center;
                 }
                 .auth-modal-overlay {
                     position: fixed;
@@ -961,26 +1096,6 @@
                     z-index: 1000;
                     display: none;
                 }
-                .plan-badge {
-                    font-size: 11px;
-                    font-weight: 600;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    letter-spacing: 0.02em;
-                }
-                .plan-free {
-                    background: #f1f5f9;
-                    color: #6366f1;
-                    cursor: pointer;
-                    transition: background 0.15s;
-                }
-                .plan-free:hover {
-                    background: #e0e7ff;
-                }
-                .plan-pro {
-                    background: #4338ca;
-                    color: #fff;
-                }
                 .app-footer {
                     text-align: center;
                     padding: 1rem 1.5rem;
@@ -1074,44 +1189,18 @@
                     color: #6b7280;
                 }
                 @media (max-width: 768px) {
-                    body {
-                        padding-top: 40px;
-                    }
-                    .auth-indicator {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        justify-content: flex-end;
-                        padding: 8px 12px;
-                        background: #fff;
-                        border-bottom: 1px solid #f3f4f6;
-                        z-index: 1000;
-                    }
-                    .auth-hint {
-                        right: 0;
+                    .account-btn {
+                        top: 10px;
+                        right: 12px;
                     }
                     .signin-reminder {
                         margin: 0 0.75rem 1rem;
                     }
                 }
                 @media (max-height: 500px) and (orientation: landscape) {
-                    body {
-                        padding-top: 40px;
-                    }
-                    .auth-indicator {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        justify-content: flex-end;
-                        padding: 8px 12px;
-                        background: #fff;
-                        border-bottom: 1px solid #f3f4f6;
-                        z-index: 1000;
-                    }
-                    .auth-hint {
-                        right: 0;
+                    .account-btn {
+                        top: 8px;
+                        right: 10px;
                     }
                 }
 
@@ -1208,12 +1297,15 @@
             document.head.appendChild(style);
         }
 
-        // Create auth indicator container
-        const indicator = document.createElement('div');
-        indicator.className = 'auth-indicator';
-        indicator.id = 'auth-indicator';
-        updateAuthIndicator(indicator);
-        document.body.appendChild(indicator);
+        // Create account button (replaces old auth-indicator)
+        const accountBtn = document.createElement('button');
+        accountBtn.className = 'account-btn';
+        accountBtn.id = 'account-btn';
+        accountBtn.title = 'Account';
+        accountBtn.innerHTML = '👤';
+        accountBtn.addEventListener('click', () => toggleAccountPanel());
+        updateAccountButton(accountBtn);
+        document.body.appendChild(accountBtn);
 
         // Create sync status indicator
         const syncStatus = document.createElement('div');
@@ -1225,11 +1317,10 @@
         if (StorageAdapter?.Auth?.onAuthStateChange) {
             StorageAdapter.Auth.onAuthStateChange((isAuth, user) => {
                 console.log('[app.js] Auth state change detected:', isAuth ? 'logged in' : 'logged out');
-                updateAuthIndicator(document.getElementById('auth-indicator'));
+                updateAccountButton(document.getElementById('account-btn'));
+                updateAccountPanelContent();
                 
                 // Only refresh dashboard if we're actually on the dashboard view
-                // Supabase fires TOKEN_REFRESHED on window focus — refreshing here
-                // would overwrite the editor/checklist container with dashboard HTML
                 if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
                     console.log('[app.js] Refreshing dashboard due to auth state change');
                     AppState.modules.dashboard.refresh();
@@ -1239,7 +1330,8 @@
         
         // Listen for plan changes (after Paddle checkout)
         window.addEventListener('withoutme:plan-changed', () => {
-            updateAuthIndicator(document.getElementById('auth-indicator'));
+            updateAccountButton(document.getElementById('account-btn'));
+            updateAccountPanelContent();
             if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
                 AppState.modules.dashboard.refresh();
             }
@@ -1328,45 +1420,276 @@
     }
 
     /**
-     * Update the auth indicator based on current state
+     * Update account button appearance based on auth state
      */
-    function updateAuthIndicator(container) {
-        if (!container) return;
+    function updateAccountButton(btn) {
+        if (!btn) return;
+        const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
+        if (isAuth) {
+            btn.classList.add('signed-in');
+            btn.innerHTML = '☁️';
+            btn.title = 'Account';
+        } else {
+            btn.classList.remove('signed-in');
+            btn.innerHTML = '👤';
+            btn.title = 'Sign in / Account';
+        }
+    }
+
+    /**
+     * Toggle the account panel open/closed
+     */
+    function toggleAccountPanel() {
+        const existing = document.getElementById('account-panel');
+        if (existing) {
+            closeAccountPanel();
+        } else {
+            openAccountPanel();
+        }
+    }
+
+    /**
+     * Open the account slide-out panel
+     */
+    function openAccountPanel() {
+        if (document.getElementById('account-panel')) return;
+
+        // Overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'account-panel-overlay';
+        overlay.className = 'account-panel-overlay';
+        overlay.addEventListener('click', closeAccountPanel);
+        document.body.appendChild(overlay);
+
+        // Panel
+        const panel = document.createElement('div');
+        panel.id = 'account-panel';
+        panel.className = 'account-panel';
+        panel.innerHTML = `
+            <div class="account-panel-header">
+                <h3>Account</h3>
+                <button class="account-panel-close" id="account-panel-close-btn" title="Close">✕</button>
+            </div>
+            <div class="account-panel-body" id="account-panel-body"></div>
+            <div class="account-panel-footer">WithoutMe</div>
+        `;
+        document.body.appendChild(panel);
+
+        panel.querySelector('#account-panel-close-btn').addEventListener('click', closeAccountPanel);
+
+        // Populate content
+        updateAccountPanelContent();
+
+        // Animate in
+        requestAnimationFrame(() => {
+            overlay.classList.add('visible');
+            panel.classList.add('open');
+        });
+    }
+
+    /**
+     * Close the account panel
+     */
+    function closeAccountPanel() {
+        const panel = document.getElementById('account-panel');
+        const overlay = document.getElementById('account-panel-overlay');
+        if (panel) {
+            panel.classList.remove('open');
+            setTimeout(() => panel.remove(), 250);
+        }
+        if (overlay) {
+            overlay.classList.remove('visible');
+            setTimeout(() => overlay.remove(), 200);
+        }
+    }
+
+    /**
+     * Update the account panel body content based on current state
+     */
+    function updateAccountPanelContent() {
+        const body = document.getElementById('account-panel-body');
+        if (!body) return;
 
         const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
         const user = StorageAdapter?.Auth?.getUser?.();
-        const hasSupabase = StorageAdapter?.hasSupabase?.() || false;
         const hasPaddle = typeof PaddleBilling !== 'undefined';
         const isPro = hasPaddle && PaddleBilling.isPro();
 
-        // Plan badge
-        const planBadge = hasPaddle
-            ? isPro 
-                ? '<span class="plan-badge plan-pro">Pro</span>'
-                : '<span class="plan-badge plan-free" onclick="PaddleBilling.showPricingModal()" title="View pricing">Free · Upgrade</span>'
-            : '';
-
-        if (!hasSupabase) {
-            container.innerHTML = `<span style="color:#9ca3af;font-size:12px;">Saved on this device</span>${planBadge}`;
-            return;
-        }
-
         if (isAuth && user) {
-            container.innerHTML = `
-                ${planBadge}
-                <span class="user-email">☁️ ${user.email}</span>
-                <button onclick="SOPToolApp.signOut()">Sign Out</button>
+            // Signed in view
+            body.innerHTML = `
+                <div class="account-section">
+                    <span class="account-label">Email</span>
+                    <span class="account-value">${user.email}</span>
+                </div>
+
+                <div class="account-section">
+                    <span class="account-label">Plan</span>
+                    <div class="account-plan-row">
+                        <span class="account-plan-badge ${isPro ? 'pro' : 'free'}">${isPro ? 'Pro' : 'Free'}</span>
+                        ${isPro ? '<span style="font-size:0.82rem;color:#64748b;">$39/mo</span>' : ''}
+                    </div>
+                </div>
+
+                ${isPro ? `
+                    <button class="account-link" id="account-manage-billing">
+                        <span class="account-link-icon">💳</span>
+                        Manage billing
+                    </button>
+                ` : `
+                    <button class="account-upgrade-btn" id="account-upgrade">
+                        Upgrade to Pro — $39/mo
+                    </button>
+                    <p style="font-size:0.78rem;color:#94a3b8;margin:0;text-align:center;">
+                        Team access, cloud sync, unlimited members
+                    </p>
+                `}
+
+                <hr class="account-divider">
+
+                <button class="account-link" id="account-change-password">
+                    <span class="account-link-icon">🔒</span>
+                    Change password
+                </button>
+
+                <button class="account-link" id="account-sign-out" style="color:#dc2626;">
+                    <span class="account-link-icon">↩</span>
+                    Sign out
+                </button>
             `;
+
+            // Wire up actions
+            body.querySelector('#account-manage-billing')?.addEventListener('click', () => {
+                const portalUrl = hasPaddle ? PaddleBilling.getCustomerPortalUrl() : null;
+                if (portalUrl) {
+                    window.open(portalUrl, '_blank');
+                } else {
+                    // Fallback: generic portal where customer enters email
+                    window.open('https://customer-portal.paddle.com/', '_blank');
+                }
+            });
+
+            body.querySelector('#account-upgrade')?.addEventListener('click', () => {
+                closeAccountPanel();
+                if (hasPaddle) PaddleBilling.showPricingModal();
+            });
+
+            body.querySelector('#account-change-password')?.addEventListener('click', () => {
+                closeAccountPanel();
+                showChangePasswordModal();
+            });
+
+            body.querySelector('#account-sign-out')?.addEventListener('click', () => {
+                closeAccountPanel();
+                if (confirm('Sign out? Your data will remain on this device.')) {
+                    signOut();
+                }
+            });
+
         } else {
-            container.innerHTML = `
-                ${planBadge}
-                <button onclick="SOPToolApp.showAuthModal()">Sign In</button>
-                <span class="auth-hint-toggle" tabindex="0" title="Learn more">?</span>
-                <p class="auth-hint">Sign in to access your SOPs on another device.
-                If you don't sign in, everything stays saved on this computer.
-                Signing out will not delete your local SOPs.</p>
+            // Not signed in view
+            body.innerHTML = `
+                <div class="account-section">
+                    <span class="account-value-muted">Your SOPs are saved on this device only.</span>
+                </div>
+
+                <button class="account-signin-btn" id="account-sign-in">
+                    Sign in or create account
+                </button>
+
+                <p style="font-size:0.82rem;color:#94a3b8;margin:0;line-height:1.5;">
+                    Sign in to access your SOPs from any device. Your local data is never deleted.
+                </p>
+
+                <hr class="account-divider">
+
+                <div class="account-section">
+                    <span class="account-label">Plan</span>
+                    <div class="account-plan-row">
+                        <span class="account-plan-badge free">Free</span>
+                    </div>
+                </div>
+
+                <button class="account-upgrade-btn" id="account-upgrade-guest" style="background:#475569;">
+                    View pricing
+                </button>
             `;
+
+            body.querySelector('#account-sign-in')?.addEventListener('click', () => {
+                closeAccountPanel();
+                showAuthModal();
+            });
+
+            body.querySelector('#account-upgrade-guest')?.addEventListener('click', () => {
+                closeAccountPanel();
+                if (hasPaddle) PaddleBilling.showPricingModal();
+            });
         }
+    }
+
+    /**
+     * Show change password modal
+     */
+    function showChangePasswordModal() {
+        const existing = document.getElementById('change-password-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'auth-modal-overlay';
+        overlay.id = 'change-password-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        overlay.innerHTML = `
+            <div class="auth-modal" style="position:relative;">
+                <button class="close-btn" onclick="document.getElementById('change-password-overlay').remove()">×</button>
+                <h2>Change Password</h2>
+                <div id="change-pw-error" class="error" style="display:none;"></div>
+                <div id="change-pw-success" style="display:none;color:#059669;font-size:13px;margin-bottom:12px;"></div>
+                <form id="change-pw-form">
+                    <input type="password" id="change-pw-new" placeholder="New password" required minlength="6" autocomplete="new-password" />
+                    <input type="password" id="change-pw-confirm" placeholder="Confirm new password" required minlength="6" autocomplete="new-password" />
+                    <button type="submit" class="btn-primary" id="change-pw-submit">Update Password</button>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('change-pw-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const newPw = document.getElementById('change-pw-new').value;
+            const confirmPw = document.getElementById('change-pw-confirm').value;
+            const errorEl = document.getElementById('change-pw-error');
+            const successEl = document.getElementById('change-pw-success');
+            const submitBtn = document.getElementById('change-pw-submit');
+
+            errorEl.style.display = 'none';
+            successEl.style.display = 'none';
+
+            if (newPw !== confirmPw) {
+                errorEl.textContent = 'Passwords do not match';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Updating...';
+
+            try {
+                const { error } = await StorageAdapter.Auth._supabase.auth.updateUser({ password: newPw });
+                if (error) throw error;
+                successEl.textContent = 'Password updated successfully.';
+                successEl.style.display = 'block';
+                document.getElementById('change-pw-form').reset();
+                setTimeout(() => overlay.remove(), 2000);
+            } catch (err) {
+                errorEl.textContent = err.message || 'Failed to update password';
+                errorEl.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Update Password';
+            }
+        };
     }
 
     /**
@@ -1437,8 +1760,8 @@
                 }
                 overlay.remove();
                 
-                // Update auth indicator immediately
-                updateAuthIndicator(document.getElementById('auth-indicator'));
+                // Update account button immediately
+                updateAccountButton(document.getElementById('account-btn'));
                 
                 // Show sync status briefly
                 const syncStatus = document.getElementById('sync-status');
@@ -1480,8 +1803,8 @@
             AppState.teamRole = null;
             AppState.modules.dashboard = null;  // Force recreation without team mode
             
-            // Update auth indicator immediately
-            updateAuthIndicator(document.getElementById('auth-indicator'));
+            // Update account button immediately
+            updateAccountButton(document.getElementById('account-btn'));
             
             // CRITICAL: Refresh dashboard to show local-only state
             console.log('[app.js] Sign out success - refreshing dashboard');
