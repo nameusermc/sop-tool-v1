@@ -1504,8 +1504,8 @@
 </head>
 <body>
     <div class="no-print">
-        <button onclick="window.print()">🖨️ Print / Save as PDF</button>
-        <button class="btn-secondary" onclick="window.close()">Close</button>
+        <button id="btn-print">🖨️ Print / Save as PDF</button>
+        <button class="btn-secondary" id="btn-close">Close</button>
     </div>
     
     <div class="header">
@@ -1525,14 +1525,18 @@
     ${stepsHtml || '<p style="color: #9ca3af; font-style: italic;">No steps added yet.</p>'}
     
     <div class="footer">Generated from SOP Tool · ${updatedDate}</div>
+    <script>
+        document.getElementById('btn-print').addEventListener('click', function() { window.print(); });
+        document.getElementById('btn-close').addEventListener('click', function() { window.close(); });
+    </script>
 </body>
 </html>`;
             
-            const printWindow = window.open('', '_blank');
-            if (printWindow) {
-                printWindow.document.write(html);
-                printWindow.document.close();
-            } else {
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const printWindow = window.open(url, '_blank');
+            if (!printWindow) {
+                URL.revokeObjectURL(url);
                 this._showNotification('Pop-up blocked — please allow pop-ups for this site', 'error');
             }
         }
