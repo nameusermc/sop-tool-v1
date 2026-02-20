@@ -1480,34 +1480,15 @@
         
         .steps-header { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #374151; }
         .step { display: flex; gap: 14px; margin-bottom: 16px; }
-        .step-number { width: 28px; height: 28px; background: #6366f1; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+        .step-number { width: 28px; height: 28px; background: #6366f1; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .step-content { flex: 1; padding-top: 3px; }
         .step-text { font-size: 14px; color: #1f2937; }
         .step-note { font-size: 12px; color: #6b7280; margin-top: 4px; font-style: italic; }
         
         .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
-        
-        .no-print { text-align: center; margin-bottom: 24px; }
-        .no-print button { padding: 10px 24px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; margin: 0 6px; }
-        .no-print button:hover { background: #4f46e5; }
-        .no-print .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
-        .no-print .btn-secondary:hover { background: #f9fafb; }
-        
-        @media print {
-            body { padding: 20px; }
-            .no-print { display: none; }
-            .step-number { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .status { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
     </style>
 </head>
 <body>
-    <div class="no-print">
-        <button id="btn-print">🖨️ Print / Save as PDF</button>
-        <button class="btn-secondary" id="btn-close">Close</button>
-    </div>
-    
     <div class="header">
         <div class="title">${this._escapeHtml(sop.title)}</div>
         <div class="meta">
@@ -1525,20 +1506,33 @@
     ${stepsHtml || '<p style="color: #9ca3af; font-style: italic;">No steps added yet.</p>'}
     
     <div class="footer">Generated from SOP Tool · ${updatedDate}</div>
-    <script>
-        document.getElementById('btn-print').addEventListener('click', function() { window.print(); });
-        document.getElementById('btn-close').addEventListener('click', function() { window.close(); });
-    </script>
 </body>
 </html>`;
             
-            const blob = new Blob([html], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const printWindow = window.open(url, '_blank');
-            if (!printWindow) {
-                URL.revokeObjectURL(url);
-                this._showNotification('Pop-up blocked — please allow pop-ups for this site', 'error');
-            }
+            // Use iframe for reliable cross-browser PDF export (Safari-safe)
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;';
+            document.body.appendChild(iframe);
+            
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write(html);
+            doc.close();
+            
+            // Wait for content to render before triggering print
+            iframe.contentWindow.addEventListener('afterprint', () => {
+                document.body.removeChild(iframe);
+            });
+            
+            setTimeout(() => {
+                iframe.contentWindow.print();
+                // Fallback cleanup if afterprint doesn't fire
+                setTimeout(() => {
+                    if (iframe.parentNode) {
+                        document.body.removeChild(iframe);
+                    }
+                }, 60000);
+            }, 250);
         }
         
         /**
