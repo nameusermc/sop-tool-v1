@@ -47,8 +47,10 @@
         2. Load app.js last (it uses those classes)
         
         Features:
+        - Landing: Marketing page for new visitors
         - Dashboard: SOP listing, folder management, sorting, filtering
         - SOPCreate: Create/edit SOPs with folder assignment
+        - Checklist: Run SOPs as step-by-step checklists
     -->
     
     <!-- Supabase SDK (for cloud sync - optional) -->
@@ -69,6 +71,7 @@
     <script src="lib/supabase-client.js"></script>
     
     <!-- Module Scripts -->
+    <script src="modules/landing.js"></script>
     <script src="modules/dashboard.js"></script>
     <script src="modules/sop-create.js"></script>
     <script src="modules/checklist.js"></script>

@@ -34,7 +34,7 @@
      * Tracks current view, module instances, and navigation history
      */
     const AppState = {
-        currentView: 'dashboard',  // 'dashboard' | 'create' | 'edit' | 'checklist'
+        currentView: 'dashboard',  // 'landing' | 'dashboard' | 'create' | 'edit' | 'checklist'
         previousView: null,
         
         // Module instances (lazy-loaded)
@@ -503,6 +503,14 @@
             }
         }
         
+        // Check if this is a new visitor who should see the landing page
+        if (shouldShowLanding()) {
+            console.log('🏠 New visitor — showing landing page');
+            showLanding();
+            AppState.initialized = true;
+            return;
+        }
+        
         // Start with Dashboard view
         showDashboard();
         
@@ -511,6 +519,54 @@
         
         AppState.initialized = true;
         console.log('✅ SOP Tool Application initialized');
+    }
+    
+    /**
+     * Determine if the landing page should be shown.
+     * Returns true for new visitors who haven't created SOPs or been onboarded.
+     */
+    function shouldShowLanding() {
+        // Don't show landing if the module isn't loaded
+        if (typeof Landing !== 'function') return false;
+        
+        // Don't show if user is logged in
+        if (StorageAdapter?.Auth?.isAuthenticated?.()) return false;
+        
+        // Don't show if user has been onboarded before
+        if (localStorage.getItem('sop_tool_onboarded')) return false;
+        
+        // Don't show if user already has SOPs
+        try {
+            const sops = JSON.parse(localStorage.getItem('sop_tool_sops') || '[]');
+            if (sops.length > 0) return false;
+        } catch (e) { /* empty = show landing */ }
+        
+        return true;
+    }
+    
+    /**
+     * Show the landing page for new visitors.
+     */
+    function showLanding() {
+        AppState.currentView = 'landing';
+        
+        const landing = new Landing(AppState.container);
+        
+        landing.on('onStart', () => {
+            // Mark as onboarded so landing doesn't show again
+            localStorage.setItem('sop_tool_onboarded', '1');
+            
+            // Clean up landing
+            landing.destroy();
+            
+            // Initialize the app normally
+            showDashboard();
+            injectAuthUI();
+            
+            console.log('✅ Transitioned from landing to app');
+        });
+        
+        landing.render();
     }
     
     /**
