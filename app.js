@@ -284,9 +284,9 @@
         }
         
         // Handle "Create New SOP" button click
-        dashboard.on('onCreateSOP', ({ folderId } = {}) => {
-            console.log('🆕 Create New SOP clicked', folderId ? `(folder: ${folderId})` : '');
-            showEditor(null, { folderId });  // null = create mode, pass folder context
+        dashboard.on('onCreateSOP', (options = {}) => {
+            console.log('🆕 Create New SOP clicked', options.folderId ? `(folder: ${options.folderId})` : '');
+            showEditor(null, options);  // null = create mode, pass all options (folder, template data, etc.)
         });
         
         // Handle SOP edit

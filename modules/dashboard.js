@@ -78,6 +78,190 @@
      */
     const RECENT_EDIT_THRESHOLD = 24 * 60 * 60 * 1000;
 
+    /**
+     * Pre-built SOP templates for common small business tasks
+     */
+    const SOP_TEMPLATES = [
+        {
+            id: 'tpl_onboarding',
+            title: 'New Employee Onboarding',
+            description: 'Step-by-step process for bringing a new team member up to speed on their first day and first week.',
+            icon: '👋',
+            folderId: 'onboarding',
+            tags: ['onboarding', 'new-hire'],
+            steps: [
+                { text: 'Send welcome email with start date, time, dress code, and parking info' },
+                { text: 'Prepare workspace — desk, equipment, login credentials, keys/badges' },
+                { text: 'Greet new hire and give a walkthrough of the facility' },
+                { text: 'Introduce to team members and assign a buddy or mentor' },
+                { text: 'Review company policies, safety rules, and expectations' },
+                { text: 'Walk through their role — daily tasks, tools, and who to ask for help' },
+                { text: 'Set up payroll, benefits enrollment, and any required paperwork' },
+                { text: 'Schedule a check-in at the end of their first week' }
+            ]
+        },
+        {
+            id: 'tpl_complaint',
+            title: 'Customer Complaint Handling',
+            description: 'How to receive, document, and resolve a customer complaint so they leave satisfied.',
+            icon: '🤝',
+            folderId: 'operations',
+            tags: ['customer-service', 'complaints'],
+            steps: [
+                { text: 'Listen to the customer without interrupting — let them explain the full issue' },
+                { text: 'Acknowledge the problem and apologize for the inconvenience' },
+                { text: 'Ask clarifying questions to understand what happened and what they expect' },
+                { text: 'Document the complaint — customer name, date, issue details, and desired outcome' },
+                { text: 'Offer a resolution (fix, redo, refund, or credit) within your authority level' },
+                { text: 'If you can\'t resolve it, escalate to your supervisor immediately with full context' },
+                { text: 'Follow up with the customer within 24 hours to confirm they\'re satisfied' },
+                { text: 'Log the resolution and any changes needed to prevent the same issue' }
+            ]
+        },
+        {
+            id: 'tpl_equipment',
+            title: 'Equipment Maintenance',
+            description: 'Routine maintenance checklist to keep tools and equipment in safe working condition.',
+            icon: '🔧',
+            folderId: 'operations',
+            tags: ['maintenance', 'equipment'],
+            steps: [
+                { text: 'Check the maintenance schedule — confirm which equipment is due' },
+                { text: 'Power off and lock out equipment before starting any maintenance' },
+                { text: 'Inspect for visible damage, loose parts, worn components, or leaks' },
+                { text: 'Clean equipment — remove debris, dust, and buildup' },
+                { text: 'Lubricate moving parts per manufacturer specs' },
+                { text: 'Replace filters, belts, or worn parts as needed' },
+                { text: 'Run a test cycle to verify equipment operates correctly' },
+                { text: 'Log the maintenance — date, what was done, parts replaced, any issues found' }
+            ]
+        },
+        {
+            id: 'tpl_opening',
+            title: 'Daily Opening Procedure',
+            description: 'Standard steps to open the business each day so nothing gets missed.',
+            icon: '🔓',
+            folderId: 'operations',
+            tags: ['daily', 'opening'],
+            steps: [
+                { text: 'Unlock the building and disarm the security system' },
+                { text: 'Walk through the space — check for anything unusual or out of place' },
+                { text: 'Turn on lights, HVAC, and any equipment that needs warm-up time' },
+                { text: 'Check voicemail, email, and any overnight messages or orders' },
+                { text: 'Review the day\'s schedule — appointments, deliveries, deadlines' },
+                { text: 'Verify supplies and materials are stocked for the day' },
+                { text: 'Brief the team on the day\'s priorities and any special notes' }
+            ]
+        },
+        {
+            id: 'tpl_closing',
+            title: 'Daily Closing Procedure',
+            description: 'End-of-day shutdown steps to secure the business and prep for tomorrow.',
+            icon: '🔒',
+            folderId: 'operations',
+            tags: ['daily', 'closing'],
+            steps: [
+                { text: 'Confirm all jobs/tasks for the day are complete or handed off' },
+                { text: 'Clean and organize the workspace — tools stored, surfaces wiped' },
+                { text: 'Shut down equipment and computers' },
+                { text: 'Reconcile cash, invoices, or end-of-day paperwork' },
+                { text: 'Take out trash and handle any waste disposal' },
+                { text: 'Set the security system and lock all doors and windows' },
+                { text: 'Note anything that needs attention tomorrow' }
+            ]
+        },
+        {
+            id: 'tpl_safety',
+            title: 'Safety Incident Report',
+            description: 'What to do when a workplace injury, accident, or near-miss occurs.',
+            icon: '⚠️',
+            folderId: 'safety',
+            tags: ['safety', 'incident'],
+            steps: [
+                { text: 'Ensure the scene is safe — remove ongoing hazards, move people away if needed' },
+                { text: 'Provide first aid or call emergency services if anyone is injured' },
+                { text: 'Secure the area so nothing is disturbed until the investigation is done' },
+                { text: 'Notify your supervisor or safety lead immediately' },
+                { text: 'Document what happened — who, what, when, where, witnesses, and photos if possible' },
+                { text: 'Fill out the official incident report form' },
+                { text: 'Identify root cause — what went wrong and why' },
+                { text: 'Implement corrective actions to prevent recurrence' },
+                { text: 'Follow up with injured worker and file any required regulatory reports' }
+            ]
+        },
+        {
+            id: 'tpl_service_call',
+            title: 'Service Call Walkthrough',
+            description: 'Standard process for arriving at a job site, completing the work, and closing out the service call.',
+            icon: '🚐',
+            folderId: 'operations',
+            tags: ['service', 'field-work'],
+            steps: [
+                { text: 'Review the work order before arriving — customer info, job details, special notes' },
+                { text: 'Confirm appointment with customer (call or text 30 min before arrival)' },
+                { text: 'Arrive on time, introduce yourself, and confirm the scope of work' },
+                { text: 'Assess the situation on-site — inspect, diagnose, explain findings to customer' },
+                { text: 'Complete the work according to company standards' },
+                { text: 'Clean up the work area — leave it as good or better than you found it' },
+                { text: 'Walk the customer through what was done and answer any questions' },
+                { text: 'Collect payment or confirm billing method' },
+                { text: 'Close out the work order with notes, photos, and time logged' }
+            ]
+        },
+        {
+            id: 'tpl_inventory',
+            title: 'Inventory & Supply Restock',
+            description: 'How to check stock levels, identify what needs ordering, and keep supplies ready.',
+            icon: '📦',
+            folderId: 'operations',
+            tags: ['inventory', 'supplies'],
+            steps: [
+                { text: 'Walk through storage areas and count current stock levels' },
+                { text: 'Compare counts to minimum stock thresholds on the inventory list' },
+                { text: 'Flag any items that are low, expired, or damaged' },
+                { text: 'Create a reorder list with item names, quantities, and preferred vendors' },
+                { text: 'Get approval for the order if required' },
+                { text: 'Place the order and note the expected delivery date' },
+                { text: 'When supplies arrive, verify the shipment against the order' },
+                { text: 'Restock shelves and update the inventory log' }
+            ]
+        },
+        {
+            id: 'tpl_vehicle',
+            title: 'Vehicle Inspection',
+            description: 'Pre-trip inspection checklist to ensure company vehicles are safe and road-ready.',
+            icon: '🚗',
+            folderId: 'safety',
+            tags: ['vehicle', 'safety', 'inspection'],
+            steps: [
+                { text: 'Check exterior — tires (pressure + tread), lights, mirrors, body damage' },
+                { text: 'Check fluid levels — oil, coolant, brake fluid, windshield washer' },
+                { text: 'Inspect windshield and wipers for damage or wear' },
+                { text: 'Test brakes, horn, turn signals, and headlights' },
+                { text: 'Verify registration, insurance card, and emergency kit are in the vehicle' },
+                { text: 'Check that tools and equipment are properly loaded and secured' },
+                { text: 'Note mileage and any issues on the vehicle log' },
+                { text: 'Report any problems to your supervisor before departing' }
+            ]
+        },
+        {
+            id: 'tpl_followup',
+            title: 'Customer Follow-Up',
+            description: 'Post-service follow-up process to check satisfaction, build loyalty, and catch issues early.',
+            icon: '📞',
+            folderId: 'operations',
+            tags: ['customer-service', 'follow-up'],
+            steps: [
+                { text: 'Wait 1-2 business days after service completion before reaching out' },
+                { text: 'Call or text the customer — ask if everything is working as expected' },
+                { text: 'If there\'s an issue, schedule a follow-up visit or escalate appropriately' },
+                { text: 'If satisfied, thank them and ask if they\'d leave a review (provide link)' },
+                { text: 'Log the follow-up — date, method, outcome, any action items' },
+                { text: 'Add to the recurring service reminder list if applicable' }
+            ]
+        }
+    ];
+
     // ========================================================================
     // DASHBOARD CLASS
     // ========================================================================
@@ -556,6 +740,9 @@
                             ` : ''}
                             
                             <div class="quick-actions">
+                                <button class="btn btn-secondary" id="btn-browse-templates">
+                                    📄 Start from Template
+                                </button>
                                 <button class="btn btn-primary" id="btn-create-sop">
                                     ➕ Create SOP
                                 </button>
@@ -634,6 +821,28 @@
                         <div class="modal-footer">
                             <button class="btn btn-secondary" id="btn-cancel-folder">Cancel</button>
                             <button class="btn btn-primary" id="btn-save-folder">Save Folder</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Template Browser Modal -->
+                <div class="modal-overlay" id="template-modal" style="display: none;">
+                    <div class="modal-content template-modal-content">
+                        <div class="modal-header">
+                            <h3>Start from a Template</h3>
+                            <button class="btn-close" id="btn-close-template-modal">✕</button>
+                        </div>
+                        <div class="modal-body template-grid">
+                            ${SOP_TEMPLATES.map(tpl => `
+                                <div class="template-card" data-template-id="${tpl.id}">
+                                    <div class="template-icon">${tpl.icon}</div>
+                                    <div class="template-info">
+                                        <div class="template-title">${tpl.title}</div>
+                                        <div class="template-desc">${tpl.description}</div>
+                                        <div class="template-meta">${tpl.steps.length} steps</div>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
                 </div>
@@ -946,9 +1155,14 @@
                     return `
                         <div class="empty-state">
                             <p>${emptyMsg}</p>
-                            <button class="btn btn-primary" id="btn-create-sop-empty">
-                                ➕ Create New SOP
-                            </button>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-secondary" id="btn-browse-templates-empty">
+                                    📄 Start from Template
+                                </button>
+                                <button class="btn btn-primary" id="btn-create-sop-empty">
+                                    ➕ Create New SOP
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
@@ -968,6 +1182,9 @@
                         <div class="welcome-actions">
                             <button class="btn btn-primary" id="btn-create-sop-empty">
                                 ➕ Create your first SOP
+                            </button>
+                            <button class="btn btn-secondary" id="btn-browse-templates-empty">
+                                📄 Or start from a template
                             </button>
                         </div>
                         
@@ -1180,6 +1397,17 @@
                     console.warn('Dashboard: onCreateSOP callback not registered');
                 }
             });
+            
+            // Template browser buttons
+            document.getElementById('btn-browse-templates')?.addEventListener('click', () => {
+                this._openTemplateModal();
+            });
+            document.getElementById('btn-browse-templates-empty')?.addEventListener('click', () => {
+                this._openTemplateModal();
+            });
+            
+            // Template modal
+            this._attachTemplateModalListeners();
             
             // Add folder button
             document.getElementById('btn-add-folder')?.addEventListener('click', () => {
@@ -1632,6 +1860,53 @@
                 }
                 
                 this._closeFolderModal();
+            });
+        }
+        
+        // ====================================================================
+        // TEMPLATE BROWSER
+        // ====================================================================
+        
+        _openTemplateModal() {
+            const modal = document.getElementById('template-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+        
+        _closeTemplateModal() {
+            const modal = document.getElementById('template-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        _selectTemplate(templateId) {
+            const tpl = SOP_TEMPLATES.find(t => t.id === templateId);
+            if (!tpl) return;
+            
+            this._closeTemplateModal();
+            
+            // Check if the template's target folder exists, fall back to general
+            const folderExists = this.state.folders.some(f => f.id === tpl.folderId);
+            
+            if (this.callbacks.onCreateSOP) {
+                this.callbacks.onCreateSOP({
+                    title: tpl.title,
+                    description: tpl.description,
+                    folderId: folderExists ? tpl.folderId : 'general',
+                    steps: tpl.steps.map(s => ({ text: s.text, note: s.note || '' })),
+                    tags: tpl.tags || []
+                });
+            }
+        }
+        
+        _attachTemplateModalListeners() {
+            document.getElementById('btn-close-template-modal')?.addEventListener('click', () => this._closeTemplateModal());
+            
+            document.getElementById('template-modal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'template-modal') this._closeTemplateModal();
+            });
+            
+            document.querySelector('.template-grid')?.addEventListener('click', (e) => {
+                const card = e.target.closest('.template-card');
+                if (card) this._selectTemplate(card.dataset.templateId);
             });
         }
         
@@ -2674,6 +2949,80 @@
                 }
                 
                 .btn-close:hover { background: #e5e7eb; }
+                
+                .template-modal-content {
+                    max-width: 640px;
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .template-modal-content .modal-body {
+                    overflow-y: auto;
+                    padding: 1rem;
+                }
+                
+                .template-grid {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                
+                .template-card {
+                    display: flex;
+                    gap: 12px;
+                    padding: 12px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: border-color 0.15s, background 0.15s;
+                }
+                
+                .template-card:hover {
+                    border-color: #6366f1;
+                    background: #f5f3ff;
+                }
+                
+                .template-icon {
+                    font-size: 24px;
+                    flex-shrink: 0;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f3f4f6;
+                    border-radius: 8px;
+                }
+                
+                .template-info { flex: 1; min-width: 0; }
+                
+                .template-title {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 2px;
+                }
+                
+                .template-desc {
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.4;
+                    margin-bottom: 4px;
+                }
+                
+                .template-meta {
+                    font-size: 11px;
+                    color: #9ca3af;
+                }
+                
+                .empty-state-actions {
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                    margin-top: 12px;
+                }
                 
                 .modal-body {
                     padding: 1.25rem;
