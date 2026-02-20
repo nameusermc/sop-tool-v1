@@ -329,7 +329,17 @@
         // Handle SOP delete
         dashboard.on('onDeleteSOP', (sop) => {
             console.log('🗑️ SOP deleted:', sop.title);
-            // Dashboard already handles the deletion, just log it
+            // Delete from cloud if authenticated
+            const isAuth = StorageAdapter?.Auth?.isAuthenticated?.() || false;
+            if (isAuth && typeof SupabaseClient !== 'undefined') {
+                SupabaseClient.deleteSOP(sop).then(result => {
+                    if (result.success) {
+                        console.log('🗑️ SOP deleted from cloud:', sop.title);
+                    } else {
+                        console.warn('🗑️ Cloud delete failed:', result.error);
+                    }
+                });
+            }
         });
         
         // Handle Run Checklist button
