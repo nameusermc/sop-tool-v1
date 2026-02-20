@@ -253,7 +253,13 @@
 
             <!-- FOOTER -->
             <footer class="landing-footer">
-                <p>WithoutMe — Simple procedures for small teams.</p>
+                <div class="landing-footer-links">
+                    <a href="/pricing.html">Pricing</a>
+                    <a href="/terms.html">Terms</a>
+                    <a href="/privacy.html">Privacy</a>
+                    <a href="/refund.html">Refund Policy</a>
+                </div>
+                <p>© 2026 WithoutMe</p>
             </footer>
 
         </div>
@@ -872,7 +878,24 @@
                 font-size: 0.85rem;
             }
 
-            .landing-footer p { margin: 0; }
+            .landing-footer p { margin: 0.5rem 0 0; }
+
+            .landing-footer-links {
+                display: flex;
+                justify-content: center;
+                gap: 1.5rem;
+                margin-bottom: 0.25rem;
+            }
+
+            .landing-footer-links a {
+                color: #64748b;
+                text-decoration: none;
+                font-size: 0.82rem;
+            }
+
+            .landing-footer-links a:hover {
+                color: #4338ca;
+            }
 
             /* ============================================================
                MOBILE

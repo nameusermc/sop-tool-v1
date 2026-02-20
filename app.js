@@ -981,6 +981,26 @@
                     background: #4338ca;
                     color: #fff;
                 }
+                .app-footer {
+                    text-align: center;
+                    padding: 1rem 1.5rem;
+                    border-top: 1px solid #f3f4f6;
+                    font-size: 0.78rem;
+                    color: #94a3b8;
+                    background: #f9fafb;
+                }
+                .app-footer a {
+                    color: #64748b;
+                    text-decoration: none;
+                    margin: 0 0.4rem;
+                }
+                .app-footer a:hover {
+                    color: #4338ca;
+                }
+                .app-footer-sep {
+                    margin: 0 0.25rem;
+                    color: #d1d5db;
+                }
                 .signin-reminder {
                     display: flex;
                     align-items: flex-start;
@@ -1224,6 +1244,31 @@
                 AppState.modules.dashboard.refresh();
             }
         });
+        
+        // Inject persistent app footer (policy links — visible on all views)
+        injectAppFooter();
+    }
+
+    /**
+     * Inject a persistent footer with policy links.
+     * Visible on all app views (dashboard, editor, checklist).
+     * Required for Paddle domain approval.
+     */
+    function injectAppFooter() {
+        if (document.getElementById('app-footer')) return;
+        
+        const footer = document.createElement('footer');
+        footer.id = 'app-footer';
+        footer.className = 'app-footer';
+        footer.innerHTML = `
+            <a href="/pricing.html">Pricing</a>
+            <a href="/terms.html">Terms</a>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/refund.html">Refund Policy</a>
+            <span class="app-footer-sep">·</span>
+            <span>© 2026 WithoutMe</span>
+        `;
+        document.body.appendChild(footer);
     }
 
     /**
