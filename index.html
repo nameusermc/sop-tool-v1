@@ -40,7 +40,9 @@
     <!-- Static content below is visible to crawlers and non-JS visitors.
          JS app replaces this container's innerHTML on load. -->
     <div id="app">
-        <div style="max-width:720px;margin:0 auto;padding:2.5rem 2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div class="loading">Loading WithoutMe...</div>
+        <!-- Crawler-only content: hidden visually, readable in HTML source -->
+        <div style="display:none;max-width:720px;margin:0 auto;padding:2.5rem 2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
             <h1 style="font-size:2rem;margin:0 0 0.5rem;">WithoutMe</h1>
             <p style="font-size:1.2rem;color:#475569;margin:0 0 2rem;">Stop being the bottleneck. Turn how you do work into clear steps your team can follow — without&nbsp;you.</p>
 
