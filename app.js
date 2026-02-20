@@ -566,6 +566,25 @@
             console.log('✅ Transitioned from landing to app');
         });
         
+        landing.on('onStartFromTemplate', (templateId) => {
+            // Mark as onboarded so landing doesn't show again
+            localStorage.setItem('sop_tool_onboarded', '1');
+            
+            // Clean up landing
+            landing.destroy();
+            
+            // Initialize the dashboard (needed for template data + callbacks)
+            showDashboard();
+            injectAuthUI();
+            
+            // Trigger template selection on the dashboard
+            // _selectTemplate finds the template, calls onCreateSOP → opens editor
+            if (AppState.modules.dashboard && AppState.modules.dashboard._selectTemplate) {
+                console.log('📄 Starting from template:', templateId);
+                AppState.modules.dashboard._selectTemplate(templateId);
+            }
+        });
+        
         landing.render();
     }
     

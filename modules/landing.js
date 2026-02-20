@@ -21,16 +21,16 @@
     // ========================================================================
 
     const TEMPLATE_PREVIEWS = [
-        { icon: '👋', title: 'New Employee Onboarding', desc: 'First day to first week' },
-        { icon: '🤝', title: 'Customer Complaint Handling', desc: 'Receive, resolve, follow up' },
-        { icon: '🔧', title: 'Equipment Maintenance', desc: 'Routine checks and logging' },
-        { icon: '🔓', title: 'Daily Opening Procedure', desc: 'Open up right, every day' },
-        { icon: '🔒', title: 'Daily Closing Procedure', desc: 'Shut down and secure' },
-        { icon: '⚠️', title: 'Safety Incident Report', desc: 'Respond, document, prevent' },
-        { icon: '🚐', title: 'Service Call Walkthrough', desc: 'Arrival to close-out' },
-        { icon: '📦', title: 'Inventory & Supply Restock', desc: 'Check, order, restock' },
-        { icon: '🚗', title: 'Vehicle Inspection', desc: 'Pre-trip safety check' },
-        { icon: '📞', title: 'Customer Follow-Up', desc: 'Check in after service' }
+        { id: 'tpl_onboarding', icon: '👋', title: 'New Employee Onboarding', desc: 'First day to first week' },
+        { id: 'tpl_complaint', icon: '🤝', title: 'Customer Complaint Handling', desc: 'Receive, resolve, follow up' },
+        { id: 'tpl_equipment', icon: '🔧', title: 'Equipment Maintenance', desc: 'Routine checks and logging' },
+        { id: 'tpl_opening', icon: '🔓', title: 'Daily Opening Procedure', desc: 'Open up right, every day' },
+        { id: 'tpl_closing', icon: '🔒', title: 'Daily Closing Procedure', desc: 'Shut down and secure' },
+        { id: 'tpl_safety', icon: '⚠️', title: 'Safety Incident Report', desc: 'Respond, document, prevent' },
+        { id: 'tpl_service_call', icon: '🚐', title: 'Service Call Walkthrough', desc: 'Arrival to close-out' },
+        { id: 'tpl_inventory', icon: '📦', title: 'Inventory & Supply Restock', desc: 'Check, order, restock' },
+        { id: 'tpl_vehicle', icon: '🚗', title: 'Vehicle Inspection', desc: 'Pre-trip safety check' },
+        { id: 'tpl_followup', icon: '📞', title: 'Customer Follow-Up', desc: 'Check in after service' }
     ];
 
     // ========================================================================
@@ -75,7 +75,7 @@
 
     Landing.prototype._buildHTML = function() {
         const templateCards = TEMPLATE_PREVIEWS.map(t => `
-            <div class="landing-template-card">
+            <div class="landing-template-card" data-template-id="${t.id}">
                 <span class="landing-template-icon">${t.icon}</span>
                 <div class="landing-template-info">
                     <span class="landing-template-title">${t.title}</span>
@@ -242,10 +242,13 @@
             });
         });
 
-        // Template card clicks
+        // Template card clicks — start with that template
         this.container.querySelectorAll('.landing-template-card').forEach(card => {
             card.addEventListener('click', () => {
-                if (this.callbacks.onStart) {
+                const templateId = card.dataset.templateId;
+                if (this.callbacks.onStartFromTemplate) {
+                    this.callbacks.onStartFromTemplate(templateId);
+                } else if (this.callbacks.onStart) {
                     this.callbacks.onStart();
                 }
             });
