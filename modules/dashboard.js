@@ -766,7 +766,7 @@
                         <div class="sidebar-header">
                             <h3>📂 Folders</h3>
                             ${(!isTeamMember && this.options.enableFolderManagement) ? `
-                            <button class="btn-icon mobile-manage-btn" id="btn-manage-folders" title="Manage Folders">⚙️</button>
+                            <button class="btn-icon mobile-manage-btn" id="btn-manage-folders" title="Manage Folders">Manage</button>
                             <button class="btn-icon" id="btn-add-folder" title="Add Folder">➕</button>
                             ` : ''}
                         </div>
@@ -2399,10 +2399,6 @@
                     background: #f3f4f6;
                 }
                 
-                .folder-item:hover .folder-actions {
-                    opacity: 1;
-                }
-                
                 .folder-item.active {
                     background: #eff6ff;
                 }
@@ -2418,10 +2414,20 @@
                 }
                 
                 .folder-actions {
-                    display: flex;
+                    display: none;
                     gap: 0.25rem;
-                    opacity: 0;
-                    transition: opacity 0.15s;
+                }
+                
+                /* Only show hover-to-reveal on devices with real hover (mouse/trackpad) */
+                @media (hover: hover) {
+                    .folder-actions {
+                        display: flex;
+                        opacity: 0;
+                        transition: opacity 0.15s;
+                    }
+                    .folder-item:hover .folder-actions {
+                        opacity: 1;
+                    }
                 }
                 
                 .folder-action-btn {
@@ -3593,8 +3599,27 @@
                     to { transform: translateX(0); opacity: 1; }
                 }
                 
-                /* Mobile Folder Manager — hidden on desktop */
-                .mobile-manage-btn { display: none; }
+                /* Mobile Folder Manager — visible on touch, hidden on hover-capable devices */
+                .mobile-manage-btn {
+                    display: inline-flex;
+                    width: auto !important;
+                    height: auto !important;
+                    border: none !important;
+                    background: none !important;
+                    color: #6366f1;
+                    font-size: 0.78rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    padding: 0.25rem 0.5rem !important;
+                }
+                
+                .mobile-manage-btn:active {
+                    opacity: 0.6;
+                }
+                
+                @media (hover: hover) {
+                    .mobile-manage-btn { display: none !important; }
+                }
                 
                 #mobile-folder-manager {
                     align-items: flex-end;
@@ -3719,9 +3744,6 @@
                 
                 /* Responsive */
                 @media (max-width: 768px) {
-                    .mobile-manage-btn {
-                        display: inline-flex;
-                    }
                     .dashboard-layout {
                         grid-template-columns: 1fr;
                         grid-template-rows: auto 1fr;
@@ -3763,9 +3785,6 @@
                     }
                     .folder-item:hover {
                         background: #f9fafb;
-                    }
-                    .folder-actions {
-                        display: none;
                     }
                     .folder-count {
                         font-size: 0.65rem;
