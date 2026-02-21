@@ -181,6 +181,7 @@
                 <div class="landing-template-grid">
                     ${templateCards}
                 </div>
+                <p class="landing-browse-link"><a href="/sop-templates/">Browse free checklists for your industry →</a></p>
             </section>
 
             <!-- DIFFERENTIATOR -->
@@ -254,6 +255,7 @@
             <!-- FOOTER -->
             <footer class="landing-footer">
                 <div class="landing-footer-links">
+                    <a href="/sop-templates/">Templates</a>
                     <a href="/pricing">Pricing</a>
                     <a href="/terms">Terms</a>
                     <a href="/privacy">Privacy</a>
@@ -639,6 +641,20 @@
                 background: #fafafe;
                 transform: translateY(-1px);
                 box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+            }
+
+            .landing-browse-link {
+                text-align: center;
+                margin: 1.25rem 0 0;
+                font-size: 0.9rem;
+            }
+            .landing-browse-link a {
+                color: #6366f1;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .landing-browse-link a:hover {
+                text-decoration: underline;
             }
 
             .landing-template-icon {

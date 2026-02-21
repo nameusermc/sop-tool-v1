@@ -596,6 +596,14 @@
         // Don't show landing if the module isn't loaded
         if (typeof Landing !== 'function') return false;
         
+        // Always show if ?home param is present (returning visitor wants to see landing)
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('home')) {
+            // Clean URL so bookmarking doesn't force landing every time
+            history.replaceState(null, '', window.location.pathname);
+            return true;
+        }
+        
         // Don't show if user is logged in
         if (StorageAdapter?.Auth?.isAuthenticated?.()) return false;
         
@@ -1414,10 +1422,12 @@
         footer.id = 'app-footer';
         footer.className = 'app-footer';
         footer.innerHTML = `
-            <a href="/pricing.html">Pricing</a>
-            <a href="/terms.html">Terms</a>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/refund.html">Refund Policy</a>
+            <a href="/?home">Home</a>
+            <a href="/sop-templates/">Templates</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/refund">Refund Policy</a>
             <span class="app-footer-sep">·</span>
             <span>© 2026 WithoutMe</span>
         `;
