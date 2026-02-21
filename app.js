@@ -570,6 +570,41 @@
             PaddleBilling.init();
         }
         
+        // Check if arriving from a template page with ?import= param
+        const importParams = new URLSearchParams(window.location.search);
+        const importData = importParams.get('import');
+        if (importData) {
+            try {
+                const decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(importData)))));
+                console.log('📄 Importing template from URL:', decoded.title);
+                
+                // Clean URL immediately
+                history.replaceState(null, '', '/');
+                
+                // Mark as onboarded so landing doesn't show next time
+                localStorage.setItem('sop_tool_onboarded', '1');
+                
+                // Initialize dashboard (needed for editor callbacks)
+                showDashboard();
+                injectAuthUI();
+                
+                // Open editor with the imported template data
+                showEditor(null, {
+                    title: decoded.title || '',
+                    description: decoded.description || '',
+                    steps: (decoded.steps || []).map(s => ({ text: s.text || '', note: '' })),
+                    folderId: 'general',
+                    tags: decoded.tags || []
+                });
+                
+                AppState.initialized = true;
+                return;
+            } catch (e) {
+                console.warn('⚠️ Failed to decode import data:', e);
+                // Fall through to normal init
+            }
+        }
+        
         // Check if this is a new visitor who should see the landing page
         if (shouldShowLanding()) {
             console.log('🏠 New visitor — showing landing page');
