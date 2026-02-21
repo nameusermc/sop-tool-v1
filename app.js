@@ -494,6 +494,12 @@
             return;
         }
         
+        // Hide static fallback content (visible for crawlers, replaced by JS app)
+        const staticFallback = document.getElementById('static-fallback');
+        if (staticFallback) staticFallback.style.display = 'none';
+        const staticFooter = document.getElementById('static-footer');
+        if (staticFooter) staticFooter.style.display = 'none';
+        
         // Check for invite code in URL (link-based team access — no auth required)
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCode = urlParams.get('invite');

@@ -41,8 +41,9 @@
          JS app replaces this container's innerHTML on load. -->
     <div id="app">
         <div class="loading">Loading WithoutMe...</div>
-        <!-- Crawler-only content: hidden visually, readable in HTML source -->
-        <div style="display:none;max-width:720px;margin:0 auto;padding:2.5rem 2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <!-- Static content: visible to crawlers and non-JS visitors.
+             JS app replaces this container's innerHTML on load. -->
+        <div id="static-fallback" style="max-width:720px;margin:0 auto;padding:2.5rem 2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
             <h1 style="font-size:2rem;margin:0 0 0.5rem;">WithoutMe</h1>
             <p style="font-size:1.2rem;color:#475569;margin:0 0 2rem;">Stop being the bottleneck. Turn how you do work into clear steps your team can follow — without&nbsp;you.</p>
 
@@ -82,6 +83,17 @@
         - Checklist: Run SOPs as step-by-step checklists
     -->
     
+    <!-- Static footer: always visible to crawlers. JS hides via id once app loads. -->
+    <footer id="static-footer" style="text-align:center;padding:1.5rem;border-top:1px solid #e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:0.85rem;color:#64748b;background:#f9fafb;">
+        <nav style="margin-bottom:0.5rem;">
+            <a href="/pricing.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Pricing</a>
+            <a href="/terms.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Terms &amp; Conditions</a>
+            <a href="/privacy.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Privacy Policy</a>
+            <a href="/refund.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Refund Policy</a>
+        </nav>
+        <p style="margin:0;font-size:0.8rem;color:#94a3b8;">© 2026 WithoutMe · Operated by Michael Cardin, sole proprietor · <a href="mailto:support@withoutme.app" style="color:#94a3b8;">support@withoutme.app</a></p>
+    </footer>
+
     <!-- Paddle.js SDK (for billing - loads async) -->
     <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     
