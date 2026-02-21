@@ -550,6 +550,16 @@
                 if (typeof PaddleBilling !== 'undefined' && user?.email) {
                     await PaddleBilling.syncFromServer(user.email);
                 }
+                
+                // Sync business type from Supabase → localStorage
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    try {
+                        const bizType = await SupabaseClient.getBusinessType();
+                        if (bizType) {
+                            localStorage.setItem('withoutme_business_type', bizType);
+                        }
+                    } catch (e) { /* ignore */ }
+                }
             } else {
                 console.log('👤 Running in local-only mode');
             }
@@ -972,6 +982,21 @@
                     outline: none;
                     border-color: #6366f1;
                     box-shadow: 0 0 0 2px rgba(99,102,241,0.1);
+                }
+                .account-save-btn {
+                    padding: 0.45rem 0.75rem;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    background: #f8fafc;
+                    color: #475569;
+                    font-size: 0.82rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .account-save-btn:hover {
+                    background: #e2e8f0;
+                    color: #1e293b;
                 }
                 .account-link {
                     display: flex;
@@ -1586,11 +1611,14 @@
                 ${isPro ? `
                 <div class="account-section">
                     <label class="account-label" for="account-business-type">Business type</label>
-                    <input type="text" id="account-business-type" class="account-input"
-                        placeholder="e.g. auto repair shop, plumbing company"
-                        value="${(function(){ try { return localStorage.getItem('withoutme_business_type') || ''; } catch(e) { return ''; } })()}"
-                        maxlength="100" />
-                    <span style="font-size:0.72rem;color:#94a3b8;">Used by AI to tailor step suggestions to your business.</span>
+                    <div style="display:flex;gap:0.4rem;align-items:center;">
+                        <input type="text" id="account-business-type" class="account-input" style="flex:1;"
+                            placeholder="e.g. auto repair shop, plumbing company"
+                            value="${(function(){ try { return localStorage.getItem('withoutme_business_type') || ''; } catch(e) { return ''; } })()}"
+                            maxlength="100" />
+                        <button id="account-save-biz-type" class="account-save-btn">Save</button>
+                    </div>
+                    <span id="account-biz-type-hint" style="font-size:0.72rem;color:${(function(){ try { return localStorage.getItem('withoutme_business_type') ? '#059669' : '#94a3b8'; } catch(e) { return '#94a3b8'; } })()};">${(function(){ try { const v = localStorage.getItem('withoutme_business_type'); return v ? '✓ Saved — AI will tailor suggestions for "' + v + '"' : 'Used by AI to tailor step suggestions to your business.'; } catch(e) { return 'Used by AI to tailor step suggestions to your business.'; } })()}</span>
                 </div>
 
                 <hr class="account-divider">
@@ -1635,16 +1663,40 @@
                 }
             });
 
-            // Business type — save on change
-            body.querySelector('#account-business-type')?.addEventListener('change', (e) => {
-                const val = e.target.value.trim();
+            // Business type — save on button click
+            body.querySelector('#account-save-biz-type')?.addEventListener('click', async () => {
+                const input = document.getElementById('account-business-type');
+                const hint = document.getElementById('account-biz-type-hint');
+                const saveBtn = document.getElementById('account-save-biz-type');
+                const val = input?.value?.trim() || '';
+                
                 try {
+                    // Save to localStorage
                     if (val) {
                         localStorage.setItem('withoutme_business_type', val);
                     } else {
                         localStorage.removeItem('withoutme_business_type');
                     }
-                } catch (err) { /* ignore */ }
+                    
+                    // Save to Supabase (persists across devices)
+                    if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                        if (saveBtn) { saveBtn.textContent = '...'; saveBtn.disabled = true; }
+                        await SupabaseClient.setBusinessType(val);
+                    }
+                    
+                    // Show permanent confirmation
+                    if (hint) {
+                        hint.textContent = val ? `✓ Saved — AI will tailor suggestions for "${val}"` : 'Cleared — AI will use generic suggestions.';
+                        hint.style.color = '#059669';
+                    }
+                } catch (err) {
+                    if (hint) {
+                        hint.textContent = 'Saved locally. Cloud sync failed — will retry on next login.';
+                        hint.style.color = '#d97706';
+                    }
+                } finally {
+                    if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
+                }
             });
 
         } else {
@@ -1838,6 +1890,16 @@
                 // Sync subscription state from server (restores Pro if they have an active subscription)
                 if (typeof PaddleBilling !== 'undefined') {
                     await PaddleBilling.syncFromServer(email);
+                }
+                
+                // Sync business type from Supabase → localStorage
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    try {
+                        const bizType = await SupabaseClient.getBusinessType();
+                        if (bizType) {
+                            localStorage.setItem('withoutme_business_type', bizType);
+                        }
+                    } catch (e) { /* ignore */ }
                 }
                 
                 // Force dashboard recreation so team mode takes effect
