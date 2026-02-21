@@ -766,6 +766,7 @@
                         <div class="sidebar-header">
                             <h3>📂 Folders</h3>
                             ${(!isTeamMember && this.options.enableFolderManagement) ? `
+                            <button class="btn-icon mobile-manage-btn" id="btn-manage-folders" title="Manage Folders">⚙️</button>
                             <button class="btn-icon" id="btn-add-folder" title="Add Folder">➕</button>
                             ` : ''}
                         </div>
@@ -917,6 +918,22 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Mobile Folder Manager -->
+                <div class="modal-overlay" id="mobile-folder-manager" style="display: none;">
+                    <div class="mobile-fm-sheet">
+                        <div class="mobile-fm-header">
+                            <h3>Manage Folders</h3>
+                            <button class="btn-close" id="btn-close-mobile-fm">✕</button>
+                        </div>
+                        <div class="mobile-fm-list" id="mobile-fm-list">
+                            ${this._renderMobileFolderList()}
+                        </div>
+                        <div class="mobile-fm-footer">
+                            <button class="btn btn-primary mobile-fm-add" id="mobile-fm-add-folder">➕ Add Folder</button>
+                        </div>
+                    </div>
+                </div>
                 ` : ''}
                 
                 <!-- Notification Toast -->
@@ -991,8 +1008,34 @@
         }
         
         /**
-         * Render active filter badges
+         * Render folder list for mobile manager bottom sheet
          */
+        _renderMobileFolderList() {
+            return this.state.folders.map((folder, idx) => {
+                const isGeneral = folder.id === 'general';
+                const isFirst = idx === 0 || (idx === 1 && this.state.folders[0].id === 'general');
+                const isLast = idx === this.state.folders.length - 1;
+                
+                return `
+                    <div class="mobile-fm-item" data-folder-id="${folder.id}">
+                        <span class="mobile-fm-icon" style="background: ${folder.color}20; color: ${folder.color};">${folder.icon || '📁'}</span>
+                        <span class="mobile-fm-name">${this._escapeHtml(folder.name)}</span>
+                        ${!isGeneral ? `
+                        <div class="mobile-fm-actions">
+                            <button class="mobile-fm-btn" data-action="move-folder-up" data-folder-id="${folder.id}" ${isFirst ? 'disabled' : ''}>▲</button>
+                            <button class="mobile-fm-btn" data-action="move-folder-down" data-folder-id="${folder.id}" ${isLast ? 'disabled' : ''}>▼</button>
+                            <button class="mobile-fm-btn" data-action="edit-folder" data-folder-id="${folder.id}">✏️</button>
+                            <button class="mobile-fm-btn mobile-fm-btn-danger" data-action="delete-folder" data-folder-id="${folder.id}">🗑️</button>
+                        </div>
+                        ` : `
+                        <div class="mobile-fm-actions">
+                            <span class="mobile-fm-default-badge">Default</span>
+                        </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
         _renderActiveFilters() {
             const filters = [];
             
@@ -1707,6 +1750,9 @@
             // Folder modal
             this._attachFolderModalListeners();
             
+            // Mobile folder manager
+            this._attachMobileFolderManagerListeners();
+            
             // Team management (owner or solo authenticated user — not team members)
             const role = this.options.teamRole?.role;
             if (role === 'owner' || role === 'solo') {
@@ -1939,6 +1985,71 @@
         _closeFolderModal() {
             document.getElementById('folder-modal').style.display = 'none';
             this.state.editingFolder = null;
+        }
+        
+        /**
+         * Mobile Folder Manager
+         */
+        _openMobileFolderManager() {
+            const modal = document.getElementById('mobile-folder-manager');
+            if (!modal) return;
+            this._refreshMobileFolderList();
+            modal.style.display = 'flex';
+        }
+        
+        _closeMobileFolderManager() {
+            const modal = document.getElementById('mobile-folder-manager');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        _refreshMobileFolderList() {
+            const list = document.getElementById('mobile-fm-list');
+            if (list) list.innerHTML = this._renderMobileFolderList();
+        }
+        
+        _attachMobileFolderManagerListeners() {
+            document.getElementById('btn-manage-folders')?.addEventListener('click', () => {
+                this._openMobileFolderManager();
+            });
+            
+            document.getElementById('btn-close-mobile-fm')?.addEventListener('click', () => {
+                this._closeMobileFolderManager();
+            });
+            
+            document.getElementById('mobile-folder-manager')?.addEventListener('click', (e) => {
+                if (e.target.id === 'mobile-folder-manager') this._closeMobileFolderManager();
+            });
+            
+            document.getElementById('mobile-fm-add-folder')?.addEventListener('click', () => {
+                this._closeMobileFolderManager();
+                this._openFolderModal();
+            });
+            
+            document.getElementById('mobile-fm-list')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.mobile-fm-btn');
+                if (!btn) return;
+                
+                const action = btn.dataset.action;
+                const folderId = btn.dataset.folderId;
+                if (!action || !folderId) return;
+                
+                if (action === 'move-folder-up') {
+                    this._moveFolderUp(folderId);
+                    // refresh() rebuilt DOM, so re-open manager
+                    this._openMobileFolderManager();
+                } else if (action === 'move-folder-down') {
+                    this._moveFolderDown(folderId);
+                    this._openMobileFolderManager();
+                } else if (action === 'edit-folder') {
+                    this._closeMobileFolderManager();
+                    this._openFolderModal(folderId);
+                } else if (action === 'delete-folder') {
+                    if (confirm('Delete this folder? SOPs will be moved to General.')) {
+                        this.deleteFolder(folderId);
+                        this._openMobileFolderManager();
+                    }
+                }
+            });
         }
         
         _selectIcon(icon) {
@@ -3482,8 +3593,135 @@
                     to { transform: translateX(0); opacity: 1; }
                 }
                 
+                /* Mobile Folder Manager — hidden on desktop */
+                .mobile-manage-btn { display: none; }
+                
+                #mobile-folder-manager {
+                    align-items: flex-end;
+                }
+                
+                .mobile-fm-sheet {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: #fff;
+                    border-radius: 16px 16px 0 0;
+                    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                    animation: slideUp 0.25s ease-out;
+                    z-index: 1001;
+                }
+                
+                @keyframes slideUp {
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
+                }
+                
+                .mobile-fm-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .mobile-fm-header h3 {
+                    margin: 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                }
+                
+                .mobile-fm-list {
+                    overflow-y: auto;
+                    padding: 0.5rem 0;
+                    flex: 1;
+                }
+                
+                .mobile-fm-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.75rem 1.25rem;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                
+                .mobile-fm-icon {
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 8px;
+                    font-size: 1.1rem;
+                    flex-shrink: 0;
+                }
+                
+                .mobile-fm-name {
+                    flex: 1;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    color: #1e293b;
+                }
+                
+                .mobile-fm-actions {
+                    display: flex;
+                    gap: 0.25rem;
+                    align-items: center;
+                }
+                
+                .mobile-fm-btn {
+                    width: 36px;
+                    height: 36px;
+                    border: 1px solid #e5e7eb;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 0.8rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .mobile-fm-btn:active {
+                    background: #e2e8f0;
+                }
+                
+                .mobile-fm-btn:disabled {
+                    opacity: 0.3;
+                    cursor: default;
+                }
+                
+                .mobile-fm-btn-danger:active {
+                    background: #fee2e2;
+                }
+                
+                .mobile-fm-default-badge {
+                    font-size: 0.7rem;
+                    color: #94a3b8;
+                    background: #f1f5f9;
+                    padding: 0.2rem 0.5rem;
+                    border-radius: 4px;
+                }
+                
+                .mobile-fm-footer {
+                    padding: 0.75rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                }
+                
+                .mobile-fm-add {
+                    width: 100%;
+                    padding: 0.65rem;
+                    font-size: 0.85rem;
+                }
+                
                 /* Responsive */
                 @media (max-width: 768px) {
+                    .mobile-manage-btn {
+                        display: inline-flex;
+                    }
                     .dashboard-layout {
                         grid-template-columns: 1fr;
                         grid-template-rows: auto 1fr;
