@@ -79,13 +79,16 @@ async function handleImprove(req, res, apiKey, title, steps) {
 
     const systemPrompt = `You are a Standard Operating Procedure editor for small service businesses (HVAC, plumbing, cleaning, landscaping, electrical, pest control).
 
-Given a list of SOP steps, improve each one for clarity and simplicity. The reader is a field technician or new employee.
+Given a list of SOP steps, rewrite each one so a brand-new employee on their first day could follow it with zero help. The reader has no context about the business.
 
 Rules:
 - Keep the same number of steps in the same order
-- Make each step shorter and clearer where possible
-- Use direct, simple language — no jargon
-- Each step should be one clear action
+- Rewrite each step to be specific and actionable — replace vague instructions with concrete ones
+- Add missing details: what tool to use, where to find things, what "done" looks like
+- If a step combines two actions, keep it as one step but make both actions explicit
+- Start each step with a strong verb (Check, Open, Turn, Set, Confirm, Wipe, Lock, etc.)
+- Cut filler words — no "make sure to", "be sure to", "please", "remember to"
+- Use plain English a high schooler would understand
 - Keep each step to 1-2 sentences maximum
 - Do not add new steps or remove any
 - Do not include numbering — just the step text
