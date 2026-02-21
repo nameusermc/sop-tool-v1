@@ -6,7 +6,7 @@
  * 
  * Deployed at: https://withoutme.app/api/ai
  * 
- * POST body: { action: "suggest" | "improve", title, description?, steps? }
+ * POST body: { action: "suggest" | "improve", title, description?, steps?, businessType? }
  */
 
 export default async function handler(req, res) {
@@ -23,18 +23,19 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server misconfigured' });
     }
 
-    const { action, title, description, steps } = req.body || {};
+    const { action, title, description, steps, businessType } = req.body || {};
+    const cleanBizType = (businessType || '').trim().slice(0, 100) || 'small service business';
 
     if (action === 'suggest') {
-        return handleSuggest(req, res, ANTHROPIC_API_KEY, title, description);
+        return handleSuggest(res, ANTHROPIC_API_KEY, title, description, cleanBizType);
     } else if (action === 'improve') {
-        return handleImprove(req, res, ANTHROPIC_API_KEY, title, steps);
+        return handleImprove(res, ANTHROPIC_API_KEY, title, steps, cleanBizType);
     } else {
         return res.status(400).json({ error: 'Invalid action. Use "suggest" or "improve".' });
     }
 }
 
-async function handleSuggest(req, res, apiKey, title, description) {
+async function handleSuggest(res, apiKey, title, description, businessType) {
     if (!title || typeof title !== 'string') {
         return res.status(400).json({ error: 'Title is required' });
     }
@@ -42,27 +43,71 @@ async function handleSuggest(req, res, apiKey, title, description) {
     const cleanTitle = title.trim().slice(0, 200);
     const cleanDescription = (description || '').trim().slice(0, 500);
 
-    const systemPrompt = `You are a Standard Operating Procedure assistant for small service businesses (HVAC, plumbing, cleaning, landscaping, electrical, pest control).
+    const systemPrompt = `You are a Standard Operating Procedure assistant for a ${businessType}.
 
-Given an SOP title and optional description, generate 5-8 clear, actionable steps that a team member could follow without supervision.
+Given an SOP title and optional description, generate 5-8 clear, actionable steps that a team member could follow without supervision. Tailor the steps to this specific type of business.
 
-Rules:
+After the steps, suggest 2-3 short keyword tags that would help someone search for this SOP later.
+
+Rules for steps:
 - Each step should be one clear action, written as a direct instruction
-- Use simple language — assume the reader is a field technician, not a manager
+- Use simple language — assume the reader is a field technician or new employee, not a manager
+- Include specific details relevant to this type of business where appropriate
 - Steps should be in logical order
 - Keep each step to 1-2 sentences maximum
-- Do not include numbering — just the step text
-- Do not include any preamble, explanation, or commentary
-- Return ONLY the steps, one per line, separated by newlines`;
+- Start each step with a strong verb
 
-    const userMessage = cleanDescription
-        ? `SOP Title: ${cleanTitle}\nDescription: ${cleanDescription}`
-        : `SOP Title: ${cleanTitle}`;
+Rules for tags:
+- 2-3 single-word or short-phrase tags, all lowercase
+- Relevant to the procedure and business type
+- Useful for searching/filtering
 
-    return callAnthropic(res, apiKey, systemPrompt, userMessage);
+Output format (follow exactly):
+STEPS
+[one step per line, no numbers]
+TAGS
+[comma-separated tags]`;
+
+    let userMessage = `SOP Title: ${cleanTitle}`;
+    if (cleanDescription) userMessage += `\nDescription: ${cleanDescription}`;
+
+    try {
+        const text = await callAnthropic(apiKey, systemPrompt, userMessage);
+        
+        // Parse structured response
+        let steps = [];
+        let tags = [];
+
+        if (text.includes('STEPS') && text.includes('TAGS')) {
+            const stepsSection = text.split('TAGS')[0].replace('STEPS', '').trim();
+            const tagsSection = text.split('TAGS')[1].trim();
+
+            steps = stepsSection
+                .split('\n')
+                .map(line => line.replace(/^\d+[\.\)\-]\s*/, '').replace(/^[-•*]\s*/, '').trim())
+                .filter(line => line.length > 0);
+
+            tags = tagsSection
+                .split(',')
+                .map(t => t.trim().toLowerCase().replace(/^#/, ''))
+                .filter(t => t.length > 0 && t.length < 30)
+                .slice(0, 5);
+        } else {
+            // Fallback: treat entire response as steps
+            steps = text
+                .split('\n')
+                .map(line => line.replace(/^\d+[\.\)\-]\s*/, '').replace(/^[-•*]\s*/, '').trim())
+                .filter(line => line.length > 0);
+        }
+
+        return res.status(200).json({ steps, tags });
+    } catch (e) {
+        console.error('[ai] Suggest error:', e);
+        return res.status(500).json({ error: 'Failed to generate steps' });
+    }
 }
 
-async function handleImprove(req, res, apiKey, title, steps) {
+async function handleImprove(res, apiKey, title, steps, businessType) {
     if (!steps || !Array.isArray(steps) || steps.length === 0) {
         return res.status(400).json({ error: 'Steps array is required' });
     }
@@ -77,7 +122,7 @@ async function handleImprove(req, res, apiKey, title, steps) {
         return res.status(400).json({ error: 'No valid steps provided' });
     }
 
-    const systemPrompt = `You are a Standard Operating Procedure editor for small service businesses (HVAC, plumbing, cleaning, landscaping, electrical, pest control).
+    const systemPrompt = `You are a Standard Operating Procedure editor for a ${businessType}.
 
 Given a list of SOP steps, rewrite each one so a brand-new employee on their first day could follow it with zero help. The reader has no context about the business.
 
@@ -98,43 +143,43 @@ Rules:
     const numberedSteps = cleanSteps.map((s, i) => `${i + 1}. ${s}`).join('\n');
     const userMessage = `SOP: ${cleanTitle}\n\nCurrent steps:\n${numberedSteps}`;
 
-    return callAnthropic(res, apiKey, systemPrompt, userMessage);
-}
-
-async function callAnthropic(res, apiKey, systemPrompt, userMessage) {
     try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 2048,
-                system: systemPrompt,
-                messages: [{ role: 'user', content: userMessage }]
-            })
-        });
+        const text = await callAnthropic(apiKey, systemPrompt, userMessage);
 
-        if (!response.ok) {
-            const err = await response.text();
-            console.error('[ai] Anthropic API error:', response.status, err);
-            return res.status(502).json({ error: 'AI service unavailable' });
-        }
-
-        const data = await response.json();
-        const text = data.content?.[0]?.text || '';
-
-        const steps = text
+        const improved = text
             .split('\n')
             .map(line => line.replace(/^\d+[\.\)\-]\s*/, '').replace(/^[-•*]\s*/, '').trim())
             .filter(line => line.length > 0);
 
-        return res.status(200).json({ steps });
+        return res.status(200).json({ steps: improved });
     } catch (e) {
-        console.error('[ai] Exception:', e);
-        return res.status(500).json({ error: 'Failed to process request' });
+        console.error('[ai] Improve error:', e);
+        return res.status(500).json({ error: 'Failed to improve steps' });
     }
+}
+
+async function callAnthropic(apiKey, systemPrompt, userMessage) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2048,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userMessage }]
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        console.error('[ai] Anthropic API error:', response.status, err);
+        throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.content?.[0]?.text || '';
 }

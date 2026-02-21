@@ -812,6 +812,17 @@
         }
         
         /**
+         * Get business type from localStorage
+         */
+        _getBusinessType() {
+            try {
+                return localStorage.getItem('withoutme_business_type') || '';
+            } catch (e) {
+                return '';
+            }
+        }
+        
+        /**
          * Handle AI action buttons
          * Pro users get direct API calls; Free users get manual paste workflow
          */
@@ -859,7 +870,8 @@
                     body: JSON.stringify({
                         action: 'suggest',
                         title: title,
-                        description: this.formState.description?.trim() || ''
+                        description: this.formState.description?.trim() || '',
+                        businessType: this._getBusinessType()
                     })
                 });
                 
@@ -890,9 +902,23 @@
                     aiGenerated: true
                 }));
                 
+                // Apply suggested tags (merge with existing, don't overwrite)
+                let tagsAdded = 0;
+                if (data.tags && data.tags.length > 0) {
+                    const existingTags = new Set(this.formState.tags.map(t => t.toLowerCase()));
+                    const newTags = data.tags.filter(t => !existingTags.has(t.toLowerCase()));
+                    if (newTags.length > 0) {
+                        this.formState.tags = [...this.formState.tags, ...newTags];
+                        const tagsInput = document.getElementById('sop-tags');
+                        if (tagsInput) tagsInput.value = this.formState.tags.join(', ');
+                        tagsAdded = newTags.length;
+                    }
+                }
+                
                 this._updateStepsList();
                 this._saveDraftNow();
-                this._showNotification(`✨ ${data.steps.length} steps generated. Review and edit as needed.`, 'success');
+                const tagMsg = tagsAdded > 0 ? ` + ${tagsAdded} keywords added.` : '.';
+                this._showNotification(`✨ ${data.steps.length} steps generated${tagMsg} Review and edit as needed.`, 'success');
                 this._showAIPastedNotice();
                 
             } catch (e) {
@@ -936,7 +962,8 @@
                     body: JSON.stringify({
                         action: 'improve',
                         title: this.formState.title?.trim() || '',
-                        steps: this.formState.steps.map(s => s.text)
+                        steps: this.formState.steps.map(s => s.text),
+                        businessType: this._getBusinessType()
                     })
                 });
                 

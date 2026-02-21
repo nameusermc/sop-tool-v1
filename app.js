@@ -958,6 +958,21 @@
                     border-top: 1px solid #f3f4f6;
                     margin: 0;
                 }
+                .account-input {
+                    width: 100%;
+                    padding: 0.45rem 0.6rem;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    font-size: 0.85rem;
+                    color: #1e293b;
+                    background: #fff;
+                    font-family: inherit;
+                }
+                .account-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 2px rgba(99,102,241,0.1);
+                }
                 .account-link {
                     display: flex;
                     align-items: center;
@@ -1568,6 +1583,19 @@
 
                 <hr class="account-divider">
 
+                ${isPro ? `
+                <div class="account-section">
+                    <label class="account-label" for="account-business-type">Business type</label>
+                    <input type="text" id="account-business-type" class="account-input"
+                        placeholder="e.g. auto repair shop, plumbing company"
+                        value="${(function(){ try { return localStorage.getItem('withoutme_business_type') || ''; } catch(e) { return ''; } })()}"
+                        maxlength="100" />
+                    <span style="font-size:0.72rem;color:#94a3b8;">Used by AI to tailor step suggestions to your business.</span>
+                </div>
+
+                <hr class="account-divider">
+                ` : ''}
+
                 <button class="account-link" id="account-change-password">
                     <span class="account-link-icon">🔒</span>
                     Change password
@@ -1605,6 +1633,18 @@
                 if (confirm('Sign out? Your data will remain on this device.')) {
                     signOut();
                 }
+            });
+
+            // Business type — save on change
+            body.querySelector('#account-business-type')?.addEventListener('change', (e) => {
+                const val = e.target.value.trim();
+                try {
+                    if (val) {
+                        localStorage.setItem('withoutme_business_type', val);
+                    } else {
+                        localStorage.removeItem('withoutme_business_type');
+                    }
+                } catch (err) { /* ignore */ }
             });
 
         } else {
