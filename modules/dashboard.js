@@ -2350,6 +2350,7 @@
                     position: sticky;
                     top: 0;
                     overflow-y: auto;
+                    overflow-x: hidden;
                 }
                 
                 .sidebar-header {
@@ -2418,8 +2419,8 @@
                     gap: 0.25rem;
                 }
                 
-                /* Only show hover-to-reveal on devices with real hover (mouse/trackpad) */
-                @media (hover: hover) {
+                /* Only show hover-to-reveal on devices with real mouse/trackpad */
+                @media (hover: hover) and (pointer: fine) {
                     .folder-actions {
                         display: flex;
                         opacity: 0;
@@ -3599,7 +3600,7 @@
                     to { transform: translateX(0); opacity: 1; }
                 }
                 
-                /* Mobile Folder Manager — visible on touch, hidden on hover-capable devices */
+                /* Mobile Folder Manager — always visible, hover-reveal is the enhancement */
                 .mobile-manage-btn {
                     display: inline-flex;
                     width: auto !important;
@@ -3617,8 +3618,10 @@
                     opacity: 0.6;
                 }
                 
-                @media (hover: hover) {
-                    .mobile-manage-btn { display: none !important; }
+                @media (hover: hover) and (pointer: fine) {
+                    .mobile-manage-btn:hover {
+                        text-decoration: underline;
+                    }
                 }
                 
                 #mobile-folder-manager {
