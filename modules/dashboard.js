@@ -1995,11 +1995,21 @@
             if (!modal) return;
             this._refreshMobileFolderList();
             modal.style.display = 'flex';
+            
+            // Escape key to close
+            this._mobileFmEscHandler = (e) => {
+                if (e.key === 'Escape') this._closeMobileFolderManager();
+            };
+            document.addEventListener('keydown', this._mobileFmEscHandler);
         }
         
         _closeMobileFolderManager() {
             const modal = document.getElementById('mobile-folder-manager');
             if (modal) modal.style.display = 'none';
+            if (this._mobileFmEscHandler) {
+                document.removeEventListener('keydown', this._mobileFmEscHandler);
+                this._mobileFmEscHandler = null;
+            }
         }
         
         _refreshMobileFolderList() {
@@ -2424,21 +2434,26 @@
                     .folder-actions {
                         display: flex;
                         opacity: 0;
+                        pointer-events: none;
                         transition: opacity 0.15s;
                     }
                     .folder-item:hover .folder-actions {
                         opacity: 1;
+                        pointer-events: auto;
                     }
                 }
                 
                 .folder-action-btn {
-                    width: 24px;
-                    height: 24px;
+                    width: 28px;
+                    height: 28px;
                     border: none;
                     background: none;
                     cursor: pointer;
-                    font-size: 0.75rem;
+                    font-size: 0.8rem;
                     border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
                 .folder-action-btn:hover {
@@ -2446,10 +2461,8 @@
                 }
                 
                 .folder-move-btn {
-                    font-size: 0.6rem;
+                    font-size: 0.7rem;
                     color: #9ca3af;
-                    width: 20px;
-                    height: 24px;
                 }
                 
                 .folder-move-btn:hover {
@@ -3331,12 +3344,16 @@
                 .modal-header h3 { margin: 0; font-size: 1rem; }
                 
                 .btn-close {
-                    width: 28px;
-                    height: 28px;
+                    width: 32px;
+                    height: 32px;
                     border: none;
                     background: #f3f4f6;
                     border-radius: 6px;
                     cursor: pointer;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
                 .btn-close:hover { background: #e5e7eb; }
@@ -3608,10 +3625,12 @@
                     border: none !important;
                     background: none !important;
                     color: #6366f1;
-                    font-size: 0.78rem;
+                    font-size: 0.8rem;
                     font-weight: 500;
                     cursor: pointer;
-                    padding: 0.25rem 0.5rem !important;
+                    padding: 0.35rem 0.65rem !important;
+                    min-height: 32px;
+                    align-items: center;
                 }
                 
                 .mobile-manage-btn:active {
@@ -3631,8 +3650,10 @@
                 .mobile-fm-sheet {
                     position: fixed;
                     bottom: 0;
-                    left: 0;
-                    right: 0;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 100%;
+                    max-width: 480px;
                     background: #fff;
                     border-radius: 16px 16px 0 0;
                     box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
@@ -3644,8 +3665,8 @@
                 }
                 
                 @keyframes slideUp {
-                    from { transform: translateY(100%); }
-                    to { transform: translateY(0); }
+                    from { transform: translateX(-50%) translateY(100%); }
+                    to { transform: translateX(-50%) translateY(0); }
                 }
                 
                 .mobile-fm-header {
@@ -3701,13 +3722,13 @@
                 }
                 
                 .mobile-fm-btn {
-                    width: 36px;
-                    height: 36px;
+                    width: 40px;
+                    height: 40px;
                     border: 1px solid #e5e7eb;
                     background: #f8fafc;
                     border-radius: 8px;
                     cursor: pointer;
-                    font-size: 0.8rem;
+                    font-size: 0.85rem;
                     display: flex;
                     align-items: center;
                     justify-content: center;
