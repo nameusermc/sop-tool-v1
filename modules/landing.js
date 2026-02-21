@@ -254,10 +254,10 @@
             <!-- FOOTER -->
             <footer class="landing-footer">
                 <div class="landing-footer-links">
-                    <a href="/pricing.html">Pricing</a>
-                    <a href="/terms.html">Terms</a>
-                    <a href="/privacy.html">Privacy</a>
-                    <a href="/refund.html">Refund Policy</a>
+                    <a href="/pricing">Pricing</a>
+                    <a href="/terms">Terms</a>
+                    <a href="/privacy">Privacy</a>
+                    <a href="/refund">Refund Policy</a>
                 </div>
                 <p>© 2026 WithoutMe</p>
             </footer>
