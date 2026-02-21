@@ -694,6 +694,43 @@
         }
         
         /**
+         * Move a folder up in the list
+         */
+        _moveFolderUp(folderId) {
+            const idx = this.state.folders.findIndex(f => f.id === folderId);
+            if (idx <= 0) return; // Already at top or not found
+            
+            // Don't move above General if General is at index 0
+            if (this.state.folders[idx - 1].id === 'general') return;
+            
+            // Swap
+            [this.state.folders[idx - 1], this.state.folders[idx]] = 
+                [this.state.folders[idx], this.state.folders[idx - 1]];
+            
+            // Update order values
+            this.state.folders.forEach((f, i) => f.order = i);
+            this._saveFolders();
+            this.refresh();
+        }
+        
+        /**
+         * Move a folder down in the list
+         */
+        _moveFolderDown(folderId) {
+            const idx = this.state.folders.findIndex(f => f.id === folderId);
+            if (idx < 0 || idx >= this.state.folders.length - 1) return; // At bottom or not found
+            
+            // Swap
+            [this.state.folders[idx], this.state.folders[idx + 1]] = 
+                [this.state.folders[idx + 1], this.state.folders[idx]];
+            
+            // Update order values
+            this.state.folders.forEach((f, i) => f.order = i);
+            this._saveFolders();
+            this.refresh();
+        }
+        
+        /**
          * Toggle folder collapsed state
          */
         toggleFolderCollapse(folderId) {
@@ -922,10 +959,14 @@
                         <span class="folder-icon">${folder.icon || '📁'}</span>
                         <span class="folder-name">${this._escapeHtml(folder.name)}</span>
                         <span class="folder-count">${count}</span>
-                        ${this.options.enableFolderManagement && !['general'].includes(folder.id) ? `
+                        ${this.options.enableFolderManagement ? `
                         <div class="folder-actions">
+                            ${folder.id !== 'general' ? `
+                            <button class="folder-action-btn folder-move-btn" data-action="move-folder-up" data-folder-id="${folder.id}" title="Move up">▲</button>
+                            <button class="folder-action-btn folder-move-btn" data-action="move-folder-down" data-folder-id="${folder.id}" title="Move down">▼</button>
                             <button class="folder-action-btn" data-action="edit-folder" data-folder-id="${folder.id}" title="Edit">✏️</button>
                             <button class="folder-action-btn" data-action="delete-folder" data-folder-id="${folder.id}" title="Delete">🗑️</button>
+                            ` : ''}
                         </div>
                         ` : ''}
                     </div>
@@ -1427,6 +1468,10 @@
                         if (confirm('Delete this folder? SOPs will be moved to General.')) {
                             this.deleteFolder(folderId);
                         }
+                    } else if (action === 'move-folder-up') {
+                        this._moveFolderUp(folderId);
+                    } else if (action === 'move-folder-down') {
+                        this._moveFolderDown(folderId);
                     } else {
                         console.warn('Dashboard: Unknown folder action:', action);
                     }
@@ -2280,6 +2325,17 @@
                 
                 .folder-action-btn:hover {
                     background: #e5e7eb;
+                }
+                
+                .folder-move-btn {
+                    font-size: 0.6rem;
+                    color: #9ca3af;
+                    width: 20px;
+                    height: 24px;
+                }
+                
+                .folder-move-btn:hover {
+                    color: #374151;
                 }
                 
                 /* Main */
