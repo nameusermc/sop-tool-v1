@@ -853,10 +853,11 @@
                     generateBtn.textContent = '⏳ Generating...';
                 }
                 
-                const response = await fetch('/api/ai-suggest', {
+                const response = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        action: 'suggest',
                         title: title,
                         description: this.formState.description?.trim() || ''
                     })
@@ -929,10 +930,11 @@
                     improveBtn.textContent = '⏳ Improving...';
                 }
                 
-                const response = await fetch('/api/ai-improve', {
+                const response = await fetch('/api/ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        action: 'improve',
                         title: this.formState.title?.trim() || '',
                         steps: this.formState.steps.map(s => s.text)
                     })
