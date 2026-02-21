@@ -78,6 +78,190 @@
      */
     const RECENT_EDIT_THRESHOLD = 24 * 60 * 60 * 1000;
 
+    /**
+     * Pre-built SOP templates for common small business tasks
+     */
+    const SOP_TEMPLATES = [
+        {
+            id: 'tpl_onboarding',
+            title: 'New Employee Onboarding',
+            description: 'Step-by-step process for bringing a new team member up to speed on their first day and first week.',
+            icon: '👋',
+            folderId: 'onboarding',
+            tags: ['onboarding', 'new-hire'],
+            steps: [
+                { text: 'Send welcome email with start date, time, dress code, and parking info' },
+                { text: 'Prepare workspace — desk, equipment, login credentials, keys/badges' },
+                { text: 'Greet new hire and give a walkthrough of the facility' },
+                { text: 'Introduce to team members and assign a buddy or mentor' },
+                { text: 'Review company policies, safety rules, and expectations' },
+                { text: 'Walk through their role — daily tasks, tools, and who to ask for help' },
+                { text: 'Set up payroll, benefits enrollment, and any required paperwork' },
+                { text: 'Schedule a check-in at the end of their first week' }
+            ]
+        },
+        {
+            id: 'tpl_complaint',
+            title: 'Customer Complaint Handling',
+            description: 'How to receive, document, and resolve a customer complaint so they leave satisfied.',
+            icon: '🤝',
+            folderId: 'operations',
+            tags: ['customer-service', 'complaints'],
+            steps: [
+                { text: 'Listen to the customer without interrupting — let them explain the full issue' },
+                { text: 'Acknowledge the problem and apologize for the inconvenience' },
+                { text: 'Ask clarifying questions to understand what happened and what they expect' },
+                { text: 'Document the complaint — customer name, date, issue details, and desired outcome' },
+                { text: 'Offer a resolution (fix, redo, refund, or credit) within your authority level' },
+                { text: 'If you can\'t resolve it, escalate to your supervisor immediately with full context' },
+                { text: 'Follow up with the customer within 24 hours to confirm they\'re satisfied' },
+                { text: 'Log the resolution and any changes needed to prevent the same issue' }
+            ]
+        },
+        {
+            id: 'tpl_equipment',
+            title: 'Equipment Maintenance',
+            description: 'Routine maintenance checklist to keep tools and equipment in safe working condition.',
+            icon: '🔧',
+            folderId: 'operations',
+            tags: ['maintenance', 'equipment'],
+            steps: [
+                { text: 'Check the maintenance schedule — confirm which equipment is due' },
+                { text: 'Power off and lock out equipment before starting any maintenance' },
+                { text: 'Inspect for visible damage, loose parts, worn components, or leaks' },
+                { text: 'Clean equipment — remove debris, dust, and buildup' },
+                { text: 'Lubricate moving parts per manufacturer specs' },
+                { text: 'Replace filters, belts, or worn parts as needed' },
+                { text: 'Run a test cycle to verify equipment operates correctly' },
+                { text: 'Log the maintenance — date, what was done, parts replaced, any issues found' }
+            ]
+        },
+        {
+            id: 'tpl_opening',
+            title: 'Daily Opening Procedure',
+            description: 'Standard steps to open the business each day so nothing gets missed.',
+            icon: '🔓',
+            folderId: 'operations',
+            tags: ['daily', 'opening'],
+            steps: [
+                { text: 'Unlock the building and disarm the security system' },
+                { text: 'Walk through the space — check for anything unusual or out of place' },
+                { text: 'Turn on lights, HVAC, and any equipment that needs warm-up time' },
+                { text: 'Check voicemail, email, and any overnight messages or orders' },
+                { text: 'Review the day\'s schedule — appointments, deliveries, deadlines' },
+                { text: 'Verify supplies and materials are stocked for the day' },
+                { text: 'Brief the team on the day\'s priorities and any special notes' }
+            ]
+        },
+        {
+            id: 'tpl_closing',
+            title: 'Daily Closing Procedure',
+            description: 'End-of-day shutdown steps to secure the business and prep for tomorrow.',
+            icon: '🔒',
+            folderId: 'operations',
+            tags: ['daily', 'closing'],
+            steps: [
+                { text: 'Confirm all jobs/tasks for the day are complete or handed off' },
+                { text: 'Clean and organize the workspace — tools stored, surfaces wiped' },
+                { text: 'Shut down equipment and computers' },
+                { text: 'Reconcile cash, invoices, or end-of-day paperwork' },
+                { text: 'Take out trash and handle any waste disposal' },
+                { text: 'Set the security system and lock all doors and windows' },
+                { text: 'Note anything that needs attention tomorrow' }
+            ]
+        },
+        {
+            id: 'tpl_safety',
+            title: 'Safety Incident Report',
+            description: 'What to do when a workplace injury, accident, or near-miss occurs.',
+            icon: '⚠️',
+            folderId: 'safety',
+            tags: ['safety', 'incident'],
+            steps: [
+                { text: 'Ensure the scene is safe — remove ongoing hazards, move people away if needed' },
+                { text: 'Provide first aid or call emergency services if anyone is injured' },
+                { text: 'Secure the area so nothing is disturbed until the investigation is done' },
+                { text: 'Notify your supervisor or safety lead immediately' },
+                { text: 'Document what happened — who, what, when, where, witnesses, and photos if possible' },
+                { text: 'Fill out the official incident report form' },
+                { text: 'Identify root cause — what went wrong and why' },
+                { text: 'Implement corrective actions to prevent recurrence' },
+                { text: 'Follow up with injured worker and file any required regulatory reports' }
+            ]
+        },
+        {
+            id: 'tpl_service_call',
+            title: 'Service Call Walkthrough',
+            description: 'Standard process for arriving at a job site, completing the work, and closing out the service call.',
+            icon: '🚐',
+            folderId: 'operations',
+            tags: ['service', 'field-work'],
+            steps: [
+                { text: 'Review the work order before arriving — customer info, job details, special notes' },
+                { text: 'Confirm appointment with customer (call or text 30 min before arrival)' },
+                { text: 'Arrive on time, introduce yourself, and confirm the scope of work' },
+                { text: 'Assess the situation on-site — inspect, diagnose, explain findings to customer' },
+                { text: 'Complete the work according to company standards' },
+                { text: 'Clean up the work area — leave it as good or better than you found it' },
+                { text: 'Walk the customer through what was done and answer any questions' },
+                { text: 'Collect payment or confirm billing method' },
+                { text: 'Close out the work order with notes, photos, and time logged' }
+            ]
+        },
+        {
+            id: 'tpl_inventory',
+            title: 'Inventory & Supply Restock',
+            description: 'How to check stock levels, identify what needs ordering, and keep supplies ready.',
+            icon: '📦',
+            folderId: 'operations',
+            tags: ['inventory', 'supplies'],
+            steps: [
+                { text: 'Walk through storage areas and count current stock levels' },
+                { text: 'Compare counts to minimum stock thresholds on the inventory list' },
+                { text: 'Flag any items that are low, expired, or damaged' },
+                { text: 'Create a reorder list with item names, quantities, and preferred vendors' },
+                { text: 'Get approval for the order if required' },
+                { text: 'Place the order and note the expected delivery date' },
+                { text: 'When supplies arrive, verify the shipment against the order' },
+                { text: 'Restock shelves and update the inventory log' }
+            ]
+        },
+        {
+            id: 'tpl_vehicle',
+            title: 'Vehicle Inspection',
+            description: 'Pre-trip inspection checklist to ensure company vehicles are safe and road-ready.',
+            icon: '🚗',
+            folderId: 'safety',
+            tags: ['vehicle', 'safety', 'inspection'],
+            steps: [
+                { text: 'Check exterior — tires (pressure + tread), lights, mirrors, body damage' },
+                { text: 'Check fluid levels — oil, coolant, brake fluid, windshield washer' },
+                { text: 'Inspect windshield and wipers for damage or wear' },
+                { text: 'Test brakes, horn, turn signals, and headlights' },
+                { text: 'Verify registration, insurance card, and emergency kit are in the vehicle' },
+                { text: 'Check that tools and equipment are properly loaded and secured' },
+                { text: 'Note mileage and any issues on the vehicle log' },
+                { text: 'Report any problems to your supervisor before departing' }
+            ]
+        },
+        {
+            id: 'tpl_followup',
+            title: 'Customer Follow-Up',
+            description: 'Post-service follow-up process to check satisfaction, build loyalty, and catch issues early.',
+            icon: '📞',
+            folderId: 'operations',
+            tags: ['customer-service', 'follow-up'],
+            steps: [
+                { text: 'Wait 1-2 business days after service completion before reaching out' },
+                { text: 'Call or text the customer — ask if everything is working as expected' },
+                { text: 'If there\'s an issue, schedule a follow-up visit or escalate appropriately' },
+                { text: 'If satisfied, thank them and ask if they\'d leave a review (provide link)' },
+                { text: 'Log the follow-up — date, method, outcome, any action items' },
+                { text: 'Add to the recurring service reminder list if applicable' }
+            ]
+        }
+    ];
+
     // ========================================================================
     // DASHBOARD CLASS
     // ========================================================================
@@ -163,27 +347,42 @@
          * Load all data from localStorage
          */
         _loadData() {
+            const isTeamMember = this.options.teamRole?.role === 'member';
+            
             // Load folders
-            const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
-            if (storedFolders) {
-                const parsed = JSON.parse(storedFolders);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    this.state.folders = parsed;
+            if (isTeamMember) {
+                // Team members get default folders only (owner's folders aren't synced)
+                this.state.folders = [...DEFAULT_FOLDERS];
+            } else {
+                const storedFolders = localStorage.getItem(STORAGE_KEYS.FOLDERS);
+                if (storedFolders) {
+                    const parsed = JSON.parse(storedFolders);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        this.state.folders = parsed;
+                    } else {
+                        this.state.folders = [...DEFAULT_FOLDERS];
+                        this._saveFolders();
+                    }
                 } else {
                     this.state.folders = [...DEFAULT_FOLDERS];
                     this._saveFolders();
                 }
-            } else {
-                this.state.folders = [...DEFAULT_FOLDERS];
-                this._saveFolders();
             }
             
             // Sort folders by order
             this.state.folders.sort((a, b) => (a.order || 0) - (b.order || 0));
             
             // Load SOPs
-            const storedSops = localStorage.getItem(STORAGE_KEYS.SOPS);
-            this.state.sops = storedSops ? JSON.parse(storedSops) : [];
+            if (isTeamMember && this.options.teamSOPs) {
+                // Team members see owner's active SOPs from cloud
+                this.state.sops = this.options.teamSOPs.map(sop => ({
+                    ...sop,
+                    _teamSop: true  // Flag for read-only rendering
+                }));
+            } else {
+                const storedSops = localStorage.getItem(STORAGE_KEYS.SOPS);
+                this.state.sops = storedSops ? JSON.parse(storedSops) : [];
+            }
             
             // Load usage data
             const storedUsage = localStorage.getItem(STORAGE_KEYS.SOP_USAGE);
@@ -192,7 +391,7 @@
             // Apply current filters
             this._applyFiltersAndSort();
             
-            console.log(`Dashboard: Loaded ${this.state.sops.length} SOPs, ${this.state.folders.length} folders`);
+            console.log(`Dashboard: Loaded ${this.state.sops.length} SOPs, ${this.state.folders.length} folders${isTeamMember ? ' (team member mode)' : ''}`);
         }
         
         /**
@@ -495,6 +694,43 @@
         }
         
         /**
+         * Move a folder up in the list
+         */
+        _moveFolderUp(folderId) {
+            const idx = this.state.folders.findIndex(f => f.id === folderId);
+            if (idx <= 0) return; // Already at top or not found
+            
+            // Don't move above General if General is at index 0
+            if (this.state.folders[idx - 1].id === 'general') return;
+            
+            // Swap
+            [this.state.folders[idx - 1], this.state.folders[idx]] = 
+                [this.state.folders[idx], this.state.folders[idx - 1]];
+            
+            // Update order values
+            this.state.folders.forEach((f, i) => f.order = i);
+            this._saveFolders();
+            this.refresh();
+        }
+        
+        /**
+         * Move a folder down in the list
+         */
+        _moveFolderDown(folderId) {
+            const idx = this.state.folders.findIndex(f => f.id === folderId);
+            if (idx < 0 || idx >= this.state.folders.length - 1) return; // At bottom or not found
+            
+            // Swap
+            [this.state.folders[idx], this.state.folders[idx + 1]] = 
+                [this.state.folders[idx + 1], this.state.folders[idx]];
+            
+            // Update order values
+            this.state.folders.forEach((f, i) => f.order = i);
+            this._saveFolders();
+            this.refresh();
+        }
+        
+        /**
          * Toggle folder collapsed state
          */
         toggleFolderCollapse(folderId) {
@@ -515,6 +751,10 @@
             this.container.innerHTML = '';
             this.container.className = 'dashboard-container';
             
+            const isTeamMember = this.options.teamRole?.role === 'member';
+            const isTeamOwner = this.options.teamRole?.role === 'owner';
+            const teamName = this.options.teamRole?.teamName || 'Team';
+            
             // Pre-compute checklist state once (avoid repeated I/O in render helpers)
             const checklists = this._loadChecklists();
             this._cachedChecklists = checklists;
@@ -525,7 +765,8 @@
                     <aside class="dashboard-sidebar" id="folder-sidebar">
                         <div class="sidebar-header">
                             <h3>📂 Folders</h3>
-                            ${this.options.enableFolderManagement ? `
+                            ${(!isTeamMember && this.options.enableFolderManagement) ? `
+                            <button class="btn-icon mobile-manage-btn" id="btn-manage-folders" title="Manage Folders">Manage</button>
                             <button class="btn-icon" id="btn-add-folder" title="Add Folder">➕</button>
                             ` : ''}
                         </div>
@@ -536,6 +777,14 @@
                     
                     <!-- Main Content -->
                     <main class="dashboard-main">
+                        ${isTeamMember ? `
+                        <!-- Team Member Banner -->
+                        <div class="team-banner">
+                            <span class="team-banner-icon">👥</span>
+                            <span class="team-banner-text">${this._escapeHtml(teamName)}</span>
+                        </div>
+                        ` : ''}
+                        
                         <!-- Header -->
                         <header class="dashboard-header">
                             <div class="search-container">
@@ -555,18 +804,25 @@
                             </button>
                             ` : ''}
                             
+                            ${!isTeamMember ? `
                             <div class="quick-actions">
+                                <button class="btn btn-secondary" id="btn-browse-templates">
+                                    📄 Start from Template
+                                </button>
                                 <button class="btn btn-primary" id="btn-create-sop">
                                     ➕ Create SOP
                                 </button>
                             </div>
+                            ` : ''}
                         </header>
                         
                         <!-- Active Filters -->
                         ${this._renderActiveFilters()}
                         
+                        ${!isTeamMember ? `
                         <!-- First-run nudge: explains what to do after creating first SOP -->
                         ${this._renderFirstRunNudge()}
+                        ` : ''}
                         
                         <!-- Resume Section (primary action for returning users) -->
                         ${this._renderRecentChecklists()}
@@ -586,7 +842,7 @@
                         <!-- SOP List by Folders -->
                         <section class="sop-list-section">
                             <div class="section-header">
-                                <h3>📄 Your SOPs</h3>
+                                <h3>${isTeamMember ? '📋 Team SOPs' : '📄 Your SOPs'}</h3>
                                 <span class="sop-count" id="sop-count">
                                     ${this.state.filteredSops.length} of ${this.state.sops.length} SOPs
                                 </span>
@@ -599,9 +855,12 @@
                         
                         <!-- Completed Checklists (archival) -->
                         ${this._renderCompletedChecklists()}
+                        
+                        ${(isTeamOwner || (!isTeamMember && this.options.teamRole)) ? this._renderTeamManagement() : ''}
                     </main>
                 </div>
                 
+                ${!isTeamMember ? `
                 <!-- Folder Modal -->
                 <div class="modal-overlay" id="folder-modal" style="display: none;">
                     <div class="modal-content folder-modal-content">
@@ -637,6 +896,45 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Template Browser Modal -->
+                <div class="modal-overlay" id="template-modal" style="display: none;">
+                    <div class="modal-content template-modal-content">
+                        <div class="modal-header">
+                            <h3>Start from a Template</h3>
+                            <button class="btn-close" id="btn-close-template-modal">✕</button>
+                        </div>
+                        <div class="modal-body template-grid">
+                            ${SOP_TEMPLATES.map(tpl => `
+                                <div class="template-card" data-template-id="${tpl.id}">
+                                    <div class="template-icon">${tpl.icon}</div>
+                                    <div class="template-info">
+                                        <div class="template-title">${tpl.title}</div>
+                                        <div class="template-desc">${tpl.description}</div>
+                                        <div class="template-meta">${tpl.steps.length} steps</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mobile Folder Manager -->
+                <div class="modal-overlay" id="mobile-folder-manager" style="display: none;">
+                    <div class="mobile-fm-sheet">
+                        <div class="mobile-fm-header">
+                            <h3>Manage Folders</h3>
+                            <button class="btn-close" id="btn-close-mobile-fm">✕</button>
+                        </div>
+                        <div class="mobile-fm-list" id="mobile-fm-list">
+                            ${this._renderMobileFolderList()}
+                        </div>
+                        <div class="mobile-fm-footer">
+                            <button class="btn btn-primary mobile-fm-add" id="mobile-fm-add-folder">➕ Add Folder</button>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
                 
                 <!-- Notification Toast -->
                 <div class="notification-toast" id="notification-toast" style="display: none;">
@@ -678,10 +976,14 @@
                         <span class="folder-icon">${folder.icon || '📁'}</span>
                         <span class="folder-name">${this._escapeHtml(folder.name)}</span>
                         <span class="folder-count">${count}</span>
-                        ${this.options.enableFolderManagement && !['general'].includes(folder.id) ? `
+                        ${this.options.enableFolderManagement ? `
                         <div class="folder-actions">
+                            ${folder.id !== 'general' ? `
+                            <button class="folder-action-btn folder-move-btn" data-action="move-folder-up" data-folder-id="${folder.id}" title="Move up">▲</button>
+                            <button class="folder-action-btn folder-move-btn" data-action="move-folder-down" data-folder-id="${folder.id}" title="Move down">▼</button>
                             <button class="folder-action-btn" data-action="edit-folder" data-folder-id="${folder.id}" title="Edit">✏️</button>
                             <button class="folder-action-btn" data-action="delete-folder" data-folder-id="${folder.id}" title="Delete">🗑️</button>
+                            ` : ''}
                         </div>
                         ` : ''}
                     </div>
@@ -706,8 +1008,34 @@
         }
         
         /**
-         * Render active filter badges
+         * Render folder list for mobile manager bottom sheet
          */
+        _renderMobileFolderList() {
+            return this.state.folders.map((folder, idx) => {
+                const isGeneral = folder.id === 'general';
+                const isFirst = idx === 0 || (idx === 1 && this.state.folders[0].id === 'general');
+                const isLast = idx === this.state.folders.length - 1;
+                
+                return `
+                    <div class="mobile-fm-item" data-folder-id="${folder.id}">
+                        <span class="mobile-fm-icon" style="background: ${folder.color}20; color: ${folder.color};">${folder.icon || '📁'}</span>
+                        <span class="mobile-fm-name">${this._escapeHtml(folder.name)}</span>
+                        ${!isGeneral ? `
+                        <div class="mobile-fm-actions">
+                            <button class="mobile-fm-btn" data-action="move-folder-up" data-folder-id="${folder.id}" ${isFirst ? 'disabled' : ''}>▲</button>
+                            <button class="mobile-fm-btn" data-action="move-folder-down" data-folder-id="${folder.id}" ${isLast ? 'disabled' : ''}>▼</button>
+                            <button class="mobile-fm-btn" data-action="edit-folder" data-folder-id="${folder.id}">✏️</button>
+                            <button class="mobile-fm-btn mobile-fm-btn-danger" data-action="delete-folder" data-folder-id="${folder.id}">🗑️</button>
+                        </div>
+                        ` : `
+                        <div class="mobile-fm-actions">
+                            <span class="mobile-fm-default-badge">Default</span>
+                        </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
         _renderActiveFilters() {
             const filters = [];
             
@@ -932,6 +1260,7 @@
         _renderSopGroups() {
             if (this.state.filteredSops.length === 0) {
                 const isFiltered = this.state.searchQuery || this.state.selectedFolderId || this.state.hashtagFilter;
+                const isTeamMember = this.options.teamRole?.role === 'member';
                 
                 if (isFiltered) {
                     // Contextual empty message based on which filter is active
@@ -939,16 +1268,36 @@
                     if (this.state.searchQuery && !this.state.selectedFolderId && !this.state.hashtagFilter) {
                         emptyMsg = 'No results found. Try a different keyword or check your spelling.';
                     } else if (this.state.selectedFolderId && !this.state.searchQuery && !this.state.hashtagFilter) {
-                        emptyMsg = 'No SOPs in this folder yet. Add an existing SOP or create a new one to get started.';
+                        emptyMsg = 'No SOPs in this folder yet.';
                     } else {
                         emptyMsg = 'No SOPs match these filters. Try adjusting your filters or clearing them to see all SOPs.';
                     }
+                    
+                    if (isTeamMember) {
+                        return `<div class="empty-state"><p>${emptyMsg}</p></div>`;
+                    }
+                    
                     return `
                         <div class="empty-state">
                             <p>${emptyMsg}</p>
-                            <button class="btn btn-primary" id="btn-create-sop-empty">
-                                ➕ Create New SOP
-                            </button>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-secondary" id="btn-browse-templates-empty">
+                                    📄 Start from Template
+                                </button>
+                                <button class="btn btn-primary" id="btn-create-sop-empty">
+                                    ➕ Create New SOP
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Team member with no SOPs
+                if (isTeamMember) {
+                    return `
+                        <div class="empty-state">
+                            <p class="welcome-title">No SOPs shared yet.</p>
+                            <p>Your team owner hasn't published any Active SOPs yet. Check back soon.</p>
                         </div>
                     `;
                 }
@@ -968,6 +1317,9 @@
                         <div class="welcome-actions">
                             <button class="btn btn-primary" id="btn-create-sop-empty">
                                 ➕ Create your first SOP
+                            </button>
+                            <button class="btn btn-secondary" id="btn-browse-templates-empty">
+                                📄 Or start from a template
                             </button>
                         </div>
                         
@@ -1024,6 +1376,37 @@
             const updatedDate = new Date(sop.updatedAt || sop.createdAt).toLocaleDateString();
             const stepCount = sop.steps?.length || 0;
             const isRecent = this._isRecentlyEdited(sop);
+            const isReadOnly = sop._teamSop || false;
+            
+            // Team members see Use + Print only; owners/solo see all actions
+            const actionsHtml = isReadOnly ? `
+                    <div class="sop-card-actions">
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
+                        </button>
+                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
+                            🖨️
+                        </button>
+                    </div>
+            ` : `
+                    <div class="sop-card-actions">
+                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
+                            ✅ Use
+                        </button>
+                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
+                            ✏️ Edit
+                        </button>
+                        <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
+                            📋
+                        </button>
+                        <button class="action-btn print-btn" data-action="print" data-sop-id="${sop.id}" title="Print / Export PDF">
+                            🖨️
+                        </button>
+                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
+                            🗑️
+                        </button>
+                    </div>
+            `;
             
             return `
                 <div class="sop-card ${isRecent ? 'recently-edited' : ''}" data-sop-id="${sop.id}">
@@ -1047,18 +1430,7 @@
                         </div>
                         ` : ''}
                     </div>
-                    
-                    <div class="sop-card-actions">
-                        <button class="action-btn checklist-btn" data-action="checklist" data-sop-id="${sop.id}" title="Use as checklist">
-                            ✅ Use
-                        </button>
-                        <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
-                            ✏️ Edit
-                        </button>
-                        <button class="action-btn delete-btn" data-action="delete" data-sop-id="${sop.id}" title="Delete SOP">
-                            🗑️
-                        </button>
-                    </div>
+                    ${actionsHtml}
                 </div>
             `;
         }
@@ -1139,6 +1511,10 @@
                         if (confirm('Delete this folder? SOPs will be moved to General.')) {
                             this.deleteFolder(folderId);
                         }
+                    } else if (action === 'move-folder-up') {
+                        this._moveFolderUp(folderId);
+                    } else if (action === 'move-folder-down') {
+                        this._moveFolderDown(folderId);
                     } else {
                         console.warn('Dashboard: Unknown folder action:', action);
                     }
@@ -1174,6 +1550,17 @@
                     console.warn('Dashboard: onCreateSOP callback not registered');
                 }
             });
+            
+            // Template browser buttons
+            document.getElementById('btn-browse-templates')?.addEventListener('click', () => {
+                this._openTemplateModal();
+            });
+            document.getElementById('btn-browse-templates-empty')?.addEventListener('click', () => {
+                this._openTemplateModal();
+            });
+            
+            // Template modal
+            this._attachTemplateModalListeners();
             
             // Add folder button
             document.getElementById('btn-add-folder')?.addEventListener('click', () => {
@@ -1238,6 +1625,14 @@
                     const sop = this.state.sops.find(s => s.id === sopId);
                     if (!sop) {
                         console.warn('Dashboard: SOP not found in most-used list:', sopId);
+                        return;
+                    }
+                    // Team SOPs: run checklist instead of edit
+                    if (sop._teamSop) {
+                        if (this.callbacks.onRunChecklist) {
+                            this.trackUsage(sopId);
+                            this.callbacks.onRunChecklist(sop);
+                        }
                         return;
                     }
                     if (this.callbacks.onEditSOP) {
@@ -1354,6 +1749,15 @@
             
             // Folder modal
             this._attachFolderModalListeners();
+            
+            // Mobile folder manager
+            this._attachMobileFolderManagerListeners();
+            
+            // Team management (owner or solo authenticated user — not team members)
+            const role = this.options.teamRole?.role;
+            if (role === 'owner' || role === 'solo') {
+                this._attachTeamManagementListeners();
+            }
         }
         
         /**
@@ -1363,6 +1767,12 @@
             const sop = this.state.sops.find(s => s.id === sopId);
             if (!sop) {
                 console.warn('Dashboard: SOP not found for action:', action, sopId);
+                return;
+            }
+            
+            // Block destructive actions on team SOPs (read-only)
+            if (sop._teamSop && ['edit', 'delete', 'duplicate'].includes(action)) {
+                this._showNotification('This SOP is read-only', 'error');
                 return;
             }
             
@@ -1397,9 +1807,136 @@
                     }
                     break;
                     
+                case 'duplicate':
+                    const now = Date.now();
+                    const duplicatedSop = {
+                        ...sop,
+                        id: `sop_${now}`,
+                        title: `Copy of ${sop.title}`,
+                        status: 'draft',
+                        steps: sop.steps ? sop.steps.map(step => ({
+                            ...step,
+                            id: `step_${now}_${Math.random().toString(36).substr(2, 9)}`
+                        })) : [],
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    this.state.sops.unshift(duplicatedSop);
+                    this._saveSops();
+                    this._showNotification('SOP duplicated', 'success');
+                    this.refresh();
+                    break;
+                    
+                case 'print':
+                    this._printSop(sop);
+                    break;
+                    
                 default:
                     console.warn('Dashboard: Unknown action:', action);
             }
+        }
+        
+        /**
+         * Print / Export SOP as a clean document
+         */
+        _printSop(sop) {
+            const folder = this.state.folders.find(f => f.id === sop.folderId);
+            const folderName = folder ? folder.name : 'Uncategorized';
+            const updatedDate = new Date(sop.updatedAt || Date.now()).toLocaleDateString();
+            const steps = sop.steps || [];
+            const tags = sop.tags || [];
+            
+            const stepsHtml = steps.map((step, i) => `
+                <div class="step">
+                    <div class="step-number">${i + 1}</div>
+                    <div class="step-content">
+                        <div class="step-text">${this._escapeHtml(step.text)}</div>
+                        ${step.note ? `<div class="step-note">Note: ${this._escapeHtml(step.note)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            const tagsHtml = tags.length > 0 
+                ? `<div class="tags">${tags.map(t => `<span class="tag">#${this._escapeHtml(t)}</span>`).join(' ')}</div>` 
+                : '';
+            
+            const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${this._escapeHtml(sop.title)} — SOP</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1f2937; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        
+        .header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 24px; }
+        .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+        .meta-item { display: flex; align-items: center; gap: 4px; }
+        .status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+        .status-draft { background: #fef3c7; color: #92400e; }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-archived { background: #f3f4f6; color: #6b7280; }
+        
+        .description { font-size: 15px; color: #374151; margin-bottom: 24px; }
+        .tags { margin-bottom: 24px; }
+        .tag { font-size: 12px; color: #6366f1; background: #eef2ff; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+        
+        .steps-header { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #374151; }
+        .step { display: flex; gap: 14px; margin-bottom: 16px; }
+        .step-number { width: 28px; height: 28px; background: #6366f1; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .step-content { flex: 1; padding-top: 3px; }
+        .step-text { font-size: 14px; color: #1f2937; }
+        .step-note { font-size: 12px; color: #6b7280; margin-top: 4px; font-style: italic; }
+        
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #4b5563; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">${this._escapeHtml(sop.title)}</div>
+        <div class="meta">
+            <span class="meta-item"><span class="status status-${sop.status || 'draft'}">${sop.status || 'draft'}</span></span>
+            <span class="meta-item">📂 ${this._escapeHtml(folderName)}</span>
+            <span class="meta-item">📝 ${steps.length} steps</span>
+            <span class="meta-item">🕐 Updated ${updatedDate}</span>
+        </div>
+    </div>
+    
+    ${sop.description ? `<div class="description">${this._escapeHtml(sop.description)}</div>` : ''}
+    ${tagsHtml}
+    
+    <div class="steps-header">Steps</div>
+    ${stepsHtml || '<p style="color: #9ca3af; font-style: italic;">No steps added yet.</p>'}
+    
+    <div class="footer">Generated from WithoutMe · ${updatedDate}</div>
+</body>
+</html>`;
+            
+            // Use iframe for reliable cross-browser PDF export (Safari-safe)
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;';
+            document.body.appendChild(iframe);
+            
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write(html);
+            doc.close();
+            
+            // Wait for content to render before triggering print
+            iframe.contentWindow.addEventListener('afterprint', () => {
+                document.body.removeChild(iframe);
+            });
+            
+            setTimeout(() => {
+                iframe.contentWindow.print();
+                // Fallback cleanup if afterprint doesn't fire
+                setTimeout(() => {
+                    if (iframe.parentNode) {
+                        document.body.removeChild(iframe);
+                    }
+                }, 60000);
+            }, 250);
         }
         
         /**
@@ -1448,6 +1985,81 @@
         _closeFolderModal() {
             document.getElementById('folder-modal').style.display = 'none';
             this.state.editingFolder = null;
+        }
+        
+        /**
+         * Mobile Folder Manager
+         */
+        _openMobileFolderManager() {
+            const modal = document.getElementById('mobile-folder-manager');
+            if (!modal) return;
+            this._refreshMobileFolderList();
+            modal.style.display = 'flex';
+            
+            // Escape key to close
+            this._mobileFmEscHandler = (e) => {
+                if (e.key === 'Escape') this._closeMobileFolderManager();
+            };
+            document.addEventListener('keydown', this._mobileFmEscHandler);
+        }
+        
+        _closeMobileFolderManager() {
+            const modal = document.getElementById('mobile-folder-manager');
+            if (modal) modal.style.display = 'none';
+            if (this._mobileFmEscHandler) {
+                document.removeEventListener('keydown', this._mobileFmEscHandler);
+                this._mobileFmEscHandler = null;
+            }
+        }
+        
+        _refreshMobileFolderList() {
+            const list = document.getElementById('mobile-fm-list');
+            if (list) list.innerHTML = this._renderMobileFolderList();
+        }
+        
+        _attachMobileFolderManagerListeners() {
+            document.getElementById('btn-manage-folders')?.addEventListener('click', () => {
+                this._openMobileFolderManager();
+            });
+            
+            document.getElementById('btn-close-mobile-fm')?.addEventListener('click', () => {
+                this._closeMobileFolderManager();
+            });
+            
+            document.getElementById('mobile-folder-manager')?.addEventListener('click', (e) => {
+                if (e.target.id === 'mobile-folder-manager') this._closeMobileFolderManager();
+            });
+            
+            document.getElementById('mobile-fm-add-folder')?.addEventListener('click', () => {
+                this._closeMobileFolderManager();
+                this._openFolderModal();
+            });
+            
+            document.getElementById('mobile-fm-list')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.mobile-fm-btn');
+                if (!btn) return;
+                
+                const action = btn.dataset.action;
+                const folderId = btn.dataset.folderId;
+                if (!action || !folderId) return;
+                
+                if (action === 'move-folder-up') {
+                    this._moveFolderUp(folderId);
+                    // refresh() rebuilt DOM, so re-open manager
+                    this._openMobileFolderManager();
+                } else if (action === 'move-folder-down') {
+                    this._moveFolderDown(folderId);
+                    this._openMobileFolderManager();
+                } else if (action === 'edit-folder') {
+                    this._closeMobileFolderManager();
+                    this._openFolderModal(folderId);
+                } else if (action === 'delete-folder') {
+                    if (confirm('Delete this folder? SOPs will be moved to General.')) {
+                        this.deleteFolder(folderId);
+                        this._openMobileFolderManager();
+                    }
+                }
+            });
         }
         
         _selectIcon(icon) {
@@ -1499,6 +2111,185 @@
                 }
                 
                 this._closeFolderModal();
+            });
+        }
+        
+        // ====================================================================
+        // TEAM MANAGEMENT (Owner only)
+        // ====================================================================
+        
+        _renderTeamManagement() {
+            return `
+                <section class="team-management-section" id="team-management">
+                    <div class="section-header">
+                        <h3>👥 Team</h3>
+                    </div>
+                    <div class="team-panel">
+                        <div class="team-invite-area">
+                            <p class="team-invite-desc">Invite team members to view your Active SOPs and run checklists.</p>
+                            <button class="btn btn-primary" id="btn-create-invite">
+                                🔗 Create Invite Link
+                            </button>
+                            <div class="invite-link-area" id="invite-link-area" style="display:none;">
+                                <input type="text" class="form-input invite-link-input" id="invite-link-input" readonly />
+                                <button class="btn btn-secondary" id="btn-copy-invite">📋 Copy</button>
+                            </div>
+                        </div>
+                        <div class="team-member-list" id="team-member-list">
+                            <p class="team-loading">Loading team members...</p>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
+        
+        async _loadTeamMembers() {
+            if (!window.SupabaseClient) return;
+            
+            const members = await SupabaseClient.fetchTeamMembers();
+            const listEl = document.getElementById('team-member-list');
+            if (!listEl) return;
+            
+            // Filter out owner from the display list
+            const displayMembers = members.filter(m => m.role !== 'owner');
+            
+            if (displayMembers.length === 0) {
+                listEl.innerHTML = '<p class="team-empty">No team members yet. Share an invite link to get started.</p>';
+                return;
+            }
+            
+            listEl.innerHTML = displayMembers.map(m => `
+                <div class="team-member-row" data-member-id="${m.id}">
+                    <div class="member-info">
+                        <span class="member-email">${this._escapeHtml(m.email || 'Pending invite')}</span>
+                        <span class="member-status status-badge-${m.status}">${m.status}</span>
+                    </div>
+                    <button class="btn-icon member-remove" data-member-id="${m.id}" title="Remove">🗑️</button>
+                </div>
+            `).join('');
+            
+            // Attach remove listeners
+            listEl.querySelectorAll('.member-remove').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const memberId = e.currentTarget.dataset.memberId;
+                    if (confirm('Remove this team member?')) {
+                        const result = await SupabaseClient.removeTeamMember(memberId);
+                        if (result.success) {
+                            this._showNotification('Team member removed', 'success');
+                            this._loadTeamMembers();
+                        } else {
+                            this._showNotification('Failed to remove: ' + result.error, 'error');
+                        }
+                    }
+                });
+            });
+        }
+        
+        _attachTeamManagementListeners() {
+            const createInviteBtn = document.getElementById('btn-create-invite');
+            if (!createInviteBtn) return;
+            
+            createInviteBtn.addEventListener('click', async () => {
+                // Pro feature gate — team access requires Pro plan
+                if (typeof PaddleBilling !== 'undefined' && !PaddleBilling.isPro()) {
+                    PaddleBilling.showUpgradePrompt('team access');
+                    return;
+                }
+                
+                if (!window.SupabaseClient) {
+                    this._showNotification('Sign in to manage your team', 'error');
+                    return;
+                }
+                
+                createInviteBtn.disabled = true;
+                createInviteBtn.textContent = 'Creating...';
+                
+                const result = await SupabaseClient.createInvite();
+                
+                createInviteBtn.disabled = false;
+                createInviteBtn.textContent = '🔗 Create Invite Link';
+                
+                if (result.success) {
+                    const link = `${window.location.origin}${window.location.pathname}?invite=${result.inviteCode}`;
+                    const linkArea = document.getElementById('invite-link-area');
+                    const linkInput = document.getElementById('invite-link-input');
+                    
+                    if (linkArea && linkInput) {
+                        linkInput.value = link;
+                        linkArea.style.display = 'flex';
+                        linkInput.select();
+                    }
+                    
+                    this._showNotification('Invite link created', 'success');
+                    
+                    // Refresh member list to show new pending invite
+                    this._loadTeamMembers();
+                } else {
+                    this._showNotification('Failed: ' + result.error, 'error');
+                }
+            });
+            
+            document.getElementById('btn-copy-invite')?.addEventListener('click', () => {
+                const input = document.getElementById('invite-link-input');
+                if (input) {
+                    navigator.clipboard.writeText(input.value).then(() => {
+                        this._showNotification('Link copied to clipboard', 'success');
+                    }).catch(() => {
+                        input.select();
+                        document.execCommand('copy');
+                        this._showNotification('Link copied', 'success');
+                    });
+                }
+            });
+            
+            // Load team members
+            this._loadTeamMembers();
+        }
+        
+        // ====================================================================
+        // TEMPLATE BROWSER
+        // ====================================================================
+        
+        _openTemplateModal() {
+            const modal = document.getElementById('template-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+        
+        _closeTemplateModal() {
+            const modal = document.getElementById('template-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        _selectTemplate(templateId) {
+            const tpl = SOP_TEMPLATES.find(t => t.id === templateId);
+            if (!tpl) return;
+            
+            this._closeTemplateModal();
+            
+            // Check if the template's target folder exists, fall back to general
+            const folderExists = this.state.folders.some(f => f.id === tpl.folderId);
+            
+            if (this.callbacks.onCreateSOP) {
+                this.callbacks.onCreateSOP({
+                    title: tpl.title,
+                    description: tpl.description,
+                    folderId: folderExists ? tpl.folderId : 'general',
+                    steps: tpl.steps.map(s => ({ text: s.text, note: s.note || '' })),
+                    tags: tpl.tags || []
+                });
+            }
+        }
+        
+        _attachTemplateModalListeners() {
+            document.getElementById('btn-close-template-modal')?.addEventListener('click', () => this._closeTemplateModal());
+            
+            document.getElementById('template-modal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'template-modal') this._closeTemplateModal();
+            });
+            
+            document.querySelector('.template-grid')?.addEventListener('click', (e) => {
+                const card = e.target.closest('.template-card');
+                if (card) this._selectTemplate(card.dataset.templateId);
             });
         }
         
@@ -1569,6 +2360,7 @@
                     position: sticky;
                     top: 0;
                     overflow-y: auto;
+                    overflow-x: hidden;
                 }
                 
                 .sidebar-header {
@@ -1609,7 +2401,7 @@
                     gap: 0.5rem;
                     padding: 0.625rem 1rem;
                     cursor: pointer;
-                    border-left: 3px solid transparent;
+                    border-left: 3px solid var(--folder-color, transparent);
                     transition: all 0.15s;
                     position: relative;
                 }
@@ -1618,13 +2410,8 @@
                     background: #f3f4f6;
                 }
                 
-                .folder-item:hover .folder-actions {
-                    opacity: 1;
-                }
-                
                 .folder-item.active {
                     background: #eff6ff;
-                    border-left-color: var(--folder-color, #6366f1);
                 }
                 
                 .folder-icon { font-size: 1rem; }
@@ -1638,24 +2425,48 @@
                 }
                 
                 .folder-actions {
-                    display: flex;
+                    display: none;
                     gap: 0.25rem;
-                    opacity: 0;
-                    transition: opacity 0.15s;
+                }
+                
+                /* Only show hover-to-reveal on devices with real mouse/trackpad */
+                @media (hover: hover) and (pointer: fine) {
+                    .folder-actions {
+                        display: flex;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.15s;
+                    }
+                    .folder-item:hover .folder-actions {
+                        opacity: 1;
+                        pointer-events: auto;
+                    }
                 }
                 
                 .folder-action-btn {
-                    width: 24px;
-                    height: 24px;
+                    width: 28px;
+                    height: 28px;
                     border: none;
                     background: none;
                     cursor: pointer;
-                    font-size: 0.75rem;
+                    font-size: 0.8rem;
                     border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
                 .folder-action-btn:hover {
                     background: #e5e7eb;
+                }
+                
+                .folder-move-btn {
+                    font-size: 0.7rem;
+                    color: #9ca3af;
+                }
+                
+                .folder-move-btn:hover {
+                    color: #374151;
                 }
                 
                 /* Main */
@@ -2124,6 +2935,18 @@
                     color: #b91c1c;
                 }
                 
+                .duplicate-btn:hover {
+                    background: #f5f3ff;
+                    border-color: #ddd6fe;
+                    color: #6d28d9;
+                }
+                
+                .print-btn:hover {
+                    background: #f0f9ff;
+                    border-color: #bae6fd;
+                    color: #0369a1;
+                }
+                
                 .checklist-btn {
                     background: #f0fdf4;
                     border-color: #bbf7d0;
@@ -2521,15 +3344,182 @@
                 .modal-header h3 { margin: 0; font-size: 1rem; }
                 
                 .btn-close {
-                    width: 28px;
-                    height: 28px;
+                    width: 32px;
+                    height: 32px;
                     border: none;
                     background: #f3f4f6;
                     border-radius: 6px;
                     cursor: pointer;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
                 .btn-close:hover { background: #e5e7eb; }
+                
+                .template-modal-content {
+                    max-width: 640px;
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .template-modal-content .modal-body {
+                    overflow-y: auto;
+                    padding: 1rem;
+                }
+                
+                .template-grid {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                
+                .template-card {
+                    display: flex;
+                    gap: 12px;
+                    padding: 12px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: border-color 0.15s, background 0.15s;
+                }
+                
+                .template-card:hover {
+                    border-color: #6366f1;
+                    background: #f5f3ff;
+                }
+                
+                .template-icon {
+                    font-size: 24px;
+                    flex-shrink: 0;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f3f4f6;
+                    border-radius: 8px;
+                }
+                
+                .template-info { flex: 1; min-width: 0; }
+                
+                .template-title {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 2px;
+                }
+                
+                .template-desc {
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.4;
+                    margin-bottom: 4px;
+                }
+                
+                .template-meta {
+                    font-size: 11px;
+                    color: #9ca3af;
+                }
+                
+                .empty-state-actions {
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                    margin-top: 12px;
+                }
+                
+                /* Team Banner (member view) */
+                .team-banner {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #eef2ff;
+                    border: 1px solid #c7d2fe;
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                }
+                .team-banner-icon { font-size: 18px; }
+                .team-banner-text { font-size: 14px; font-weight: 600; color: #4338ca; }
+                
+                /* Team Management (owner view) */
+                .team-management-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .team-panel {
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 16px;
+                }
+                .team-invite-desc {
+                    font-size: 13px;
+                    color: #6b7280;
+                    margin-bottom: 12px;
+                }
+                .invite-link-area {
+                    display: flex;
+                    gap: 8px;
+                    margin-top: 12px;
+                }
+                .invite-link-input {
+                    flex: 1;
+                    font-size: 12px;
+                    padding: 8px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    background: #fff;
+                }
+                .team-member-list {
+                    margin-top: 16px;
+                }
+                .team-member-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                .team-member-row:last-child { border-bottom: none; }
+                .member-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .member-email {
+                    font-size: 13px;
+                    color: #1f2937;
+                }
+                .status-badge-active {
+                    font-size: 11px;
+                    padding: 1px 8px;
+                    border-radius: 999px;
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .status-badge-pending {
+                    font-size: 11px;
+                    padding: 1px 8px;
+                    border-radius: 999px;
+                    background: #fef3c7;
+                    color: #92400e;
+                }
+                .member-remove {
+                    opacity: 0.4;
+                    transition: opacity 0.15s;
+                }
+                .member-remove:hover { opacity: 1; }
+                .team-empty, .team-loading {
+                    font-size: 13px;
+                    color: #9ca3af;
+                    font-style: italic;
+                }
                 
                 .modal-body {
                     padding: 1.25rem;
@@ -2627,6 +3617,155 @@
                     to { transform: translateX(0); opacity: 1; }
                 }
                 
+                /* Mobile Folder Manager — always visible, hover-reveal is the enhancement */
+                .mobile-manage-btn {
+                    display: inline-flex;
+                    width: auto !important;
+                    height: auto !important;
+                    border: none !important;
+                    background: none !important;
+                    color: #6366f1;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    padding: 0.35rem 0.65rem !important;
+                    min-height: 32px;
+                    align-items: center;
+                }
+                
+                .mobile-manage-btn:active {
+                    opacity: 0.6;
+                }
+                
+                @media (hover: hover) and (pointer: fine) {
+                    .mobile-manage-btn:hover {
+                        text-decoration: underline;
+                    }
+                }
+                
+                #mobile-folder-manager {
+                    align-items: flex-end;
+                }
+                
+                .mobile-fm-sheet {
+                    position: fixed;
+                    bottom: 0;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 100%;
+                    max-width: 480px;
+                    background: #fff;
+                    border-radius: 16px 16px 0 0;
+                    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                    animation: slideUp 0.25s ease-out;
+                    z-index: 1001;
+                }
+                
+                @keyframes slideUp {
+                    from { transform: translateX(-50%) translateY(100%); }
+                    to { transform: translateX(-50%) translateY(0); }
+                }
+                
+                .mobile-fm-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem 1.25rem;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                
+                .mobile-fm-header h3 {
+                    margin: 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                }
+                
+                .mobile-fm-list {
+                    overflow-y: auto;
+                    padding: 0.5rem 0;
+                    flex: 1;
+                }
+                
+                .mobile-fm-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.75rem 1.25rem;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                
+                .mobile-fm-icon {
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 8px;
+                    font-size: 1.1rem;
+                    flex-shrink: 0;
+                }
+                
+                .mobile-fm-name {
+                    flex: 1;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    color: #1e293b;
+                }
+                
+                .mobile-fm-actions {
+                    display: flex;
+                    gap: 0.25rem;
+                    align-items: center;
+                }
+                
+                .mobile-fm-btn {
+                    width: 40px;
+                    height: 40px;
+                    border: 1px solid #e5e7eb;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .mobile-fm-btn:active {
+                    background: #e2e8f0;
+                }
+                
+                .mobile-fm-btn:disabled {
+                    opacity: 0.3;
+                    cursor: default;
+                }
+                
+                .mobile-fm-btn-danger:active {
+                    background: #fee2e2;
+                }
+                
+                .mobile-fm-default-badge {
+                    font-size: 0.7rem;
+                    color: #94a3b8;
+                    background: #f1f5f9;
+                    padding: 0.2rem 0.5rem;
+                    border-radius: 4px;
+                }
+                
+                .mobile-fm-footer {
+                    padding: 0.75rem 1.25rem;
+                    border-top: 1px solid #e5e7eb;
+                }
+                
+                .mobile-fm-add {
+                    width: 100%;
+                    padding: 0.65rem;
+                    font-size: 0.85rem;
+                }
+                
                 /* Responsive */
                 @media (max-width: 768px) {
                     .dashboard-layout {
@@ -2670,9 +3809,6 @@
                     }
                     .folder-item:hover {
                         background: #f9fafb;
-                    }
-                    .folder-actions {
-                        display: none;
                     }
                     .folder-count {
                         font-size: 0.65rem;

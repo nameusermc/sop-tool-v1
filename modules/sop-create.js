@@ -310,6 +310,24 @@
                                 
                                 ${this.options.enableAIFeatures ? `
                                 <div class="ai-steps-panel" id="ai-steps-panel">
+                                    ${this._isProPlan() ? `
+                                    <div class="ai-panel-header">
+                                        <span class="ai-icon">✨</span>
+                                        <span class="ai-title">AI-Powered Steps</span>
+                                        <span class="ai-badge ai-badge-pro">Pro</span>
+                                    </div>
+                                    <p class="ai-description">Generate steps automatically or improve existing ones with AI. You can edit everything before saving.</p>
+                                    <div class="ai-steps-actions">
+                                        <button type="button" class="ai-btn" id="btn-ai-generate" data-ai-action="draft-steps">
+                                            ✨ Suggest Steps
+                                        </button>
+                                        <button type="button" class="ai-btn ai-btn-secondary" id="btn-ai-improve" data-ai-action="improve-clarity"
+                                            ${this.formState.steps.length === 0 ? 'disabled' : ''}>
+                                            ✏️ Improve Clarity
+                                        </button>
+                                    </div>
+                                    <p class="ai-hint">This is optional. You can always write steps yourself or <a href="#" id="btn-ai-manual-paste" class="ai-link">paste from an external tool</a>.</p>
+                                    ` : `
                                     <div class="ai-panel-header">
                                         <span class="ai-icon">🤖</span>
                                         <span class="ai-title">Get Help Writing Steps</span>
@@ -326,6 +344,8 @@
                                         </button>
                                     </div>
                                     <p class="ai-hint">This is optional. You can always write steps yourself.</p>
+                                    <p class="ai-upgrade-hint">✨ <a href="#" id="btn-ai-upgrade" class="ai-link">Upgrade to Pro</a> for one-click AI step generation.</p>
+                                    `}
                                 </div>
                                 ` : ''}
                                 
@@ -592,8 +612,23 @@
             // AI actions
             document.querySelectorAll('[data-ai-action]').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    this._handleAIAction(e.target.dataset.aiAction);
+                    const target = e.target.closest('[data-ai-action]');
+                    if (target) this._handleAIAction(target.dataset.aiAction);
                 });
+            });
+            
+            // Pro: manual paste fallback link
+            document.getElementById('btn-ai-manual-paste')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                this._showAIPasteModal();
+            });
+            
+            // Free: upgrade to Pro link
+            document.getElementById('btn-ai-upgrade')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof PaddleBilling !== 'undefined') {
+                    PaddleBilling.showPricingModal();
+                }
             });
             
             document.getElementById('preview-modal')?.addEventListener('click', (e) => {
@@ -770,16 +805,192 @@
         // ====================================================================
         
         /**
+         * Check if user is on Pro plan
+         */
+        _isProPlan() {
+            return typeof PaddleBilling !== 'undefined' && PaddleBilling.isPro();
+        }
+        
+        /**
+         * Get business type from localStorage
+         */
+        _getBusinessType() {
+            try {
+                return localStorage.getItem('withoutme_business_type') || '';
+            } catch (e) {
+                return '';
+            }
+        }
+        
+        /**
          * Handle AI action buttons
-         * Since this is a standalone app without API access, we use an
-         * external-paste workflow where users generate content in external
-         * AI tools and paste it here.
+         * Pro users get direct API calls; Free users get manual paste workflow
          */
         _handleAIAction(action) {
             if (action === 'draft-steps') {
-                this._showAIPasteModal();
+                if (this._isProPlan()) {
+                    this._aiSuggestSteps();
+                } else {
+                    this._showAIPasteModal();
+                }
             } else if (action === 'improve-clarity') {
-                this._showAIImproveModal();
+                if (this._isProPlan()) {
+                    this._aiImproveSteps();
+                } else {
+                    this._showAIImproveModal();
+                }
+            }
+        }
+        
+        /**
+         * Pro: Call API to suggest steps based on SOP title/description
+         */
+        async _aiSuggestSteps() {
+            this._collectFormData();
+            
+            const title = this.formState.title?.trim();
+            if (!title) {
+                this._showNotification('Add a title first so AI knows what steps to suggest.', 'error');
+                return;
+            }
+            
+            const generateBtn = document.getElementById('btn-ai-generate');
+            const originalText = generateBtn?.textContent;
+            
+            try {
+                // Show loading state
+                if (generateBtn) {
+                    generateBtn.disabled = true;
+                    generateBtn.textContent = '⏳ Generating...';
+                }
+                
+                const response = await fetch('/api/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'suggest',
+                        title: title,
+                        description: this.formState.description?.trim() || '',
+                        businessType: this._getBusinessType()
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.steps || data.steps.length === 0) {
+                    this._showNotification('AI couldn\'t generate steps. Try a more descriptive title.', 'error');
+                    return;
+                }
+                
+                // Confirm if replacing existing steps
+                if (this.formState.steps.length > 0) {
+                    if (!confirm(`This will replace your ${this.formState.steps.length} existing steps with ${data.steps.length} AI-generated steps. Continue?`)) {
+                        return;
+                    }
+                }
+                
+                // Apply the steps
+                this.formState.steps = data.steps.map((text, index) => ({
+                    id: `step_ai_${Date.now()}_${index}`,
+                    text: text,
+                    note: '',
+                    order: index + 1,
+                    aiGenerated: true
+                }));
+                
+                // Apply suggested tags (merge with existing, don't overwrite)
+                let tagsAdded = 0;
+                if (data.tags && data.tags.length > 0) {
+                    const existingTags = new Set(this.formState.tags.map(t => t.toLowerCase()));
+                    const newTags = data.tags.filter(t => !existingTags.has(t.toLowerCase()));
+                    if (newTags.length > 0) {
+                        this.formState.tags = [...this.formState.tags, ...newTags];
+                        const tagsInput = document.getElementById('sop-tags');
+                        if (tagsInput) tagsInput.value = this.formState.tags.join(', ');
+                        tagsAdded = newTags.length;
+                    }
+                }
+                
+                this._updateStepsList();
+                this._saveDraftNow();
+                const tagMsg = tagsAdded > 0 ? ` + ${tagsAdded} keywords added.` : '.';
+                this._showNotification(`✨ ${data.steps.length} steps generated${tagMsg} Review and edit as needed.`, 'success');
+                this._showAIPastedNotice();
+                
+            } catch (e) {
+                console.error('[AI Suggest] Error:', e);
+                this._showNotification('AI step generation failed. Try again in a moment.', 'error');
+            } finally {
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = originalText || '✨ Suggest Steps';
+                }
+            }
+        }
+        
+        /**
+         * Pro: Call API to improve existing steps
+         */
+        async _aiImproveSteps() {
+            this._collectFormData();
+            
+            if (this.formState.steps.length === 0) {
+                this._showNotification('Add some steps first before improving them.', 'error');
+                return;
+            }
+            
+            const improveBtn = document.getElementById('btn-ai-improve');
+            const originalText = improveBtn?.textContent;
+            
+            // Store originals for comparison
+            this._originalSteps = this.formState.steps.map(s => ({ ...s }));
+            
+            try {
+                // Show loading state
+                if (improveBtn) {
+                    improveBtn.disabled = true;
+                    improveBtn.textContent = '⏳ Improving...';
+                }
+                
+                const response = await fetch('/api/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'improve',
+                        title: this.formState.title?.trim() || '',
+                        steps: this.formState.steps.map(s => s.text),
+                        businessType: this._getBusinessType()
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.steps || data.steps.length === 0) {
+                    this._showNotification('AI couldn\'t improve the steps. Try again.', 'error');
+                    return;
+                }
+                
+                // Store improved steps and show clarity preview
+                this._improvedSteps = data.steps;
+                this._showClarityPreview();
+                
+            } catch (e) {
+                console.error('[AI Improve] Error:', e);
+                this._showNotification('AI improvement failed. Try again in a moment.', 'error');
+                this._originalSteps = null;
+            } finally {
+                if (improveBtn) {
+                    improveBtn.disabled = this.formState.steps.length === 0;
+                    improveBtn.textContent = originalText || '✏️ Improve Clarity';
+                }
             }
         }
         
@@ -1425,7 +1636,7 @@
                 folderId: options.folderId || 'general',
                 steps,
                 tags: options.tags || [],
-                status: 'draft'
+                status: options.status || 'draft'
             };
             
             this._render();
@@ -1719,6 +1930,28 @@
                     color: #6b7280 !important;
                     margin-top: 0.5rem !important;
                     margin-bottom: 0 !important;
+                }
+                
+                .ai-badge-pro {
+                    background: #e0e7ff;
+                    color: #4338ca;
+                }
+                
+                .ai-upgrade-hint {
+                    font-size: 0.7rem !important;
+                    color: #6366f1 !important;
+                    margin-top: 0.25rem !important;
+                    margin-bottom: 0 !important;
+                }
+                
+                .ai-link {
+                    color: #6366f1;
+                    text-decoration: underline;
+                    cursor: pointer;
+                }
+                
+                .ai-link:hover {
+                    color: #4338ca;
                 }
                 
                 .ai-steps-panel.loading {

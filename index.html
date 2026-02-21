@@ -3,7 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOP Tool - Standard Operating Procedures Manager</title>
+    <title>WithoutMe — SOPs your team can follow without you</title>
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="Create step-by-step SOPs your team can follow without you. Built for HVAC, plumbing, cleaning, and other local service businesses. Free to start, no signup required.">
+    <meta name="keywords" content="SOP software, standard operating procedures, small business SOP, HVAC procedures, plumbing SOP, cleaning business procedures, team checklists, process documentation">
+    <meta name="author" content="WithoutMe">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://withoutme.app/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://withoutme.app/">
+    <meta property="og:title" content="WithoutMe — SOPs your team can follow without you">
+    <meta property="og:description" content="Turn how you do work into clear steps your team can follow. Built for local service businesses with 10-30 employees. Free to start.">
+    <meta property="og:image" content="https://withoutme.app/og-image.png">
+    <meta property="og:site_name" content="WithoutMe">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://withoutme.app/">
+    <meta name="twitter:title" content="WithoutMe — SOPs your team can follow without you">
+    <meta name="twitter:description" content="Turn how you do work into clear steps your team can follow. Built for local service businesses with 10-30 employees. Free to start.">
+    <meta name="twitter:image" content="https://withoutme.app/og-image.png">
+
+    <!-- Structured Data: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "WithoutMe",
+      "url": "https://withoutme.app",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "SOP tool for local service businesses. Create step-by-step procedures, share them with your team via a link. No signup required to start.",
+      "offers": [
+        {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Free — Unlimited SOPs, templates, PDF export"
+        },
+        {
+          "@type": "Offer",
+          "price": "39",
+          "priceCurrency": "USD",
+          "billingIncrement": "P1M",
+          "description": "Pro — Team access, cloud sync, AI features"
+        }
+      ],
+      "creator": {
+        "@type": "Person",
+        "name": "Michael Cardin"
+      }
+    }
+    </script>
+
+    <!-- Structured Data: FAQ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is an SOP?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A Standard Operating Procedure (SOP) is a step-by-step guide that documents how to complete a specific task or process in your business. SOPs help teams do work consistently without needing to ask the owner every time."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need to create an account to use WithoutMe?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. You can start creating SOPs immediately without signing up. An account is optional — it enables cloud sync across devices and team sharing features."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do my team members access SOPs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Team members click a link you share with them and see your SOPs immediately. No account or app download required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What types of businesses use WithoutMe?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "WithoutMe is built for local service businesses with 10-30 employees — HVAC, plumbing, cleaning, landscaping, electrical, pest control, and similar trades."
+          }
+        }
+      ]
+    }
+    </script>
+
     <style>
         /* Minimal reset and base styles */
         * {
@@ -37,8 +135,38 @@
 </head>
 <body>
     <!-- Main Application Container -->
+    <!-- Static content below is visible to crawlers and non-JS visitors.
+         JS app replaces this container's innerHTML on load. -->
     <div id="app">
-        <div class="loading">Loading SOP Tool...</div>
+        <div class="loading">Loading WithoutMe...</div>
+        <!-- Static content: visible to crawlers and non-JS visitors.
+             JS app replaces this container's innerHTML on load. -->
+        <div id="static-fallback" style="max-width:720px;margin:0 auto;padding:2.5rem 2rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            <h1 style="font-size:2rem;margin:0 0 0.5rem;">WithoutMe</h1>
+            <p style="font-size:1.2rem;color:#475569;margin:0 0 2rem;">Stop being the bottleneck. Turn how you do work into clear steps your team can follow — without&nbsp;you.</p>
+
+            <h2 style="font-size:1.2rem;margin:1.5rem 0 0.5rem;">What is WithoutMe?</h2>
+            <p style="color:#374151;">WithoutMe is a web-based SOP (Standard Operating Procedure) tool for local service businesses with 10–30 employees. Create step-by-step procedures, share them with your team via a link, and let them run each task as a checklist. No training platform, no workflow automation — just clear steps your team follows without you.</p>
+
+            <h2 style="font-size:1.2rem;margin:1.5rem 0 0.5rem;">Key Features</h2>
+            <p style="color:#374151;">Unlimited SOP creation, 10 pre-built templates, PDF export, offline-first (works without internet), link-based team access (no signup required for team members), cloud sync across devices, and step-by-step checklist execution.</p>
+
+            <h2 style="font-size:1.2rem;margin:1.5rem 0 0.5rem;">Pricing</h2>
+            <p style="color:#374151;"><strong>Free</strong> — Unlimited SOPs, all templates, PDF export, offline use. Single device, no team sharing.</p>
+            <p style="color:#374151;"><strong>Pro — $39/mo</strong> — Everything in Free plus team access via shareable links, cloud sync across devices, and unlimited team members. Cancel anytime.</p>
+            <p style="color:#374151;">Payments processed by Paddle (Merchant of Record). 14-day refund policy on first payment.</p>
+
+            <h2 style="font-size:1.2rem;margin:1.5rem 0 0.5rem;">Who is it for?</h2>
+            <p style="color:#374151;">Owners of local service businesses — HVAC, plumbing, cleaning, landscaping, electrical, pest control. If your team does the same tasks every day and the process lives in your head, WithoutMe gets it out of your head and into their hands.</p>
+
+            <nav style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid #e5e7eb;font-size:0.85rem;">
+                <a href="/pricing.html" style="color:#6366f1;margin-right:1.5rem;">Pricing</a>
+                <a href="/terms.html" style="color:#6366f1;margin-right:1.5rem;">Terms &amp; Conditions</a>
+                <a href="/privacy.html" style="color:#6366f1;margin-right:1.5rem;">Privacy Policy</a>
+                <a href="/refund.html" style="color:#6366f1;">Refund Policy</a>
+            </nav>
+            <p style="margin-top:0.75rem;font-size:0.82rem;color:#94a3b8;">© 2026 WithoutMe · Operated by Michael Cardin, sole proprietor · support@withoutme.app</p>
+        </div>
     </div>
 
     <!-- 
@@ -47,9 +175,25 @@
         2. Load app.js last (it uses those classes)
         
         Features:
+        - Landing: Marketing page for new visitors
         - Dashboard: SOP listing, folder management, sorting, filtering
         - SOPCreate: Create/edit SOPs with folder assignment
+        - Checklist: Run SOPs as step-by-step checklists
     -->
+    
+    <!-- Static footer: always visible to crawlers. JS hides via id once app loads. -->
+    <footer id="static-footer" style="text-align:center;padding:1.5rem;border-top:1px solid #e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:0.85rem;color:#64748b;background:#f9fafb;">
+        <nav style="margin-bottom:0.5rem;">
+            <a href="/pricing.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Pricing</a>
+            <a href="/terms.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Terms &amp; Conditions</a>
+            <a href="/privacy.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Privacy Policy</a>
+            <a href="/refund.html" style="color:#6366f1;margin:0 0.75rem;text-decoration:none;">Refund Policy</a>
+        </nav>
+        <p style="margin:0;font-size:0.8rem;color:#94a3b8;">© 2026 WithoutMe · Operated by Michael Cardin, sole proprietor · <a href="mailto:support@withoutme.app" style="color:#94a3b8;">support@withoutme.app</a></p>
+    </footer>
+
+    <!-- Paddle.js SDK (for billing - loads async) -->
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     
     <!-- Supabase SDK (for cloud sync - optional) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -68,7 +212,11 @@
     <!-- Supabase Client (after storage-adapter, before modules) -->
     <script src="lib/supabase-client.js"></script>
     
+    <!-- Paddle Billing (plan state, checkout, pricing UI) -->
+    <script src="lib/paddle-billing.js"></script>
+    
     <!-- Module Scripts -->
+    <script src="modules/landing.js"></script>
     <script src="modules/dashboard.js"></script>
     <script src="modules/sop-create.js"></script>
     <script src="modules/checklist.js"></script>
