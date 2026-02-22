@@ -234,7 +234,7 @@
                         <div class="landing-price-amount">$39<span class="landing-price-period">/mo</span></div>
                         <ul class="landing-price-features">
                             <li>Everything in Free</li>
-                            <li><strong>AI builds your SOPs for you</strong></li>
+                            <li><strong>Describe the task, AI writes the steps</strong></li>
                             <li><strong>Team access — share via link</strong></li>
                             <li>Cloud sync across all devices</li>
                             <li>Unlimited team members</li>
