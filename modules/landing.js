@@ -512,7 +512,7 @@
 
             .landing-section-subtitle {
                 text-align: center;
-                color: #64748b;
+                color: #475569;
                 font-size: 1.05rem;
                 margin: 0 0 2.5rem 0;
                 max-width: 560px;
@@ -650,7 +650,7 @@
                 font-size: 0.9rem;
             }
             .landing-browse-link a {
-                color: #6366f1;
+                color: #4f46e5;
                 text-decoration: none;
                 font-weight: 500;
             }
