@@ -215,7 +215,7 @@
             <!-- PRICING -->
             <section class="landing-section landing-pricing">
                 <h2 class="landing-section-title">Simple pricing</h2>
-                <p class="landing-section-subtitle">Start free. Upgrade when you're ready to share with your team.</p>
+                <p class="landing-section-subtitle">Start free. Upgrade when you want AI-powered SOPs and team sharing.</p>
                 <div class="landing-pricing-cards">
                     <div class="landing-price-card">
                         <h3 class="landing-price-name">Free</h3>
@@ -234,8 +234,9 @@
                         <div class="landing-price-amount">$39<span class="landing-price-period">/mo</span></div>
                         <ul class="landing-price-features">
                             <li>Everything in Free</li>
+                            <li><strong>AI builds your SOPs for you</strong></li>
                             <li><strong>Team access — share via link</strong></li>
-                            <li><strong>Cloud sync — access anywhere</strong></li>
+                            <li>Cloud sync across all devices</li>
                             <li>Unlimited team members</li>
                         </ul>
                         <button class="landing-cta-primary" data-action="start-now">Start free, upgrade later</button>
