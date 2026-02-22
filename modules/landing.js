@@ -343,7 +343,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                color: #6366f1;
+                color: #4f46e5;
                 margin: 0 0 1rem 0;
             }
 
@@ -398,7 +398,7 @@
 
             .landing-cta-note {
                 font-size: 0.82rem;
-                color: #94a3b8;
+                color: #64748b;
                 margin: 0;
             }
 
@@ -433,7 +433,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
-                color: #16a34a;
+                color: #15803d;
                 background: #f0fdf4;
                 padding: 0.2rem 0.6rem;
                 border-radius: 4px;
@@ -461,7 +461,7 @@
             }
 
             .landing-preview-step.done {
-                color: #94a3b8;
+                color: #64748b;
                 text-decoration: line-through;
                 text-decoration-color: #cbd5e1;
             }
@@ -677,7 +677,7 @@
 
             .landing-template-desc {
                 font-size: 0.78rem;
-                color: #94a3b8;
+                color: #64748b;
             }
 
             /* ---- DIFFERENTIATOR ---- */
@@ -739,7 +739,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.06em;
-                color: #64748b;
+                color: #475569;
                 margin-bottom: 0.25rem;
             }
 
@@ -838,7 +838,7 @@
             .landing-pricing-note {
                 text-align: center;
                 font-size: 0.82rem;
-                color: #94a3b8;
+                color: #64748b;
                 margin: 1.25rem 0 0;
             }
 
@@ -891,7 +891,7 @@
                 text-align: center;
                 padding: 2rem;
                 border-top: 1px solid #e2e8f0;
-                color: #94a3b8;
+                color: #64748b;
                 font-size: 0.85rem;
             }
 

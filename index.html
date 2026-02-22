@@ -156,7 +156,7 @@
     <!-- Main Application Container -->
     <!-- Static content below is visible to crawlers and non-JS visitors.
          JS app replaces this container's innerHTML on load. -->
-    <div id="app">
+    <main id="app">
         <div class="loading">Loading WithoutMe...</div>
         <!-- Static content: visible to crawlers and non-JS visitors.
              JS app replaces this container's innerHTML on load. -->
@@ -187,7 +187,7 @@
             </nav>
             <p style="margin-top:0.75rem;font-size:0.82rem;color:#94a3b8;">© 2026 WithoutMe · Operated by Michael Cardin, sole proprietor · support@withoutme.app</p>
         </div>
-    </div>
+    </main>
 
     <!-- 
         SCRIPT LOADING ORDER IS IMPORTANT!
@@ -216,7 +216,7 @@
     <!-- Paddle.js SDK (for billing)
          NOTE: Consider adding async attribute for Core Web Vitals improvement.
          Test thoroughly — paddle-billing.js must handle async load gracefully. -->
-    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    </script><script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     
     <!-- Supabase SDK (for cloud sync - optional) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -240,14 +240,4 @@
     
     <!-- Module Scripts -->
     <script src="modules/landing.js"></script>
-    <script src="modules/dashboard.js"></script>
-    <script src="modules/sop-create.js"></script>
-    <script src="modules/checklist.js"></script>
-    
-    <!-- Module Integration (patches localStorage, loads after modules) -->
-    <script src="lib/module-integration.js"></script>
-    
-    <!-- Main Application Script (MUST be loaded last) -->
-    <script src="app.js"></script>
-</body>
-</html>
+    <script src="modules/da
