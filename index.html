@@ -216,7 +216,7 @@
     <!-- Paddle.js SDK (for billing)
          NOTE: Consider adding async attribute for Core Web Vitals improvement.
          Test thoroughly — paddle-billing.js must handle async load gracefully. -->
-    </script><script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     
     <!-- Supabase SDK (for cloud sync - optional) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -240,4 +240,14 @@
     
     <!-- Module Scripts -->
     <script src="modules/landing.js"></script>
-    <script src="modules/da
+    <script src="modules/dashboard.js"></script>
+    <script src="modules/sop-create.js"></script>
+    <script src="modules/checklist.js"></script>
+    
+    <!-- Module Integration (patches localStorage, loads after modules) -->
+    <script src="lib/module-integration.js"></script>
+    
+    <!-- Main Application Script (MUST be loaded last) -->
+    <script src="app.js"></script>
+</body>
+</html>
