@@ -2127,9 +2127,12 @@
                     <div class="team-panel">
                         <div class="team-invite-area">
                             <p class="team-invite-desc">Invite team members to view your Active SOPs and run checklists.</p>
-                            <button class="btn btn-primary" id="btn-create-invite">
-                                🔗 Create Invite Link
-                            </button>
+                            <div class="invite-create-row">
+                                <input type="text" class="form-input invite-name-input" id="invite-name-input" placeholder="Employee name (e.g. John)" maxlength="50" />
+                                <button class="btn btn-primary" id="btn-create-invite">
+                                    🔗 Create Invite Link
+                                </button>
+                            </div>
                         </div>
                         <div class="team-member-list" id="team-member-list">
                             <p class="team-loading">Loading team members...</p>
@@ -2165,7 +2168,7 @@
                 return `
                 <div class="team-member-row" data-member-id="${m.id}">
                     <div class="member-info">
-                        <span class="member-email">${this._escapeHtml(m.email || 'Pending invite')}</span>
+                        <span class="member-email">${this._escapeHtml(m.name || 'Unnamed invite')}</span>
                         <span class="member-status status-badge-${m.status}">${m.status}</span>
                     </div>
                     <div class="member-actions">
@@ -2229,13 +2232,17 @@
                 createInviteBtn.disabled = true;
                 createInviteBtn.textContent = 'Creating...';
                 
-                const result = await SupabaseClient.createInvite();
+                const nameInput = document.getElementById('invite-name-input');
+                const name = nameInput ? nameInput.value.trim() : '';
+                
+                const result = await SupabaseClient.createInvite(name);
                 
                 createInviteBtn.disabled = false;
                 createInviteBtn.textContent = '🔗 Create Invite Link';
                 
                 if (result.success) {
-                    this._showNotification('Invite link created', 'success');
+                    if (nameInput) nameInput.value = '';
+                    this._showNotification(`Invite link created${name ? ' for ' + name : ''}`, 'success');
                     
                     // Refresh member list — the new invite will appear with its link
                     this._loadTeamMembers();
@@ -3464,6 +3471,23 @@
                     font-size: 13px;
                     color: #6b7280;
                     margin-bottom: 12px;
+                }
+                .invite-create-row {
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                }
+                .invite-name-input {
+                    flex: 1;
+                    font-size: 13px;
+                    padding: 8px 10px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                }
+                .invite-name-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
                 }
                 .team-member-list {
                     margin-top: 16px;
