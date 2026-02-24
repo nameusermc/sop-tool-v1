@@ -181,6 +181,9 @@
                 // Transition TO completed - set both status AND timestamp
                 checklist.status = CHECKLIST_STATUS.COMPLETED;
                 checklist.completedAt = Date.now();
+                
+                // Phase 9: Write back team completion to Supabase (fire-and-forget)
+                this._recordTeamCompletion(checklist);
             } else if (!allComplete && checklist.status === CHECKLIST_STATUS.COMPLETED) {
                 // Transition FROM completed (user unchecked a step) - revert to in_progress
                 checklist.status = CHECKLIST_STATUS.IN_PROGRESS;
@@ -670,6 +673,9 @@
                 checklist.completedAt = Date.now();
                 this._saveProgress();  // Save immediately on completion
                 this._showCompletionCelebration();
+                
+                // Phase 9: Write back team completion to Supabase (fire-and-forget)
+                this._recordTeamCompletion(checklist);
             } else if (!allComplete && checklist.status === CHECKLIST_STATUS.COMPLETED) {
                 // Transition FROM completed (user unchecked a step)
                 checklist.status = CHECKLIST_STATUS.IN_PROGRESS;
@@ -688,6 +694,37 @@
                 this._attachEventListeners();
             }, 500);
             if (this.callbacks.onComplete) this.callbacks.onComplete(this.currentChecklist);
+        }
+        
+        /**
+         * Phase 9: Record team member completion to Supabase.
+         * Fire-and-forget — only runs in team member sessions (invite code present).
+         * Does not block or affect the team member's local experience.
+         */
+        _recordTeamCompletion(checklist) {
+            // Only fire in team member sessions
+            const inviteCode = localStorage.getItem('withoutme_team_invite_code');
+            if (!inviteCode) return;
+            
+            if (typeof SupabaseClient === 'undefined' || !SupabaseClient) return;
+            
+            console.log('[Checklist] Recording team completion:', checklist.sopTitle);
+            
+            SupabaseClient.recordTeamCompletion(inviteCode, {
+                sopId: checklist.sopId,
+                sopTitle: checklist.sopTitle,
+                steps: checklist.steps,
+                completedSteps: checklist.completedSteps || checklist.steps.filter(s => s.completed).length,
+                totalSteps: checklist.totalSteps || checklist.steps.length
+            }).then(result => {
+                if (result.success) {
+                    console.log('[Checklist] Team completion recorded successfully');
+                } else {
+                    console.warn('[Checklist] Failed to record team completion:', result.error);
+                }
+            }).catch(err => {
+                console.warn('[Checklist] Team completion recording failed:', err);
+            });
         }
         
         _resetAll() {

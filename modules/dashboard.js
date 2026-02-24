@@ -856,6 +856,9 @@
                         <!-- Completed Checklists (archival) -->
                         ${this._renderCompletedChecklists()}
                         
+                        <!-- Team Activity (Phase 9 — owner sees team completions) -->
+                        ${isTeamOwner ? this._renderTeamActivity() : ''}
+                        
                         ${(isTeamOwner || (!isTeamMember && this.options.teamRole)) ? this._renderTeamManagement() : ''}
                     </main>
                 </div>
@@ -1758,6 +1761,12 @@
             if (role === 'owner' || role === 'solo') {
                 this._attachTeamManagementListeners();
             }
+            
+            // Team activity (Phase 9 — completion tracking for owners)
+            if (role === 'owner') {
+                this._loadTeamCompletions();
+                this._attachTeamActivityListeners();
+            }
         }
         
         /**
@@ -2116,6 +2125,182 @@
         
         // ====================================================================
         // TEAM MANAGEMENT (Owner only)
+        // ====================================================================
+        
+        // ====================================================================
+        // TEAM ACTIVITY (Phase 9 — Completion Tracking)
+        // ====================================================================
+        
+        /**
+         * Render the Team Activity section shell.
+         * Content is loaded async by _loadTeamCompletions().
+         */
+        _renderTeamActivity() {
+            return `
+                <section class="team-activity-section" id="team-activity">
+                    <div class="section-header section-header-collapsible" id="team-activity-header">
+                        <h3>📋 Team Activity</h3>
+                    </div>
+                    <div class="team-activity-content" id="team-activity-content">
+                        <p class="team-activity-loading">Loading team activity...</p>
+                    </div>
+                </section>
+            `;
+        }
+        
+        /**
+         * Fetch and render team completions from Supabase.
+         * Called after dashboard renders for team owners.
+         */
+        async _loadTeamCompletions() {
+            if (!window.SupabaseClient) return;
+            
+            const teamId = this.options.teamRole?.teamId;
+            if (!teamId) return;
+            
+            const contentEl = document.getElementById('team-activity-content');
+            if (!contentEl) return;
+            
+            try {
+                const result = await SupabaseClient.fetchTeamCompletions(teamId, 50);
+                
+                if (!result.success) {
+                    contentEl.innerHTML = '<p class="team-activity-empty">Could not load team activity.</p>';
+                    return;
+                }
+                
+                const completions = result.completions || [];
+                
+                if (completions.length === 0) {
+                    contentEl.innerHTML = '<p class="team-activity-empty">No completions yet. Once your team runs checklists, their progress will appear here.</p>';
+                    return;
+                }
+                
+                // Group completions by date, then by employee within each date
+                const grouped = this._groupCompletionsByDate(completions);
+                
+                contentEl.innerHTML = grouped.map(dateGroup => `
+                    <div class="ta-date-group">
+                        <div class="ta-date-label">${this._escapeHtml(dateGroup.label)}</div>
+                        ${dateGroup.employees.map(emp => `
+                            <div class="ta-employee-group">
+                                <div class="ta-employee-header">
+                                    <span class="ta-employee-name">${this._escapeHtml(emp.name || 'Unknown')}</span>
+                                    <span class="ta-employee-count">${emp.completions.length} completion${emp.completions.length !== 1 ? 's' : ''}</span>
+                                </div>
+                                ${emp.completions.map(c => {
+                                    const time = new Date(c.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                    const steps = c.steps || [];
+                                    return `
+                                        <div class="ta-completion-row">
+                                            <div class="ta-completion-summary" data-completion-id="${c.id}">
+                                                <span class="ta-check">✅</span>
+                                                <span class="ta-sop-title">${this._escapeHtml(c.sop_title)}</span>
+                                                <span class="ta-time">${time}</span>
+                                                <span class="ta-expand-arrow" data-completion-id="${c.id}">▶</span>
+                                            </div>
+                                            <div class="ta-step-detail" id="ta-detail-${c.id}" style="display:none;">
+                                                ${steps.map((step, i) => {
+                                                    const stepTime = step.completedAt
+                                                        ? new Date(step.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                        : '';
+                                                    return `
+                                                        <div class="ta-step ${step.completed ? 'ta-step-done' : ''}">
+                                                            <span class="ta-step-num">${i + 1}</span>
+                                                            <span class="ta-step-text">${this._escapeHtml(step.text || '')}</span>
+                                                            ${stepTime ? `<span class="ta-step-time">${stepTime}</span>` : ''}
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `).join('')}
+                    </div>
+                `).join('');
+                
+            } catch (e) {
+                console.error('[Dashboard] Failed to load team completions:', e);
+                contentEl.innerHTML = '<p class="team-activity-empty">Could not load team activity.</p>';
+            }
+        }
+        
+        /**
+         * Group completions by date label, then by employee within each date.
+         * Returns: [{ label: 'Today', employees: [{ name, completions: [...] }] }, ...]
+         */
+        _groupCompletionsByDate(completions) {
+            const now = new Date();
+            const todayStr = now.toDateString();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toDateString();
+            
+            // Group by date string first
+            const dateMap = {};
+            const dateOrder = [];
+            
+            completions.forEach(c => {
+                const d = new Date(c.completed_at);
+                const ds = d.toDateString();
+                
+                let label;
+                if (ds === todayStr) label = 'Today';
+                else if (ds === yesterdayStr) label = 'Yesterday';
+                else label = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                
+                if (!dateMap[ds]) {
+                    dateMap[ds] = { label, employeeMap: {}, employeeOrder: [] };
+                    dateOrder.push(ds);
+                }
+                
+                const group = dateMap[ds];
+                const empKey = c.member_name || c.invite_code || 'Unknown';
+                
+                if (!group.employeeMap[empKey]) {
+                    group.employeeMap[empKey] = { name: c.member_name || 'Unknown', completions: [] };
+                    group.employeeOrder.push(empKey);
+                }
+                
+                group.employeeMap[empKey].completions.push(c);
+            });
+            
+            // Convert to array format
+            return dateOrder.map(ds => ({
+                label: dateMap[ds].label,
+                employees: dateMap[ds].employeeOrder.map(ek => dateMap[ds].employeeMap[ek])
+            }));
+        }
+        
+        /**
+         * Attach expand/collapse listeners for team activity completion details.
+         */
+        _attachTeamActivityListeners() {
+            const section = document.getElementById('team-activity-content');
+            if (!section) return;
+            
+            section.addEventListener('click', (e) => {
+                const summary = e.target.closest('.ta-completion-summary');
+                if (!summary) return;
+                
+                const id = summary.dataset.completionId;
+                if (!id) return;
+                
+                const detail = document.getElementById('ta-detail-' + id);
+                const arrow = summary.querySelector('.ta-expand-arrow');
+                
+                if (detail) {
+                    const isOpen = detail.style.display !== 'none';
+                    detail.style.display = isOpen ? 'none' : 'block';
+                    if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+                }
+            });
+        }
+        
+        // ====================================================================
+        // TEAM MANAGEMENT
         // ====================================================================
         
         _renderTeamManagement() {
@@ -3557,6 +3742,129 @@
                     font-size: 13px;
                     color: #9ca3af;
                     font-style: italic;
+                }
+                
+                /* Phase 9 — Team Activity */
+                .team-activity-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .team-activity-loading, .team-activity-empty {
+                    font-size: 13px;
+                    color: #9ca3af;
+                    font-style: italic;
+                }
+                .ta-date-group {
+                    margin-bottom: 20px;
+                }
+                .ta-date-group:last-child { margin-bottom: 0; }
+                .ta-date-label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    color: #6b7280;
+                    margin-bottom: 8px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .ta-employee-group {
+                    margin-bottom: 12px;
+                    margin-left: 4px;
+                }
+                .ta-employee-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 6px;
+                }
+                .ta-employee-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #1f2937;
+                }
+                .ta-employee-count {
+                    font-size: 12px;
+                    color: #9ca3af;
+                }
+                .ta-completion-row {
+                    margin-bottom: 4px;
+                }
+                .ta-completion-summary {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 10px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    transition: background 0.15s;
+                }
+                .ta-completion-summary:hover {
+                    background: #f9fafb;
+                }
+                .ta-check { font-size: 14px; flex-shrink: 0; }
+                .ta-sop-title {
+                    flex: 1;
+                    font-size: 13px;
+                    color: #374151;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .ta-time {
+                    font-size: 12px;
+                    color: #9ca3af;
+                    white-space: nowrap;
+                }
+                .ta-expand-arrow {
+                    font-size: 10px;
+                    color: #9ca3af;
+                    flex-shrink: 0;
+                    transition: transform 0.15s;
+                }
+                .ta-step-detail {
+                    margin: 4px 0 8px 32px;
+                    padding: 8px 12px;
+                    background: #f9fafb;
+                    border: 1px solid #f3f4f6;
+                    border-radius: 6px;
+                }
+                .ta-step {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                    padding: 4px 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                }
+                .ta-step-done { color: #374151; }
+                .ta-step-num {
+                    min-width: 20px;
+                    height: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #e5e7eb;
+                    border-radius: 50%;
+                    font-size: 10px;
+                    font-weight: 600;
+                    flex-shrink: 0;
+                }
+                .ta-step-done .ta-step-num {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .ta-step-text {
+                    flex: 1;
+                    line-height: 1.4;
+                }
+                .ta-step-time {
+                    font-size: 11px;
+                    color: #9ca3af;
+                    white-space: nowrap;
+                    flex-shrink: 0;
                 }
                 
                 .modal-body {

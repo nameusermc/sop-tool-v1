@@ -513,6 +513,9 @@
             return;  // Team link view is self-contained, skip normal init
         }
         
+        // Not a team link session — clear any stale invite code
+        localStorage.removeItem('withoutme_team_invite_code');
+        
         // Check for required modules
         const modulesLoaded = {
             Dashboard: typeof Dashboard === 'function',
@@ -793,6 +796,10 @@
             
             // Store invite code for potential refresh
             AppState.activeInviteCode = inviteCode;
+            
+            // Phase 9: Store invite code in localStorage so checklist module
+            // can use it for completion write-back (fire-and-forget to Supabase)
+            localStorage.setItem('withoutme_team_invite_code', inviteCode);
             
             // Write team SOPs to localStorage so checklist module can find them
             // (checklist._getSOP reads from localStorage)
