@@ -2130,10 +2130,6 @@
                             <button class="btn btn-primary" id="btn-create-invite">
                                 🔗 Create Invite Link
                             </button>
-                            <div class="invite-link-area" id="invite-link-area" style="display:none;">
-                                <input type="text" class="form-input invite-link-input" id="invite-link-input" readonly />
-                                <button class="btn btn-secondary" id="btn-copy-invite">📋 Copy</button>
-                            </div>
                         </div>
                         <div class="team-member-list" id="team-member-list">
                             <p class="team-loading">Loading team members...</p>
@@ -2149,6 +2145,8 @@
             const members = await SupabaseClient.fetchTeamMembers();
             const listEl = document.getElementById('team-member-list');
             if (!listEl) return;
+
+            console.log('[Dashboard] Team members loaded:', members);
             
             // Filter out owner from the display list
             const displayMembers = members.filter(m => m.role !== 'owner');
@@ -2158,24 +2156,51 @@
                 return;
             }
             
-            listEl.innerHTML = displayMembers.map(m => `
+            const baseUrl = `${window.location.origin}${window.location.pathname}`;
+            
+            listEl.innerHTML = displayMembers.map(m => {
+                const isPending = m.status === 'pending';
+                const inviteLink = m.invite_code ? `${baseUrl}?invite=${m.invite_code}` : '';
+                
+                return `
                 <div class="team-member-row" data-member-id="${m.id}">
                     <div class="member-info">
                         <span class="member-email">${this._escapeHtml(m.email || 'Pending invite')}</span>
                         <span class="member-status status-badge-${m.status}">${m.status}</span>
                     </div>
-                    <button class="btn-icon member-remove" data-member-id="${m.id}" title="Remove">🗑️</button>
+                    <div class="member-actions">
+                        ${inviteLink ? `
+                            <input type="text" class="form-input invite-link-inline" value="${inviteLink}" readonly data-invite-link />
+                            <button class="btn-icon member-copy" data-link="${inviteLink}" title="Copy link">📋</button>
+                        ` : ''}
+                        <button class="btn-icon member-remove" data-member-id="${m.id}" title="${isPending ? 'Revoke invite' : 'Remove member'}">🗑️</button>
+                    </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
+            
+            // Attach copy listeners
+            listEl.querySelectorAll('.member-copy').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const link = btn.dataset.link;
+                    navigator.clipboard.writeText(link).then(() => {
+                        this._showNotification('Link copied to clipboard', 'success');
+                    }).catch(() => {
+                        const input = btn.parentElement.querySelector('[data-invite-link]');
+                        if (input) { input.select(); document.execCommand('copy'); }
+                        this._showNotification('Link copied', 'success');
+                    });
+                });
+            });
             
             // Attach remove listeners
             listEl.querySelectorAll('.member-remove').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const memberId = e.currentTarget.dataset.memberId;
-                    if (confirm('Remove this team member?')) {
+                    if (confirm('Remove this team member / revoke invite?')) {
                         const result = await SupabaseClient.removeTeamMember(memberId);
                         if (result.success) {
-                            this._showNotification('Team member removed', 'success');
+                            this._showNotification('Removed', 'success');
                             this._loadTeamMembers();
                         } else {
                             this._showNotification('Failed to remove: ' + result.error, 'error');
@@ -2210,35 +2235,12 @@
                 createInviteBtn.textContent = '🔗 Create Invite Link';
                 
                 if (result.success) {
-                    const link = `${window.location.origin}${window.location.pathname}?invite=${result.inviteCode}`;
-                    const linkArea = document.getElementById('invite-link-area');
-                    const linkInput = document.getElementById('invite-link-input');
-                    
-                    if (linkArea && linkInput) {
-                        linkInput.value = link;
-                        linkArea.style.display = 'flex';
-                        linkInput.select();
-                    }
-                    
                     this._showNotification('Invite link created', 'success');
                     
-                    // Refresh member list to show new pending invite
+                    // Refresh member list — the new invite will appear with its link
                     this._loadTeamMembers();
                 } else {
                     this._showNotification('Failed: ' + result.error, 'error');
-                }
-            });
-            
-            document.getElementById('btn-copy-invite')?.addEventListener('click', () => {
-                const input = document.getElementById('invite-link-input');
-                if (input) {
-                    navigator.clipboard.writeText(input.value).then(() => {
-                        this._showNotification('Link copied to clipboard', 'success');
-                    }).catch(() => {
-                        input.select();
-                        document.execCommand('copy');
-                        this._showNotification('Link copied', 'success');
-                    });
                 }
             });
             
@@ -3463,27 +3465,14 @@
                     color: #6b7280;
                     margin-bottom: 12px;
                 }
-                .invite-link-area {
-                    display: flex;
-                    gap: 8px;
-                    margin-top: 12px;
-                }
-                .invite-link-input {
-                    flex: 1;
-                    font-size: 12px;
-                    padding: 8px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 6px;
-                    background: #fff;
-                }
                 .team-member-list {
                     margin-top: 16px;
                 }
                 .team-member-row {
                     display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 0;
+                    flex-direction: column;
+                    gap: 6px;
+                    padding: 10px 0;
                     border-bottom: 1px solid #e5e7eb;
                 }
                 .team-member-row:last-child { border-bottom: none; }
@@ -3492,6 +3481,31 @@
                     align-items: center;
                     gap: 8px;
                 }
+                .member-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .invite-link-inline {
+                    flex: 1;
+                    font-size: 12px;
+                    padding: 4px 8px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 4px;
+                    background: #f9fafb;
+                    color: #6b7280;
+                    cursor: text;
+                }
+                .member-copy {
+                    opacity: 0.5;
+                    transition: opacity 0.15s;
+                    font-size: 16px;
+                    cursor: pointer;
+                    background: none;
+                    border: none;
+                    padding: 2px 4px;
+                }
+                .member-copy:hover { opacity: 1; }
                 .member-email {
                     font-size: 13px;
                     color: #1f2937;
