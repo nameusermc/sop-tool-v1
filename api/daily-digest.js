@@ -5,25 +5,24 @@
  * Queries yesterday's team completions and sends a summary email to each team owner.
  * Only sends if there were actual completions. Owners can opt out in account settings.
  * 
+ * Email provider: Postmark (CNAME-only DNS verification, no MX record needed).
+ * 
  * Deployed at: https://withoutme.app/api/daily-digest
  * 
  * SETUP:
  * 1. In Vercel dashboard → Settings → Environment Variables, add:
- *    - CRON_SECRET          (generate a random string — Vercel uses this to auth cron calls)
- *    - RESEND_API_KEY       (from Resend dashboard → API Keys)
- *    - SUPABASE_URL         (https://zzsndvvaihnflrglvtnj.supabase.co)
- *    - SUPABASE_SERVICE_KEY (service_role key from Supabase → Settings → API)
- *    - DIGEST_FROM_EMAIL    (e.g. "WithoutMe <team@withoutme.app>" — requires verified domain in Resend)
+ *    - CRON_SECRET              (generate a random string — Vercel uses this to auth cron calls)
+ *    - POSTMARK_SERVER_TOKEN    (from Postmark → API Tokens → Server API token)
+ *    - SUPABASE_URL             (https://zzsndvvaihnflrglvtnj.supabase.co)
+ *    - SUPABASE_SERVICE_KEY     (service_role key from Supabase → Settings → API)
+ *    - DIGEST_FROM_EMAIL        (e.g. "team@withoutme.app" — must match a verified domain/sender in Postmark)
  * 
- * 2. In Resend dashboard → Domains → Add your domain (withoutme.app):
- *    - Add the DNS records Resend provides (TXT + CNAME) to Namecheap
- *    - Once verified, set DIGEST_FROM_EMAIL to "WithoutMe <team@withoutme.app>"
- *    - Until verified, use "WithoutMe <onboarding@resend.dev>" for testing
+ * 2. In Postmark dashboard → Sender Signatures → verify withoutme.app domain (DKIM + Return-Path CNAME records).
  * 
  * 3. vercel.json cron entry handles scheduling — no external cron needed.
  * 
- * NOTE: Uses SUPABASE_SERVICE_KEY (service_role) to call RPC that reads auth.users.
- *       This key must NEVER be exposed to the browser.
+ * NOTE: Uses SUPABASE_SERVICE_KEY (service_role) to call RPC that reads auth.users
+ *       and POSTMARK_SERVER_TOKEN to send emails. Neither must be exposed to the browser.
  */
 
 // ========================================================================
@@ -48,11 +47,11 @@ export default async function handler(req, res) {
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    const FROM_EMAIL = process.env.DIGEST_FROM_EMAIL || 'WithoutMe <onboarding@resend.dev>';
+    const POSTMARK_TOKEN = process.env.POSTMARK_SERVER_TOKEN;
+    const FROM_EMAIL = process.env.DIGEST_FROM_EMAIL || 'team@withoutme.app';
 
     // Validate env vars
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !RESEND_API_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !POSTMARK_TOKEN) {
         console.error('[daily-digest] Missing environment variables');
         return res.status(500).json({ error: 'Server misconfigured' });
     }
@@ -105,17 +104,19 @@ export default async function handler(req, res) {
             const html = buildEmailHtml(team, completions, dateStr);
 
             try {
-                const emailRes = await fetch('https://api.resend.com/emails', {
+                const emailRes = await fetch('https://api.postmarkapp.com/email', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${RESEND_API_KEY}`,
-                        'Content-Type': 'application/json'
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Postmark-Server-Token': POSTMARK_TOKEN
                     },
                     body: JSON.stringify({
-                        from: FROM_EMAIL,
-                        to: team.owner_email,
-                        subject: subject,
-                        html: html
+                        From: FROM_EMAIL,
+                        To: team.owner_email,
+                        Subject: subject,
+                        HtmlBody: html,
+                        MessageStream: 'outbound'
                     })
                 });
 
@@ -125,11 +126,11 @@ export default async function handler(req, res) {
                 } else {
                     errors++;
                     const errBody = await emailRes.text();
-                    console.error(`[daily-digest] Resend error for ${team.owner_email}:`, emailRes.status, errBody);
+                    console.error(`[daily-digest] Postmark error for ${team.owner_email}:`, emailRes.status, errBody);
                 }
             } catch (emailErr) {
                 errors++;
-                console.error(`[daily-digest] Email send failed for ${team.owner_email}:`, emailErr);
+                console.error(`[daily-digest] Postmark send failed for ${team.owner_email}:`, emailErr);
             }
         }
 
