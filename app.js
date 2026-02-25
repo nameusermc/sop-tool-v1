@@ -562,6 +562,16 @@
                             localStorage.setItem('withoutme_business_type', bizType);
                         }
                     } catch (e) { /* ignore */ }
+                    
+                    // Sync digest opt-out from Supabase → localStorage
+                    try {
+                        const digestOptOut = await SupabaseClient.getDigestOptOut();
+                        if (digestOptOut) {
+                            localStorage.setItem('withoutme_digest_optout', '1');
+                        } else {
+                            localStorage.removeItem('withoutme_digest_optout');
+                        }
+                    } catch (e) { /* ignore */ }
                 }
             } else {
                 console.log('👤 Running in local-only mode');
@@ -1104,6 +1114,43 @@
                 }
                 .account-signin-btn:hover {
                     background: #4338ca;
+                }
+                .account-toggle {
+                    position: relative;
+                    display: inline-block;
+                    width: 40px;
+                    height: 22px;
+                    flex-shrink: 0;
+                    cursor: pointer;
+                }
+                .account-toggle input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .account-toggle-slider {
+                    position: absolute;
+                    inset: 0;
+                    background: #d1d5db;
+                    border-radius: 22px;
+                    transition: background 0.2s;
+                }
+                .account-toggle-slider::before {
+                    content: '';
+                    position: absolute;
+                    width: 16px;
+                    height: 16px;
+                    left: 3px;
+                    bottom: 3px;
+                    background: #fff;
+                    border-radius: 50%;
+                    transition: transform 0.2s;
+                }
+                .account-toggle input:checked + .account-toggle-slider {
+                    background: #4f46e5;
+                }
+                .account-toggle input:checked + .account-toggle-slider::before {
+                    transform: translateX(18px);
                 }
                 .account-panel-footer {
                     padding: 1rem 1.25rem;
@@ -1676,6 +1723,23 @@
                 <hr class="account-divider">
                 ` : ''}
 
+                ${isPro ? `
+                <div class="account-section">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+                        <div>
+                            <span class="account-label" style="margin-bottom:2px;">Daily team digest</span>
+                            <span style="font-size:0.72rem;color:#94a3b8;display:block;">Morning email with yesterday's team activity</span>
+                        </div>
+                        <label class="account-toggle" for="account-digest-toggle">
+                            <input type="checkbox" id="account-digest-toggle" ${(function(){ try { return localStorage.getItem('withoutme_digest_optout') === '1' ? '' : 'checked'; } catch(e) { return 'checked'; } })()} />
+                            <span class="account-toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="account-divider">
+                ` : ''}
+
                 <button class="account-link" id="account-change-password">
                     <span class="account-link-icon">🔒</span>
                     Change password
@@ -1748,6 +1812,24 @@
                     }
                 } finally {
                     if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
+                }
+            });
+
+            // Daily digest toggle — save opt-out to localStorage + Supabase
+            body.querySelector('#account-digest-toggle')?.addEventListener('change', async (e) => {
+                const enabled = e.target.checked;  // checked = ON (receives emails)
+                const optedOut = !enabled;
+                
+                // Save to localStorage for immediate UI state
+                if (optedOut) {
+                    localStorage.setItem('withoutme_digest_optout', '1');
+                } else {
+                    localStorage.removeItem('withoutme_digest_optout');
+                }
+                
+                // Save to Supabase user_metadata (read by server-side digest query)
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    await SupabaseClient.setDigestOptOut(optedOut);
                 }
             });
 
@@ -1950,6 +2032,16 @@
                         const bizType = await SupabaseClient.getBusinessType();
                         if (bizType) {
                             localStorage.setItem('withoutme_business_type', bizType);
+                        }
+                    } catch (e) { /* ignore */ }
+                    
+                    // Sync digest opt-out from Supabase → localStorage
+                    try {
+                        const digestOptOut = await SupabaseClient.getDigestOptOut();
+                        if (digestOptOut) {
+                            localStorage.setItem('withoutme_digest_optout', '1');
+                        } else {
+                            localStorage.removeItem('withoutme_digest_optout');
                         }
                     } catch (e) { /* ignore */ }
                 }
