@@ -479,7 +479,8 @@
                     const titleMatch = sop.title?.toLowerCase().includes(query);
                     const descMatch = sop.description?.toLowerCase().includes(query);
                     const tagMatch = sop.tags?.some(tag => tag.toLowerCase().includes(query));
-                    return titleMatch || descMatch || tagMatch;
+                    const stepMatch = sop.steps?.some(s => s.text?.toLowerCase().includes(query));
+                    return titleMatch || descMatch || tagMatch || stepMatch;
                 });
             }
             
@@ -1429,7 +1430,7 @@
                         
                         ${sop.tags && sop.tags.length > 0 ? `
                         <div class="sop-tags">
-                            ${sop.tags.slice(0, 3).map(tag => `<span class="tag">#${this._escapeHtml(tag)}</span>`).join('')}
+                            ${sop.tags.slice(0, 3).map(tag => `<span class="tag hashtag" data-hashtag="${this._escapeHtml(tag.toLowerCase())}">#${this._escapeHtml(tag)}</span>`).join('')}
                         </div>
                         ` : ''}
                     </div>
