@@ -366,6 +366,7 @@
                                 </div>
                                 <div class="actions-right">
                                     <button type="button" class="btn btn-secondary" id="btn-cancel">Cancel</button>
+                                    ${isEdit ? `<button type="button" class="btn btn-secondary" id="btn-history">🕐 History</button>` : ''}
                                     <button type="button" class="btn btn-secondary" id="btn-preview">👁️ Preview</button>
                                     <button type="submit" class="btn btn-primary" id="btn-save">💾 ${saveText}</button>
                                 </div>
@@ -381,6 +382,17 @@
                                 <button class="btn-close" id="btn-close-preview">✕</button>
                             </div>
                             <div class="preview-body" id="preview-body"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Version History Modal -->
+                    <div class="preview-modal" id="history-modal" style="display: none;">
+                        <div class="preview-content">
+                            <div class="preview-header">
+                                <h3>🕐 Version History</h3>
+                                <button class="btn-close" id="btn-close-history">✕</button>
+                            </div>
+                            <div class="preview-body" id="history-body"></div>
                         </div>
                     </div>
                     
@@ -586,6 +598,11 @@
             document.getElementById('btn-preview')?.addEventListener('click', () => this._showPreview());
             document.getElementById('btn-close-preview')?.addEventListener('click', () => this._hidePreview());
             document.getElementById('btn-delete')?.addEventListener('click', () => this._handleDelete());
+            document.getElementById('btn-history')?.addEventListener('click', () => this._showHistory());
+            document.getElementById('btn-close-history')?.addEventListener('click', () => this._hideHistory());
+            document.getElementById('history-modal')?.addEventListener('click', (e) => {
+                if (e.target.id === 'history-modal') this._hideHistory();
+            });
             
             // Form inputs
             document.getElementById('sop-title')?.addEventListener('input', (e) => {
@@ -876,6 +893,211 @@
             step.image = null;
             this._updateStepsList();
             this._saveDraftNow();
+        }
+        
+        // ====================================================================
+        // VERSION HISTORY
+        // ====================================================================
+        
+        /**
+         * Snapshot the current SOP state before an edit overwrites it.
+         * Stores in localStorage, capped at 5 versions per SOP.
+         * Images stripped from snapshots to conserve storage budget.
+         */
+        _snapshotVersion(existingSop) {
+            if (!existingSop?.id) return;
+            
+            const key = `withoutme_sop_history_${existingSop.id}`;
+            let history = [];
+            try {
+                const stored = localStorage.getItem(key);
+                if (stored) history = JSON.parse(stored);
+            } catch (e) { history = []; }
+            
+            // Strip images from snapshot to save space
+            const snapshot = {
+                ...existingSop,
+                steps: (existingSop.steps || []).map(s => ({
+                    ...s,
+                    image: s.image ? '[image]' : null
+                }))
+            };
+            
+            history.push({
+                savedAt: Date.now(),
+                snapshot
+            });
+            
+            // Cap at 5 versions (FIFO)
+            if (history.length > 5) {
+                history = history.slice(-5);
+            }
+            
+            try {
+                localStorage.setItem(key, JSON.stringify(history));
+            } catch (e) {
+                // localStorage full — drop oldest and retry
+                history = history.slice(-3);
+                try { localStorage.setItem(key, JSON.stringify(history)); } catch (e2) { /* give up */ }
+            }
+        }
+        
+        _loadVersionHistory(sopId) {
+            if (!sopId) return [];
+            const key = `withoutme_sop_history_${sopId}`;
+            try {
+                const stored = localStorage.getItem(key);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) { return []; }
+        }
+        
+        _showHistory() {
+            const sopId = this.currentSOP?.id;
+            if (!sopId) return;
+            
+            const history = this._loadVersionHistory(sopId);
+            const body = document.getElementById('history-body');
+            if (!body) return;
+            
+            if (history.length === 0) {
+                body.innerHTML = `
+                    <div class="history-empty">
+                        <p>No previous versions yet.</p>
+                        <p class="help-text">Versions are saved each time you edit and save this SOP.</p>
+                    </div>
+                `;
+            } else {
+                body.innerHTML = `
+                    <div class="history-list" id="history-list">
+                        ${history.slice().reverse().map((v, i) => {
+                            const realIndex = history.length - 1 - i;
+                            const date = new Date(v.savedAt);
+                            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            const stepCount = v.snapshot.steps?.length || 0;
+                            return `
+                                <div class="history-item">
+                                    <div class="history-item-info">
+                                        <div class="history-item-date">${dateStr} at ${timeStr}</div>
+                                        <div class="history-item-detail">${this._escapeHtml(v.snapshot.title)} — ${stepCount} step${stepCount !== 1 ? 's' : ''}</div>
+                                    </div>
+                                    <div class="history-item-actions">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-action="view-version" data-version-index="${realIndex}">View</button>
+                                        <button type="button" class="btn btn-primary btn-sm" data-action="restore-version" data-version-index="${realIndex}">Restore</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                
+                // Attach click handlers via delegation
+                const list = document.getElementById('history-list');
+                list?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-action]');
+                    if (!btn) return;
+                    const idx = parseInt(btn.dataset.versionIndex);
+                    const version = history[idx];
+                    if (!version) return;
+                    
+                    if (btn.dataset.action === 'view-version') {
+                        this._viewVersion(version);
+                    } else if (btn.dataset.action === 'restore-version') {
+                        this._restoreVersion(version);
+                    }
+                });
+            }
+            
+            const modal = document.getElementById('history-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+        
+        _hideHistory() {
+            const modal = document.getElementById('history-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        _viewVersion(version) {
+            const s = version.snapshot;
+            const body = document.getElementById('history-body');
+            if (!body) return;
+            
+            const dateStr = new Date(version.savedAt).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            });
+            
+            body.innerHTML = `
+                <div class="history-view">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-history-back">← Back to list</button>
+                    <div class="history-view-header">
+                        <div class="history-view-date">Version from ${dateStr}</div>
+                    </div>
+                    <div class="preview-sop">
+                        <h2>${this._escapeHtml(s.title)}</h2>
+                        ${s.description ? `<p>${this._escapeHtml(s.description)}</p>` : ''}
+                        <hr />
+                        <h3>Steps (${(s.steps || []).length})</h3>
+                        <ol class="preview-steps">
+                            ${(s.steps || []).map(step => `
+                                <li>
+                                    <strong>${this._escapeHtml(step.text)}</strong>
+                                    ${step.note ? `<p class="step-note">💡 ${this._escapeHtml(step.note)}</p>` : ''}
+                                    ${step.image === '[image]' ? `<p class="step-note">📷 Image attached (preserved on restore)</p>` : ''}
+                                </li>
+                            `).join('')}
+                        </ol>
+                    </div>
+                    <div class="history-view-actions">
+                        <button type="button" class="btn btn-primary" id="btn-restore-this">Restore this version</button>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('btn-history-back')?.addEventListener('click', () => this._showHistory());
+            document.getElementById('btn-restore-this')?.addEventListener('click', () => this._restoreVersion(version));
+        }
+        
+        _restoreVersion(version) {
+            if (!confirm('Restore this version? This will replace your current SOP content. You can undo by restoring a newer version from history.')) return;
+            
+            const s = version.snapshot;
+            
+            // Restore form state, preserving current images where step IDs match
+            this.formState.title = s.title || '';
+            this.formState.description = s.description || '';
+            this.formState.tags = s.tags || [];
+            this.formState.status = s.status || 'draft';
+            this.formState.folderId = s.folderId || this.formState.folderId;
+            
+            // Restore steps — preserve images from current version where step IDs match
+            const currentImages = {};
+            this.formState.steps.forEach(step => {
+                if (step.image) currentImages[step.id] = step.image;
+            });
+            
+            this.formState.steps = (s.steps || []).map(step => ({
+                id: step.id,
+                text: step.text || '',
+                note: step.note || '',
+                image: currentImages[step.id] || null,
+                order: step.order || 0
+            }));
+            
+            // Update all form fields
+            const titleEl = document.getElementById('sop-title');
+            const descEl = document.getElementById('sop-description');
+            const tagsEl = document.getElementById('sop-tags');
+            const statusEl = document.getElementById('sop-status');
+            
+            if (titleEl) { titleEl.value = this.formState.title; document.getElementById('title-count').textContent = this.formState.title.length; }
+            if (descEl) { descEl.value = this.formState.description; document.getElementById('desc-count').textContent = this.formState.description.length; }
+            if (tagsEl) tagsEl.value = this.formState.tags.join(', ');
+            if (statusEl) statusEl.value = this.formState.status;
+            
+            this._updateStepsList();
+            this._hideHistory();
+            this._showNotification('Version restored. Save to keep changes.', 'success');
         }
         
         _updateStepsList() {
@@ -1551,7 +1773,10 @@
             
             if (this.options.mode === 'edit' && this.currentSOP) {
                 const index = sops.findIndex(s => s.id === this.currentSOP.id);
-                if (index !== -1) sops[index] = sopData;
+                if (index !== -1) {
+                    this._snapshotVersion(sops[index]);
+                    sops[index] = sopData;
+                }
                 else sops.push(sopData);
             } else {
                 sops.push(sopData);
@@ -2580,6 +2805,57 @@
                     align-items: center;
                     justify-content: center;
                     line-height: 1;
+                }
+                
+                .history-empty {
+                    text-align: center;
+                    padding: 2rem;
+                    color: #6b7280;
+                }
+                .history-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                }
+                .history-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 0.875rem 1rem;
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                }
+                .history-item-date {
+                    font-weight: 600;
+                    font-size: 0.875rem;
+                    color: #1f2937;
+                }
+                .history-item-detail {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    margin-top: 2px;
+                }
+                .history-item-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-shrink: 0;
+                }
+                .btn-sm {
+                    padding: 0.375rem 0.75rem;
+                    font-size: 0.75rem;
+                }
+                .history-view-header {
+                    margin: 1rem 0 0.5rem;
+                }
+                .history-view-date {
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                    font-weight: 500;
+                }
+                .history-view-actions {
+                    margin-top: 1.5rem;
+                    text-align: right;
                 }
                 
                 .step-actions {
