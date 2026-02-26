@@ -572,6 +572,12 @@
                             localStorage.removeItem('withoutme_digest_optout');
                         }
                     } catch (e) { /* ignore */ }
+
+                    // Sync webhook URL from Supabase → localStorage (Phase 12G)
+                    try {
+                        const wUrl = await SupabaseClient.getWebhookUrl();
+                        localStorage.setItem('withoutme_webhook_url', wUrl || '');
+                    } catch (e) { /* ignore */ }
                 }
             } else {
                 console.log('👤 Running in local-only mode');
@@ -1811,6 +1817,22 @@
                 <hr class="account-divider">
                 ` : ''}
 
+                ${isPro ? `
+                <div class="account-section">
+                    <label class="account-label" for="account-webhook-url">Webhook URL <span style="font-size:0.7rem;color:#94a3b8;font-weight:400;">(optional)</span></label>
+                    <div style="display:flex;gap:0.4rem;align-items:center;">
+                        <input type="url" id="account-webhook-url" class="account-input" style="flex:1;"
+                            placeholder="https://hooks.zapier.com/..."
+                            value="${(function(){ try { return localStorage.getItem('withoutme_webhook_url') || ''; } catch(e) { return ''; } })()}"
+                            maxlength="500" />
+                        <button id="account-save-webhook" class="account-save-btn">Save</button>
+                    </div>
+                    <span id="account-webhook-hint" style="font-size:0.72rem;color:${(function(){ try { return localStorage.getItem('withoutme_webhook_url') ? '#059669' : '#94a3b8'; } catch(e) { return '#94a3b8'; } })()};">${(function(){ try { const v = localStorage.getItem('withoutme_webhook_url'); return v ? '✓ Active — completions will POST to this URL' : 'Get notified in Zapier, Make, or any webhook endpoint when checklists are completed.'; } catch(e) { return 'Get notified in Zapier, Make, or any webhook endpoint when checklists are completed.'; } })()}</span>
+                </div>
+
+                <hr class="account-divider">
+                ` : ''}
+
                 <button class="account-link" id="account-change-password">
                     <span class="account-link-icon">🔒</span>
                     Change password
@@ -1901,6 +1923,33 @@
                 // Save to Supabase user_metadata (read by server-side digest query)
                 if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
                     await SupabaseClient.setDigestOptOut(optedOut);
+                }
+            });
+
+            // Webhook URL — save on button click (Phase 12G)
+            body.querySelector('#account-save-webhook')?.addEventListener('click', async () => {
+                const input = document.getElementById('account-webhook-url');
+                const hint = document.getElementById('account-webhook-hint');
+                const saveBtn = document.getElementById('account-save-webhook');
+                const val = input?.value?.trim() || '';
+
+                if (val && !val.startsWith('https://')) {
+                    if (hint) { hint.textContent = '⚠ URL must start with https://'; hint.style.color = '#dc2626'; }
+                    return;
+                }
+
+                try {
+                    if (saveBtn) { saveBtn.textContent = '...'; saveBtn.disabled = true; }
+                    localStorage.setItem('withoutme_webhook_url', val);
+                    if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                        await SupabaseClient.setWebhookUrl(val);
+                    }
+                    if (hint) {
+                        hint.textContent = val ? '✓ Active — completions will POST to this URL' : 'Webhook removed.';
+                        hint.style.color = val ? '#059669' : '#94a3b8';
+                    }
+                } finally {
+                    if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
                 }
             });
 
@@ -2114,6 +2163,12 @@
                         } else {
                             localStorage.removeItem('withoutme_digest_optout');
                         }
+                    } catch (e) { /* ignore */ }
+
+                    // Sync webhook URL from Supabase → localStorage (Phase 12G)
+                    try {
+                        const wUrl = await SupabaseClient.getWebhookUrl();
+                        localStorage.setItem('withoutme_webhook_url', wUrl || '');
                     } catch (e) { /* ignore */ }
                 }
                 

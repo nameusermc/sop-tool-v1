@@ -2191,6 +2191,7 @@
                 <section class="team-activity-section" id="team-activity">
                     <div class="section-header" id="team-activity-header">
                         <h3>📋 Team Activity</h3>
+                        <button class="btn-sm btn-csv-export" id="btn-csv-export" title="Export to CSV">📥 Export CSV</button>
                     </div>
                     <div class="ta-controls">
                         <div class="ta-date-tabs" id="ta-date-tabs">
@@ -2553,6 +2554,12 @@
                     this._renderTeamActivityContent();
                     return;
                 }
+
+                // CSV export
+                if (e.target.closest('#btn-csv-export')) {
+                    this._exportCSV();
+                    return;
+                }
             });
         }
         
@@ -2570,6 +2577,80 @@
             } else {
                 filterEl.style.display = 'none';
             }
+        }
+
+        /**
+         * Export currently filtered team activity to CSV.
+         */
+        _exportCSV() {
+            const all = this._teamCompletions || [];
+            if (all.length === 0) {
+                this._showNotification('No data to export', 'error');
+                return;
+            }
+
+            // Apply same filters as rendered view
+            let filtered = this._filterByDateRange(all, this._taDateRange);
+            if (this._taEmployeeFilter) {
+                filtered = filtered.filter(c => (c.member_name || 'Unknown') === this._taEmployeeFilter);
+            }
+
+            if (filtered.length === 0) {
+                this._showNotification('No data in current filter to export', 'error');
+                return;
+            }
+
+            // Build CSV rows
+            const csvEscape = (val) => {
+                const s = String(val || '');
+                if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                    return '"' + s.replace(/"/g, '""') + '"';
+                }
+                return s;
+            };
+
+            const header = ['Date', 'Time', 'Employee', 'SOP Title', 'Steps Completed', 'Total Steps', 'Time to Complete', 'Notes'];
+            const rows = [header.join(',')];
+
+            filtered.forEach(c => {
+                const dt = new Date(c.completed_at);
+                const date = dt.toLocaleDateString();
+                const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const steps = c.steps || [];
+                const duration = this._calcTimeToComplete(steps);
+                const durationStr = duration !== null ? this._formatDuration(duration) : '';
+
+                // Collect notes
+                const notes = steps
+                    .filter(s => s.userNote)
+                    .map((s, i) => `Step ${i + 1}: ${s.userNote}`)
+                    .join(' | ');
+
+                rows.push([
+                    csvEscape(date),
+                    csvEscape(time),
+                    csvEscape(c.member_name || 'Unknown'),
+                    csvEscape(c.sop_title),
+                    c.completed_steps || steps.filter(s => s.completed).length,
+                    c.total_steps || steps.length,
+                    csvEscape(durationStr),
+                    csvEscape(notes)
+                ].join(','));
+            });
+
+            // Download
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const rangeLabel = this._taDateRange || 'all';
+            a.href = url;
+            a.download = `team-activity-${rangeLabel}-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this._showNotification('CSV exported', 'success');
         }
         
         // ====================================================================
@@ -4201,6 +4282,19 @@
                 .team-banner-text { font-size: 14px; font-weight: 600; color: #4338ca; }
                 
                 /* Assigned Tasks (Phase 12F) */
+                .btn-csv-export {
+                    background: #f3f4f6;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    color: #374151;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .btn-csv-export:hover {
+                    background: #e5e7eb;
+                }
                 .assigned-tasks-section {
                     margin-top: 24px;
                     padding-top: 24px;
