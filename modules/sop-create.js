@@ -634,6 +634,15 @@
             document.getElementById('preview-modal')?.addEventListener('click', (e) => {
                 if (e.target.id === 'preview-modal') this._hidePreview();
             });
+            
+            this._autoResizeTextareas();
+        }
+        
+        _autoResizeTextareas() {
+            document.querySelectorAll('.step-input, .step-note-input').forEach(ta => {
+                ta.style.height = 'auto';
+                ta.style.height = ta.scrollHeight + 'px';
+            });
         }
         
         _attachStepsListeners() {
@@ -649,6 +658,8 @@
                 if (!step) return;
                 if (e.target.classList.contains('step-input')) {
                     step.text = e.target.value;
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
                 }
                 if (e.target.classList.contains('step-note-input')) {
                     step.note = e.target.value;
@@ -798,6 +809,7 @@
             if (count) count.textContent = `${this.formState.steps.length} / ${this.options.maxSteps}`;
             if (addBtn) addBtn.disabled = this.formState.steps.length >= this.options.maxSteps;
             if (improveBtn) improveBtn.disabled = this.formState.steps.length === 0;
+            this._autoResizeTextareas();
         }
         
         // ====================================================================
@@ -2409,7 +2421,8 @@
                     border-radius: 6px;
                     font-size: 0.875rem;
                     line-height: 1.5;
-                    resize: vertical;
+                    resize: none;
+                    overflow: hidden;
                     box-sizing: border-box;
                     transition: border-color 0.2s ease;
                 }
