@@ -992,6 +992,123 @@
                     border-color: #4338ca;
                     color: #4338ca;
                 }
+                .help-btn {
+                    position: fixed;
+                    top: 12px;
+                    right: 60px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    border: 1px solid #d1d5db;
+                    background: #fff;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    font-weight: 600;
+                    z-index: 1000;
+                    transition: border-color 0.15s, box-shadow 0.15s;
+                    color: #6b7280;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                }
+                .help-btn:hover {
+                    border-color: #4338ca;
+                    color: #4338ca;
+                }
+                .help-panel-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.2);
+                    z-index: 1100;
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                }
+                .help-panel-overlay.visible {
+                    opacity: 1;
+                }
+                .help-panel {
+                    position: fixed;
+                    top: 0;
+                    right: -420px;
+                    width: 400px;
+                    max-width: 90vw;
+                    height: 100vh;
+                    background: #fff;
+                    z-index: 1101;
+                    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+                    transition: right 0.25s ease;
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: auto;
+                }
+                .help-panel.open {
+                    right: 0;
+                }
+                .help-panel-header {
+                    padding: 20px 20px 16px;
+                    border-bottom: 1px solid #e5e7eb;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-shrink: 0;
+                }
+                .help-panel-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                }
+                .help-panel-body {
+                    padding: 16px 20px 32px;
+                    flex: 1;
+                    overflow-y: auto;
+                }
+                .help-section {
+                    margin-bottom: 24px;
+                }
+                .help-section-title {
+                    font-size: 0.82rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 10px;
+                    padding-bottom: 6px;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .help-item {
+                    margin-bottom: 10px;
+                }
+                .help-item-title {
+                    font-size: 0.88rem;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 2px;
+                }
+                .help-item-desc {
+                    font-size: 0.78rem;
+                    color: #6b7280;
+                    line-height: 1.4;
+                }
+                .help-pro-badge {
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    color: #4338ca;
+                    background: #ede9fe;
+                    padding: 1px 6px;
+                    border-radius: 4px;
+                    margin-left: 6px;
+                    vertical-align: middle;
+                }
+                .help-panel-footer {
+                    padding: 12px 20px;
+                    border-top: 1px solid #e5e7eb;
+                    text-align: center;
+                    font-size: 0.75rem;
+                    color: #9ca3af;
+                    flex-shrink: 0;
+                }
                 .account-btn.signed-in {
                     border-color: #4338ca;
                     background: #f5f3ff;
@@ -1428,6 +1545,10 @@
                         top: 10px;
                         right: 12px;
                     }
+                    .help-btn {
+                        top: 10px;
+                        right: 54px;
+                    }
                     .signin-reminder {
                         margin: 0 0.75rem 1rem;
                     }
@@ -1436,6 +1557,10 @@
                     .account-btn {
                         top: 8px;
                         right: 10px;
+                    }
+                    .help-btn {
+                        top: 8px;
+                        right: 52px;
                     }
                 }
 
@@ -1541,6 +1666,15 @@
         accountBtn.addEventListener('click', () => toggleAccountPanel());
         updateAccountButton(accountBtn);
         document.body.appendChild(accountBtn);
+
+        // Create help button (Phase 13B)
+        const helpBtn = document.createElement('button');
+        helpBtn.className = 'help-btn';
+        helpBtn.id = 'help-btn';
+        helpBtn.title = 'Help & Features';
+        helpBtn.textContent = '?';
+        helpBtn.addEventListener('click', () => toggleHelpPanel());
+        document.body.appendChild(helpBtn);
 
         // Create sync status indicator
         const syncStatus = document.createElement('div');
@@ -1738,6 +1872,160 @@
             overlay.classList.remove('visible');
             setTimeout(() => overlay.remove(), 200);
         }
+    }
+
+    // ================================================================
+    // HELP PANEL (Phase 13B)
+    // ================================================================
+
+    function toggleHelpPanel() {
+        const existing = document.getElementById('help-panel');
+        if (existing) {
+            closeHelpPanel();
+        } else {
+            openHelpPanel();
+        }
+    }
+
+    function openHelpPanel() {
+        if (document.getElementById('help-panel')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'help-panel-overlay';
+        overlay.className = 'help-panel-overlay';
+        overlay.addEventListener('click', closeHelpPanel);
+        document.body.appendChild(overlay);
+
+        const panel = document.createElement('div');
+        panel.id = 'help-panel';
+        panel.className = 'help-panel';
+        panel.innerHTML = `
+            <div class="help-panel-header">
+                <h3>Help & Features</h3>
+                <button class="account-panel-close" id="help-panel-close-btn" title="Close">✕</button>
+            </div>
+            <div class="help-panel-body">
+                ${getHelpPanelContent()}
+            </div>
+            <div class="help-panel-footer">support@withoutme.app</div>
+        `;
+        document.body.appendChild(panel);
+
+        panel.querySelector('#help-panel-close-btn').addEventListener('click', closeHelpPanel);
+
+        requestAnimationFrame(() => {
+            overlay.classList.add('visible');
+            panel.classList.add('open');
+        });
+    }
+
+    function closeHelpPanel() {
+        const panel = document.getElementById('help-panel');
+        const overlay = document.getElementById('help-panel-overlay');
+        if (panel) {
+            panel.classList.remove('open');
+            setTimeout(() => panel.remove(), 250);
+        }
+        if (overlay) {
+            overlay.classList.remove('visible');
+            setTimeout(() => overlay.remove(), 200);
+        }
+    }
+
+    function getHelpPanelContent() {
+        return `
+            <div class="help-section">
+                <div class="help-section-title">Getting Started</div>
+                <div class="help-item">
+                    <div class="help-item-title">Create an SOP</div>
+                    <div class="help-item-desc">Add a title, description, and step-by-step instructions for any task your team needs to follow.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Templates</div>
+                    <div class="help-item-desc">Start from one of 18 industry-specific templates instead of a blank page.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Checklists</div>
+                    <div class="help-item-desc">Run any SOP as a step-by-step checklist. Check off steps as you go, add notes along the way.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Print / PDF</div>
+                    <div class="help-item-desc">Export any SOP for offline use or to post in your workspace.</div>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">📷 Editor Tools</div>
+                <div class="help-item">
+                    <div class="help-item-title">Images in steps</div>
+                    <div class="help-item-desc">Add photos or diagrams to any step. Images appear in checklists and print exports.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Version history</div>
+                    <div class="help-item-desc">View and restore previous versions of any SOP. Click the 🕐 button when editing.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Tags</div>
+                    <div class="help-item-desc">Add keyword tags to organize your SOPs. Click any tag badge to filter your list.</div>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">👥 Team Features <span class="help-pro-badge">Pro</span></div>
+                <div class="help-item">
+                    <div class="help-item-title">Invite links</div>
+                    <div class="help-item-desc">Share SOPs with your team using a link. No signup or app download needed on their end.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Task assignments</div>
+                    <div class="help-item-desc">Assign specific SOPs to team members with due dates. Click 📌 on any SOP card.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Team feedback</div>
+                    <div class="help-item-desc">Your team can flag issues on any SOP while running checklists. You'll see them in your dashboard.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Completion tracking</div>
+                    <div class="help-item-desc">See who completed which checklist, when they finished, and how long it took.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Activity dashboard</div>
+                    <div class="help-item-desc">Filter team completions by date range or employee. Export to CSV anytime.</div>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">⚡ Automation <span class="help-pro-badge">Pro</span></div>
+                <div class="help-item">
+                    <div class="help-item-title">AI-powered steps</div>
+                    <div class="help-item-desc">Describe the task, AI writes the steps. Set your business type in Account settings for tailored results.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">AI clarity</div>
+                    <div class="help-item-desc">Already have steps? AI rewrites them so a first-day employee could follow along.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Daily digest</div>
+                    <div class="help-item-desc">Every morning, get an email summarizing yesterday's team activity. Manage in Account settings.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Webhooks</div>
+                    <div class="help-item-desc">Send completion data to Zapier, Make, or Slack automatically. Set your webhook URL in Account settings.</div>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Account & Settings</div>
+                <div class="help-item">
+                    <div class="help-item-title">Cloud sync</div>
+                    <div class="help-item-desc">Sign in to access your SOPs from any device. Your data is always saved locally too.</div>
+                </div>
+                <div class="help-item">
+                    <div class="help-item-title">Works offline</div>
+                    <div class="help-item-desc">No internet? No problem. Everything works locally and syncs when you're back online.</div>
+                </div>
+            </div>
+        `;
     }
 
     /**
