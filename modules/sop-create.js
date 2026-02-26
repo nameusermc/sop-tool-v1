@@ -510,6 +510,14 @@
                             placeholder="Describe this step..." rows="2">${this._escapeHtml(step.text)}</textarea>
                         <input type="text" class="step-note-input" data-step-id="${step.id}"
                             placeholder="Add note (optional)" value="${this._escapeHtml(step.note || '')}" />
+                        ${step.image ? `
+                        <div class="step-image-preview">
+                            <img src="${step.image}" alt="Step image" />
+                            <button type="button" class="step-image-remove" data-action="remove-image" data-step-id="${step.id}" title="Remove image">✕</button>
+                        </div>
+                        ` : `
+                        <button type="button" class="step-image-btn" data-action="add-image" data-step-id="${step.id}">📷 Add image</button>
+                        `}
                     </div>
                     <div class="step-actions">
                         <button type="button" class="step-action-btn" data-action="move-up" 
@@ -553,6 +561,7 @@
                             <li>
                                 <strong>${this._escapeHtml(step.text)}</strong>
                                 ${step.note ? `<p class="step-note">💡 ${this._escapeHtml(step.note)}</p>` : ''}
+                                ${step.image ? `<img src="${step.image}" alt="Step image" style="max-width:100%;border-radius:6px;margin-top:8px;" />` : ''}
                             </li>
                         `).join('')}
                     </ol>
@@ -681,6 +690,8 @@
                 if (action === 'move-up') this._moveStep(index, index - 1);
                 else if (action === 'move-down') this._moveStep(index, index + 1);
                 else if (action === 'delete') this._deleteStep(index);
+                else if (action === 'add-image') this._handleStepImage(stepId);
+                else if (action === 'remove-image') this._removeStepImage(stepId);
             });
             
             // Drag: restrict to handle only.
@@ -755,6 +766,7 @@
                 id: `step_${Date.now()}`,
                 text: text,
                 note: '',
+                image: null,
                 order: this.formState.steps.length + 1
             });
             
@@ -790,6 +802,80 @@
         
         _reorderSteps() {
             this.formState.steps.forEach((step, i) => step.order = i + 1);
+        }
+        
+        /**
+         * Handle image upload for a step.
+         * Opens file picker, resizes via Canvas API (strips EXIF/scripts), stores as base64.
+         */
+        _handleStepImage(stepId) {
+            const step = this.formState.steps.find(s => s.id === stepId);
+            if (!step) return;
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+            
+            input.addEventListener('change', () => {
+                const file = input.files?.[0];
+                document.body.removeChild(input);
+                if (!file) return;
+                
+                // Validate file size (max 10MB raw — will be compressed)
+                if (file.size > 10 * 1024 * 1024) {
+                    this._showNotification('Image too large. Please use an image under 10MB.', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // SECURITY: Re-render through Canvas to strip embedded scripts, EXIF, malicious payloads
+                        const canvas = document.createElement('canvas');
+                        const maxWidth = 600;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > maxWidth) {
+                            height = Math.round(height * (maxWidth / width));
+                            width = maxWidth;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        // Fill white background (prevents black areas from PNG transparency)
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, width, height);
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Compress to JPEG (quality 0.6 keeps ~60-80KB base64)
+                        const base64 = canvas.toDataURL('image/jpeg', 0.6);
+                        step.image = base64;
+                        
+                        this._updateStepsList();
+                        this._saveDraftNow();
+                    };
+                    img.onerror = () => {
+                        this._showNotification('Could not load image. Try a different file.', 'error');
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            input.click();
+        }
+        
+        _removeStepImage(stepId) {
+            const step = this.formState.steps.find(s => s.id === stepId);
+            if (!step) return;
+            step.image = null;
+            this._updateStepsList();
+            this._saveDraftNow();
         }
         
         _updateStepsList() {
@@ -1450,6 +1536,7 @@
                     id: step.id || `step_${Date.now()}_${i}`,
                     text: step.text.trim(),
                     note: step.note?.trim() || '',
+                    image: step.image || null,
                     order: i + 1
                 })),
                 tags: this.formState.tags,
@@ -2448,6 +2535,51 @@
                 .step-note-input:focus {
                     outline: none;
                     border-color: #6366f1;
+                }
+                
+                .step-image-btn {
+                    display: inline-block;
+                    margin-top: 0.5rem;
+                    padding: 0.25rem 0.625rem;
+                    border: 1px dashed #d1d5db;
+                    border-radius: 4px;
+                    background: transparent;
+                    color: #6b7280;
+                    font-size: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                }
+                .step-image-btn:hover { border-color: #6366f1; color: #6366f1; }
+                
+                .step-image-preview {
+                    position: relative;
+                    display: inline-block;
+                    margin-top: 0.5rem;
+                    max-width: 100%;
+                }
+                .step-image-preview img {
+                    max-width: 100%;
+                    max-height: 200px;
+                    border-radius: 6px;
+                    border: 1px solid #e5e7eb;
+                    display: block;
+                }
+                .step-image-remove {
+                    position: absolute;
+                    top: 4px;
+                    right: 4px;
+                    width: 24px;
+                    height: 24px;
+                    border: none;
+                    border-radius: 50%;
+                    background: rgba(0,0,0,0.6);
+                    color: #fff;
+                    font-size: 12px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    line-height: 1;
                 }
                 
                 .step-actions {

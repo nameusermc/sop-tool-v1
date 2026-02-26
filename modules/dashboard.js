@@ -1865,6 +1865,7 @@
                     <div class="step-content">
                         <div class="step-text">${this._escapeHtml(step.text)}</div>
                         ${step.note ? `<div class="step-note">Note: ${this._escapeHtml(step.note)}</div>` : ''}
+                        ${step.image ? `<img src="${step.image}" style="max-width:100%;max-height:300px;border-radius:4px;margin-top:8px;" />` : ''}
                     </div>
                 </div>
             `).join('');
