@@ -100,8 +100,24 @@ export default async function handler(req, res) {
             const completions = team.completions || [];
             if (completions.length === 0) continue;
 
-            const subject = buildSubject(completions);
-            const html = buildEmailHtml(team, completions, dateStr);
+            // Check for new feedback yesterday (Phase 12E)
+            let feedbackCount = 0;
+            try {
+                const fbUrl = `${SUPABASE_URL}/rest/v1/sop_feedback?team_id=eq.${team.team_id}&created_at=gte.${dateStr}T00:00:00Z&created_at=lt.${dateStr}T23:59:59Z&select=id`;
+                const fbRes = await fetch(fbUrl, {
+                    headers: {
+                        'apikey': SUPABASE_SERVICE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+                    }
+                });
+                if (fbRes.ok) {
+                    const fbData = await fbRes.json();
+                    feedbackCount = Array.isArray(fbData) ? fbData.length : 0;
+                }
+            } catch (e) { /* non-critical — skip feedback count */ }
+
+            const subject = buildSubject(completions, feedbackCount);
+            const html = buildEmailHtml(team, completions, dateStr, feedbackCount);
 
             try {
                 const emailRes = await fetch('https://api.postmarkapp.com/email', {
@@ -150,16 +166,18 @@ export default async function handler(req, res) {
 /**
  * Build the email subject line.
  */
-function buildSubject(completions) {
+function buildSubject(completions, feedbackCount = 0) {
     const count = completions.length;
-    return `Your team completed ${count} checklist${count !== 1 ? 's' : ''} yesterday`;
+    const parts = [`Your team completed ${count} checklist${count !== 1 ? 's' : ''} yesterday`];
+    if (feedbackCount > 0) parts.push(`+ ${feedbackCount} new feedback`);
+    return parts.join(' ');
 }
 
 /**
  * Build the HTML email body.
  * Lightweight, scannable, links back to the app dashboard.
  */
-function buildEmailHtml(team, completions, dateStr) {
+function buildEmailHtml(team, completions, dateStr, feedbackCount = 0) {
     // Group completions by employee
     const byEmployee = {};
     const employeeOrder = [];
@@ -236,6 +254,14 @@ function buildEmailHtml(team, completions, dateStr) {
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:24px;">
             ${employeeSections}
         </div>
+
+        ${feedbackCount > 0 ? `
+        <!-- Feedback -->
+        <div style="background:#fafafe;border:1px solid #e5e7eb;border-left:3px solid #6366f1;border-radius:8px;padding:16px;margin-bottom:24px;">
+            <div style="font-size:14px;font-weight:600;color:#1f2937;">🚩 ${feedbackCount} new issue${feedbackCount !== 1 ? 's' : ''} flagged</div>
+            <div style="font-size:13px;color:#6b7280;margin-top:4px;">Your team flagged issues on SOPs yesterday. View details in your dashboard.</div>
+        </div>
+        ` : ''}
 
         <!-- CTA -->
         <div style="text-align:center;margin-bottom:32px;">

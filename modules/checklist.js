@@ -380,10 +380,13 @@
             }
             
             // Build footer (simpler for read-only)
+            let isTeamSession = !!localStorage.getItem('withoutme_team_invite_code');
             let footer = '';
             if (isReadOnly) {
                 footer = '<footer class="checklist-footer">' +
-                    '<div class="footer-left"></div>' +
+                    '<div class="footer-left">' +
+                        (isTeamSession ? '<button class="btn btn-secondary" id="btn-flag-issue">🚩 Flag Issue</button>' : '') +
+                    '</div>' +
                     '<div class="footer-right">' +
                         '<button class="btn btn-primary" id="btn-done">← Back to Dashboard</button>' +
                     '</div>' +
@@ -392,6 +395,7 @@
                 footer = '<footer class="checklist-footer">' +
                     '<div class="footer-left">' +
                         '<button class="btn btn-danger-subtle" id="btn-reset">↩️ Clear Progress</button>' +
+                        (isTeamSession ? '<button class="btn btn-secondary" id="btn-flag-issue">🚩 Flag Issue</button>' : '') +
                     '</div>' +
                     '<div class="footer-right">' +
                         (!isComplete ?
@@ -438,6 +442,30 @@
                 footer +
                 '<div class="notification-toast" id="notification-toast" style="display: none;">' +
                     '<span class="notification-message"></span>' +
+                '</div>' +
+                '<div class="feedback-modal-overlay" id="feedback-modal" style="display:none;">' +
+                    '<div class="feedback-modal">' +
+                        '<div class="feedback-modal-header">' +
+                            '<h3>🚩 Flag an Issue</h3>' +
+                            '<button class="btn-close" id="btn-close-feedback">✕</button>' +
+                        '</div>' +
+                        '<div class="feedback-modal-body">' +
+                            '<label class="feedback-label">Which step? (optional)</label>' +
+                            '<select class="feedback-select" id="feedback-step">' +
+                                '<option value="">General feedback</option>' +
+                                (this.currentChecklist ? this.currentChecklist.steps.map((s, i) =>
+                                    '<option value="' + (i + 1) + '">Step ' + (i + 1) + ': ' + this._escapeHtml((s.text || '').substring(0, 40)) + '</option>'
+                                ).join('') : '') +
+                            '</select>' +
+                            '<label class="feedback-label">What\'s the issue?</label>' +
+                            '<textarea class="feedback-textarea" id="feedback-comment" placeholder="Describe the problem..." maxlength="500" rows="3"></textarea>' +
+                            '<div class="feedback-char-count"><span id="feedback-char">0</span>/500</div>' +
+                        '</div>' +
+                        '<div class="feedback-modal-footer">' +
+                            '<button class="btn btn-secondary" id="btn-cancel-feedback">Cancel</button>' +
+                            '<button class="btn btn-primary" id="btn-submit-feedback">Submit</button>' +
+                        '</div>' +
+                    '</div>' +
                 '</div>' +
             '</div>';
         }
@@ -507,6 +535,9 @@
             // Back and Done buttons always work
             document.getElementById('btn-back')?.addEventListener('click', () => this._handleBack());
             document.getElementById('btn-done')?.addEventListener('click', () => this._handleBack());
+            
+            // Flag issue button (team sessions — available in both read-only and interactive modes)
+            document.getElementById('btn-flag-issue')?.addEventListener('click', () => this._showFlagIssueModal());
             
             // Skip interactive handlers in read-only mode
             if (this.readOnly) {
@@ -811,6 +842,85 @@
             document.getElementById('checklist-styles')?.remove();
         }
         
+        // ================================================================
+        // TEAM FEEDBACK (Phase 12E)
+        // ================================================================
+        
+        _showFlagIssueModal() {
+            const modal = document.getElementById('feedback-modal');
+            if (!modal) return;
+            modal.style.display = 'flex';
+            
+            // Attach modal event listeners (idempotent via flag)
+            if (!modal._listenersAttached) {
+                modal._listenersAttached = true;
+                document.getElementById('btn-close-feedback')?.addEventListener('click', () => this._hideFlagIssueModal());
+                document.getElementById('btn-cancel-feedback')?.addEventListener('click', () => this._hideFlagIssueModal());
+                document.getElementById('btn-submit-feedback')?.addEventListener('click', () => this._submitFeedback());
+                document.getElementById('feedback-comment')?.addEventListener('input', (e) => {
+                    document.getElementById('feedback-char').textContent = e.target.value.length;
+                });
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) this._hideFlagIssueModal();
+                });
+            }
+            
+            // Reset form
+            const comment = document.getElementById('feedback-comment');
+            const step = document.getElementById('feedback-step');
+            if (comment) { comment.value = ''; document.getElementById('feedback-char').textContent = '0'; }
+            if (step) step.selectedIndex = 0;
+        }
+        
+        _hideFlagIssueModal() {
+            const modal = document.getElementById('feedback-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        async _submitFeedback() {
+            const comment = document.getElementById('feedback-comment')?.value?.trim();
+            if (!comment) {
+                this._showNotification('Please describe the issue.', 'error');
+                return;
+            }
+            
+            const inviteCode = localStorage.getItem('withoutme_team_invite_code');
+            if (!inviteCode || !this.currentChecklist) {
+                this._showNotification('Could not submit feedback.', 'error');
+                return;
+            }
+            
+            const stepNumber = parseInt(document.getElementById('feedback-step')?.value) || null;
+            
+            // Disable submit button during request
+            const submitBtn = document.getElementById('btn-submit-feedback');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
+            
+            try {
+                if (typeof SupabaseClient !== 'undefined') {
+                    const result = await SupabaseClient.submitFeedback(inviteCode, {
+                        sopId: this.currentChecklist.sopId,
+                        sopTitle: this.currentChecklist.sopTitle,
+                        stepNumber,
+                        comment
+                    });
+                    if (result.success) {
+                        this._hideFlagIssueModal();
+                        this._showNotification('Issue reported. Your team lead will see it.', 'success');
+                    } else {
+                        this._showNotification(result.error || 'Could not submit feedback.', 'error');
+                    }
+                } else {
+                    this._showNotification('Feedback requires a connection.', 'error');
+                }
+            } catch (e) {
+                console.error('Feedback submission error:', e);
+                this._showNotification('Could not submit feedback.', 'error');
+            } finally {
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+            }
+        }
+        
         _escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -823,7 +933,7 @@
             
             const styles = document.createElement('style');
             styles.id = 'checklist-styles';
-            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid #f3f4f6}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .875rem;background:#fff;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap;transition:all .2s ease}.btn-back:hover{background:#f5f5f5;border-color:#9ca3af}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.4}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .625rem;border-radius:4px;font-size:.75rem;font-weight:500;line-height:1.4}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.status-badge.readonly{background:#e0e7ff;color:#4338ca}.info-banner{padding:.625rem 1rem;border-radius:8px;margin-bottom:1rem;text-align:center}.info-banner-autosave{background:#f0fdf4;border:1px solid #bbf7d0}.info-banner-readonly{background:#eef2ff;border:1px solid #c7d2fe}.info-text{font-size:.75rem;color:#6b7280;line-height:1.5}.info-banner-readonly .info-text{color:#4338ca}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap;line-height:1.4}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1.125rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46;line-height:1.4}.completion-text p{margin:.375rem 0 0;font-size:.8rem;color:#047857;line-height:1.5}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.875rem}.checklist-step{display:flex;align-items:flex-start;gap:.875rem;padding:1.125rem;background:#fff;border:1px solid #f3f4f6;border-radius:10px;cursor:pointer;transition:all .2s ease}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.readonly{cursor:default}.checklist-step.readonly:hover{border-color:#e5e7eb;box-shadow:none}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-checkbox.readonly{cursor:default}.checkbox-static{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;font-size:14px;color:#fff}.checkbox-static.checked{background:#22c55e;border-color:#22c55e}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .2s ease;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.875rem;min-width:0}.step-number{min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.55;transition:all .15s}.step-note{margin:.5rem 0 0;font-size:.8rem;color:#6b7280;line-height:1.5}.step-user-note{margin-top:.625rem}.step-user-note-readonly{margin:.5rem 0 0;font-size:.8rem;color:#4b5563;font-style:italic;line-height:1.5}.step-image{max-width:100%;max-height:200px;border-radius:6px;border:1px solid #e5e7eb;margin-top:.5rem;display:block}.user-note-input{width:100%;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem;line-height:1.5;background:#f9fafb;box-sizing:border-box;transition:all .2s ease}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.1)}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #f3f4f6}.footer-left,.footer-right{display:flex;gap:.625rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s ease;line-height:1.4}.btn:focus{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.15)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff;box-shadow:0 1px 3px rgba(99,102,241,.2);font-weight:600}.btn-primary:hover:not(:disabled){background:#4f46e5;box-shadow:0 2px 6px rgba(99,102,241,.25)}.btn-secondary{background:#fff;color:#6b7280;border:1px solid #e5e7eb;font-weight:400}.btn-secondary:hover:not(:disabled){background:#f9fafb;border-color:#d1d5db;color:#374151}.btn-danger-subtle{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.btn-danger-subtle:hover:not(:disabled){background:#fee2e2;border-color:#fca5a5}.empty-state{text-align:center;padding:3rem 2rem;color:#6b7280;line-height:1.5}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;line-height:1.4;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}';
+            styles.textContent = '.checklist-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}.checklist-layout{max-width:800px;margin:0 auto;padding:1.5rem;width:100%;display:flex;flex-direction:column;min-height:100vh}.checklist-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid #f3f4f6}.header-left{display:flex;align-items:flex-start;gap:1rem}.btn-back{padding:.5rem .875rem;background:#fff;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.875rem;white-space:nowrap;transition:all .2s ease}.btn-back:hover{background:#f5f5f5;border-color:#9ca3af}.header-info h2{margin:0 0 .5rem;font-size:1.25rem;line-height:1.4}.header-meta{display:flex;gap:.5rem;flex-wrap:wrap}.folder-badge,.status-badge{padding:.25rem .625rem;border-radius:4px;font-size:.75rem;font-weight:500;line-height:1.4}.status-in_progress{background:#fef3c7;color:#92400e}.status-completed{background:#d1fae5;color:#065f46}.status-badge.readonly{background:#e0e7ff;color:#4338ca}.info-banner{padding:.625rem 1rem;border-radius:8px;margin-bottom:1rem;text-align:center}.info-banner-autosave{background:#f0fdf4;border:1px solid #bbf7d0}.info-banner-readonly{background:#eef2ff;border:1px solid #c7d2fe}.info-text{font-size:.75rem;color:#6b7280;line-height:1.5}.info-banner-readonly .info-text{color:#4338ca}.progress-info{display:flex;align-items:center;gap:.75rem}.progress-text{font-size:.8rem;color:#6b7280;white-space:nowrap;line-height:1.4}.progress-bar{width:120px;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;transition:width .3s ease}.progress-percent{font-size:.875rem;font-weight:600;color:#6366f1;min-width:40px}.completion-banner{display:flex;align-items:center;gap:1rem;padding:1.125rem 1.25rem;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border:1px solid #6ee7b7;border-radius:10px;margin-bottom:1.5rem}.completion-icon{font-size:2rem}.completion-text{flex:1}.completion-text strong{display:block;font-size:1rem;color:#065f46;line-height:1.4}.completion-text p{margin:.375rem 0 0;font-size:.8rem;color:#047857;line-height:1.5}.checklist-main{flex:1}.steps-checklist{display:flex;flex-direction:column;gap:.875rem}.checklist-step{display:flex;align-items:flex-start;gap:.875rem;padding:1.125rem;background:#fff;border:1px solid #f3f4f6;border-radius:10px;cursor:pointer;transition:all .2s ease}.checklist-step:hover{border-color:#d1d5db;box-shadow:0 2px 8px rgba(0,0,0,.04)}.checklist-step.readonly{cursor:default}.checklist-step.readonly:hover{border-color:#e5e7eb;box-shadow:none}.checklist-step.completed{background:#f0fdf4;border-color:#bbf7d0}.checklist-step.completed .step-text{text-decoration:line-through;color:#6b7280}.step-checkbox{position:relative;flex-shrink:0}.step-checkbox.readonly{cursor:default}.checkbox-static{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;font-size:14px;color:#fff}.checkbox-static.checked{background:#22c55e;border-color:#22c55e}.step-check{position:absolute;opacity:0;width:0;height:0}.checkbox-label{display:block;cursor:pointer}.checkbox-custom{display:block;width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;background:#fff;transition:all .2s ease;position:relative}.checkbox-custom::after{content:"✓";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:14px;color:#fff;transition:transform .15s}.step-check:checked+.checkbox-label .checkbox-custom{background:#22c55e;border-color:#22c55e}.step-check:checked+.checkbox-label .checkbox-custom::after{transform:translate(-50%,-50%) scale(1)}.step-check:focus+.checkbox-label .checkbox-custom{box-shadow:0 0 0 3px rgba(34,197,94,.2)}.step-content{flex:1;display:flex;gap:.875rem;min-width:0}.step-number{min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#e5e7eb;color:#6b7280;border-radius:50%;font-size:.75rem;font-weight:600;flex-shrink:0}.checklist-step.completed .step-number{background:#22c55e;color:#fff}.step-text-container{flex:1;min-width:0}.step-text{margin:0;font-size:.95rem;line-height:1.55;transition:all .15s}.step-note{margin:.5rem 0 0;font-size:.8rem;color:#6b7280;line-height:1.5}.step-user-note{margin-top:.625rem}.step-user-note-readonly{margin:.5rem 0 0;font-size:.8rem;color:#4b5563;font-style:italic;line-height:1.5}.step-image{max-width:100%;max-height:200px;border-radius:6px;border:1px solid #e5e7eb;margin-top:.5rem;display:block}.user-note-input{width:100%;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:6px;font-size:.8rem;line-height:1.5;background:#f9fafb;box-sizing:border-box;transition:all .2s ease}.user-note-input:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.1)}.step-status{flex-shrink:0}.completed-time{font-size:.7rem;color:#22c55e;white-space:nowrap}.checklist-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #f3f4f6}.footer-left,.footer-right{display:flex;gap:.625rem}.btn{padding:.625rem 1.25rem;border:none;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s ease;line-height:1.4}.btn:focus{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.15)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-primary{background:#6366f1;color:#fff;box-shadow:0 1px 3px rgba(99,102,241,.2);font-weight:600}.btn-primary:hover:not(:disabled){background:#4f46e5;box-shadow:0 2px 6px rgba(99,102,241,.25)}.btn-secondary{background:#fff;color:#6b7280;border:1px solid #e5e7eb;font-weight:400}.btn-secondary:hover:not(:disabled){background:#f9fafb;border-color:#d1d5db;color:#374151}.btn-danger-subtle{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.btn-danger-subtle:hover:not(:disabled){background:#fee2e2;border-color:#fca5a5}.empty-state{text-align:center;padding:3rem 2rem;color:#6b7280;line-height:1.5}.notification-toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.875rem 1.25rem;background:#1f2937;color:#fff;border-radius:8px;font-size:.85rem;line-height:1.4;z-index:1001;animation:slideIn .3s ease}.notification-toast.success{background:#059669}.notification-toast.error{background:#dc2626}.notification-toast.info{background:#2563eb}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@media(max-width:640px){.checklist-layout{padding:1rem}.checklist-header{flex-direction:column;gap:1rem}.progress-info{width:100%;justify-content:space-between}.progress-bar{flex:1}.checklist-footer{flex-direction:column;gap:.75rem}.footer-left,.footer-right{width:100%;justify-content:center}}.feedback-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}.feedback-modal{background:#fff;border-radius:12px;max-width:420px;width:90%;padding:1.5rem;box-shadow:0 8px 30px rgba(0,0,0,.15)}.feedback-modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}.feedback-modal-header h3{margin:0;font-size:1.1rem}.feedback-modal-body{display:flex;flex-direction:column;gap:.5rem}.feedback-label{font-size:.8rem;font-weight:600;color:#374151}.feedback-select{padding:.5rem;border:1px solid #d1d5db;border-radius:6px;font-size:.85rem}.feedback-textarea{padding:.5rem;border:1px solid #d1d5db;border-radius:6px;font-size:.85rem;resize:vertical;font-family:inherit}.feedback-textarea:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}.feedback-char-count{font-size:.7rem;color:#9ca3af;text-align:right}.feedback-modal-footer{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}';
             document.head.appendChild(styles);
         }
     }

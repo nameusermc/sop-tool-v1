@@ -863,6 +863,9 @@
                         <!-- Team Activity (Phase 9 — owner sees team completions) -->
                         ${isTeamOwner ? this._renderTeamActivity() : ''}
                         
+                        <!-- Team Feedback (Phase 12E — owner sees team issues) -->
+                        ${isTeamOwner ? this._renderTeamFeedback() : ''}
+                        
                         ${(isTeamOwner || (!isTeamMember && this.options.teamRole)) ? this._renderTeamManagement() : ''}
                     </main>
                 </div>
@@ -1769,6 +1772,7 @@
             // Team activity (Phase 9 — completion tracking for owners)
             if (role === 'owner') {
                 this._loadTeamCompletions();
+                this._loadTeamFeedback();
                 this._attachTeamActivityListeners();
             }
         }
@@ -2524,6 +2528,83 @@
                 if (nameEl) nameEl.textContent = this._taEmployeeFilter;
             } else {
                 filterEl.style.display = 'none';
+            }
+        }
+        
+        // ====================================================================
+        // TEAM FEEDBACK (Phase 12E)
+        // ====================================================================
+        
+        _renderTeamFeedback() {
+            return `
+                <section class="team-feedback-section" id="team-feedback">
+                    <div class="section-header">
+                        <h3>💬 Team Feedback <span class="feedback-badge" id="feedback-badge" style="display:none;"></span></h3>
+                    </div>
+                    <div class="team-feedback-content" id="team-feedback-content">
+                        <p class="team-activity-loading">Loading feedback...</p>
+                    </div>
+                </section>
+            `;
+        }
+        
+        async _loadTeamFeedback() {
+            if (!window.SupabaseClient) return;
+            
+            const teamId = this.options.teamRole?.teamId;
+            if (!teamId) return;
+            
+            const contentEl = document.getElementById('team-feedback-content');
+            if (!contentEl) return;
+            
+            try {
+                const result = await SupabaseClient.fetchTeamFeedback(teamId, 20);
+                
+                if (!result.success) {
+                    contentEl.innerHTML = '<p class="team-activity-empty">Could not load feedback.</p>';
+                    return;
+                }
+                
+                const feedback = result.feedback || [];
+                
+                if (feedback.length === 0) {
+                    contentEl.innerHTML = '<p class="team-activity-empty">No feedback from your team yet. Team members can flag issues from any checklist.</p>';
+                    return;
+                }
+                
+                // Show unread badge
+                const unread = feedback.filter(f => !f.read);
+                const badge = document.getElementById('feedback-badge');
+                if (badge && unread.length > 0) {
+                    badge.textContent = unread.length;
+                    badge.style.display = 'inline-block';
+                }
+                
+                contentEl.innerHTML = feedback.map(f => {
+                    const date = new Date(f.created_at);
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                    return `
+                        <div class="feedback-item${f.read ? '' : ' unread'}" data-feedback-id="${f.id}">
+                            <div class="feedback-item-header">
+                                <span class="feedback-item-name">${this._escapeHtml(f.member_name)}</span>
+                                <span class="feedback-item-date">${dateStr} at ${timeStr}</span>
+                            </div>
+                            <div class="feedback-item-sop">${this._escapeHtml(f.sop_title)}${f.step_number ? ' — Step ' + f.step_number : ''}</div>
+                            <div class="feedback-item-comment">${this._escapeHtml(f.comment)}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Mark all unread as read (fire-and-forget)
+                if (unread.length > 0) {
+                    const ids = unread.map(f => f.id);
+                    SupabaseClient.markFeedbackRead(ids).catch(() => {});
+                }
+                
+            } catch (e) {
+                console.error('Load team feedback error:', e);
+                contentEl.innerHTML = '<p class="team-activity-empty">Could not load feedback.</p>';
             }
         }
         
@@ -3867,6 +3948,59 @@
                 }
                 .team-banner-icon { font-size: 18px; }
                 .team-banner-text { font-size: 14px; font-weight: 600; color: #4338ca; }
+                
+                /* Team Feedback (Phase 12E) */
+                .team-feedback-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .feedback-badge {
+                    background: #ef4444;
+                    color: #fff;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 2px 7px;
+                    border-radius: 10px;
+                    margin-left: 6px;
+                    vertical-align: middle;
+                }
+                .feedback-item {
+                    padding: 12px;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    margin-bottom: 8px;
+                }
+                .feedback-item.unread {
+                    border-left: 3px solid #6366f1;
+                    background: #fafafe;
+                }
+                .feedback-item-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 4px;
+                }
+                .feedback-item-name {
+                    font-weight: 600;
+                    font-size: 14px;
+                    color: #1f2937;
+                }
+                .feedback-item-date {
+                    font-size: 12px;
+                    color: #9ca3af;
+                }
+                .feedback-item-sop {
+                    font-size: 12px;
+                    color: #6366f1;
+                    margin-bottom: 6px;
+                }
+                .feedback-item-comment {
+                    font-size: 13px;
+                    color: #374151;
+                    line-height: 1.5;
+                }
                 
                 /* Team Management (owner view) */
                 .team-management-section {
