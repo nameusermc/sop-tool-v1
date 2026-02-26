@@ -15,5 +15,11 @@
       "destination": "/",
       "permanent": true
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/daily-digest",
+      "schedule": "0 12 * * *"
+    }
   ]
 }

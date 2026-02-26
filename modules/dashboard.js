@@ -856,6 +856,9 @@
                         <!-- Completed Checklists (archival) -->
                         ${this._renderCompletedChecklists()}
                         
+                        <!-- Team Activity (Phase 9 — owner sees team completions) -->
+                        ${isTeamOwner ? this._renderTeamActivity() : ''}
+                        
                         ${(isTeamOwner || (!isTeamMember && this.options.teamRole)) ? this._renderTeamManagement() : ''}
                     </main>
                 </div>
@@ -1758,6 +1761,12 @@
             if (role === 'owner' || role === 'solo') {
                 this._attachTeamManagementListeners();
             }
+            
+            // Team activity (Phase 9 — completion tracking for owners)
+            if (role === 'owner') {
+                this._loadTeamCompletions();
+                this._attachTeamActivityListeners();
+            }
         }
         
         /**
@@ -2118,6 +2127,405 @@
         // TEAM MANAGEMENT (Owner only)
         // ====================================================================
         
+        // ====================================================================
+        // TEAM ACTIVITY (Phase 9 + Phase 10 Enhancements)
+        // ====================================================================
+        
+        /**
+         * Render the Team Activity section shell.
+         * Includes date range tabs, stats bar placeholder, and content area.
+         * Content is loaded async by _loadTeamCompletions().
+         */
+        _renderTeamActivity() {
+            return `
+                <section class="team-activity-section" id="team-activity">
+                    <div class="section-header" id="team-activity-header">
+                        <h3>📋 Team Activity</h3>
+                    </div>
+                    <div class="ta-controls">
+                        <div class="ta-date-tabs" id="ta-date-tabs">
+                            <button class="ta-tab ta-tab-active" data-ta-range="today">Today</button>
+                            <button class="ta-tab" data-ta-range="week">This Week</button>
+                            <button class="ta-tab" data-ta-range="month">This Month</button>
+                            <button class="ta-tab" data-ta-range="all">All</button>
+                        </div>
+                        <div class="ta-employee-filter" id="ta-employee-filter" style="display:none;">
+                            <span class="ta-filter-label">Filtered: <strong id="ta-filter-name"></strong></span>
+                            <button class="ta-filter-clear" id="ta-filter-clear">✕ Show all</button>
+                        </div>
+                    </div>
+                    <div class="ta-stats-bar" id="ta-stats-bar"></div>
+                    <div class="team-activity-content" id="team-activity-content">
+                        <p class="team-activity-loading">Loading team activity...</p>
+                    </div>
+                </section>
+            `;
+        }
+        
+        /**
+         * Fetch team completions from Supabase, store locally, then render.
+         * Called after dashboard renders for team owners.
+         */
+        async _loadTeamCompletions() {
+            if (!window.SupabaseClient) return;
+            
+            const teamId = this.options.teamRole?.teamId;
+            if (!teamId) return;
+            
+            const contentEl = document.getElementById('team-activity-content');
+            if (!contentEl) return;
+            
+            try {
+                const result = await SupabaseClient.fetchTeamCompletions(teamId, 50);
+                
+                if (!result.success) {
+                    contentEl.innerHTML = '<p class="team-activity-empty">Could not load team activity.</p>';
+                    return;
+                }
+                
+                // Store all completions for filtering
+                this._teamCompletions = result.completions || [];
+                
+                // Default filter state
+                this._taDateRange = 'today';
+                this._taEmployeeFilter = null;
+                
+                // Render with initial filters
+                this._renderTeamActivityContent();
+                
+            } catch (e) {
+                console.error('[Dashboard] Failed to load team completions:', e);
+                contentEl.innerHTML = '<p class="team-activity-empty">Could not load team activity.</p>';
+            }
+        }
+        
+        /**
+         * Filter completions by date range.
+         * Returns only completions within the selected period.
+         */
+        _filterByDateRange(completions, range) {
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            let cutoff;
+            switch (range) {
+                case 'today':
+                    cutoff = startOfToday;
+                    break;
+                case 'week': {
+                    const day = now.getDay(); // 0=Sun
+                    const diff = day === 0 ? 6 : day - 1; // Monday as start of week
+                    cutoff = new Date(startOfToday);
+                    cutoff.setDate(cutoff.getDate() - diff);
+                    break;
+                }
+                case 'month':
+                    cutoff = new Date(now.getFullYear(), now.getMonth(), 1);
+                    break;
+                case 'all':
+                default:
+                    return completions;
+            }
+            
+            return completions.filter(c => new Date(c.completed_at) >= cutoff);
+        }
+        
+        /**
+         * Calculate time-to-complete from step timestamps.
+         * Returns duration in minutes, or null if not enough data.
+         */
+        _calcTimeToComplete(steps) {
+            if (!steps || steps.length < 2) return null;
+            
+            const timestamps = steps
+                .filter(s => s.completedAt)
+                .map(s => s.completedAt);
+            
+            if (timestamps.length < 2) return null;
+            
+            const earliest = Math.min(...timestamps);
+            const latest = Math.max(...timestamps);
+            const diffMs = latest - earliest;
+            
+            // Ignore if less than 5 seconds (likely "Complete All" button)
+            if (diffMs < 5000) return null;
+            
+            return Math.round(diffMs / 60000);
+        }
+        
+        /**
+         * Format duration in minutes to human-readable string.
+         */
+        _formatDuration(minutes) {
+            if (minutes < 1) return '<1 min';
+            if (minutes < 60) return minutes + ' min';
+            const hrs = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return mins > 0 ? hrs + 'h ' + mins + 'm' : hrs + 'h';
+        }
+        
+        /**
+         * Build stats bar: per-employee completion count for the filtered set.
+         */
+        _renderStatsBar(filtered) {
+            const statsEl = document.getElementById('ta-stats-bar');
+            if (!statsEl) return;
+            
+            if (filtered.length === 0) {
+                statsEl.innerHTML = '';
+                return;
+            }
+            
+            // Count per employee
+            const counts = {};
+            filtered.forEach(c => {
+                const name = c.member_name || 'Unknown';
+                counts[name] = (counts[name] || 0) + 1;
+            });
+            
+            // Sort by count descending
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            
+            statsEl.innerHTML = sorted.map(([name, count]) => {
+                const isActive = this._taEmployeeFilter === name;
+                return `<button class="ta-stat-chip ${isActive ? 'ta-stat-active' : ''}" data-ta-employee="${this._escapeHtml(name)}">${this._escapeHtml(name)} <strong>${count}</strong></button>`;
+            }).join('');
+        }
+        
+        /**
+         * Render the filtered team activity content (completions list).
+         * Called on initial load and whenever filters change.
+         */
+        _renderTeamActivityContent() {
+            const contentEl = document.getElementById('team-activity-content');
+            if (!contentEl) return;
+            
+            const all = this._teamCompletions || [];
+            
+            if (all.length === 0) {
+                contentEl.innerHTML = '<p class="team-activity-empty">No completions yet. Once your team runs checklists, their progress will appear here.</p>';
+                this._renderStatsBar([]);
+                return;
+            }
+            
+            // Apply date range filter
+            let filtered = this._filterByDateRange(all, this._taDateRange);
+            
+            // Apply employee filter
+            if (this._taEmployeeFilter) {
+                filtered = filtered.filter(c => (c.member_name || 'Unknown') === this._taEmployeeFilter);
+            }
+            
+            // Update stats bar (always shows full date-range set, not employee-filtered)
+            this._renderStatsBar(this._filterByDateRange(all, this._taDateRange));
+            
+            if (filtered.length === 0) {
+                const rangeLabel = this._taDateRange === 'all' ? '' : ' for this period';
+                const empLabel = this._taEmployeeFilter ? ` by ${this._taEmployeeFilter}` : '';
+                contentEl.innerHTML = `<p class="team-activity-empty">No completions${empLabel}${rangeLabel}.</p>`;
+                return;
+            }
+            
+            // Group and render
+            const grouped = this._groupCompletionsByDate(filtered);
+            
+            contentEl.innerHTML = grouped.map(dateGroup => `
+                <div class="ta-date-group">
+                    <div class="ta-date-label">${this._escapeHtml(dateGroup.label)}</div>
+                    ${dateGroup.employees.map(emp => `
+                        <div class="ta-employee-group">
+                            <div class="ta-employee-header">
+                                <span class="ta-employee-name ta-employee-clickable" data-ta-employee="${this._escapeHtml(emp.name)}">${this._escapeHtml(emp.name || 'Unknown')}</span>
+                                <span class="ta-employee-count">${emp.completions.length} completion${emp.completions.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            ${emp.completions.map(c => {
+                                const time = new Date(c.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                const steps = c.steps || [];
+                                const duration = this._calcTimeToComplete(steps);
+                                const durationStr = duration !== null ? this._formatDuration(duration) : '';
+                                return `
+                                    <div class="ta-completion-row">
+                                        <div class="ta-completion-summary" data-completion-id="${c.id}">
+                                            <span class="ta-check">✅</span>
+                                            <span class="ta-sop-title">${this._escapeHtml(c.sop_title)}</span>
+                                            ${durationStr ? `<span class="ta-duration">⏱ ${durationStr}</span>` : ''}
+                                            <span class="ta-time">${time}</span>
+                                            <span class="ta-expand-arrow" data-completion-id="${c.id}">▶</span>
+                                        </div>
+                                        <div class="ta-step-detail" id="ta-detail-${c.id}" style="display:none;">
+                                            ${steps.map((step, i) => {
+                                                const stepTime = step.completedAt
+                                                    ? new Date(step.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                    : '';
+                                                const hasNote = step.userNote && step.userNote.trim();
+                                                return `
+                                                    <div class="ta-step ${step.completed ? 'ta-step-done' : ''}">
+                                                        <span class="ta-step-num">${i + 1}</span>
+                                                        <div class="ta-step-content">
+                                                            <span class="ta-step-text">${this._escapeHtml(step.text || '')}</span>
+                                                            ${hasNote ? `<span class="ta-step-note">📝 ${this._escapeHtml(step.userNote)}</span>` : ''}
+                                                        </div>
+                                                        ${stepTime ? `<span class="ta-step-time">${stepTime}</span>` : ''}
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+        
+        /**
+         * Group completions by date label, then by employee within each date.
+         * Returns: [{ label: 'Today', employees: [{ name, completions: [...] }] }, ...]
+         */
+        _groupCompletionsByDate(completions) {
+            const now = new Date();
+            const todayStr = now.toDateString();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toDateString();
+            
+            // Group by date string first
+            const dateMap = {};
+            const dateOrder = [];
+            
+            completions.forEach(c => {
+                const d = new Date(c.completed_at);
+                const ds = d.toDateString();
+                
+                let label;
+                if (ds === todayStr) label = 'Today';
+                else if (ds === yesterdayStr) label = 'Yesterday';
+                else label = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                
+                if (!dateMap[ds]) {
+                    dateMap[ds] = { label, employeeMap: {}, employeeOrder: [] };
+                    dateOrder.push(ds);
+                }
+                
+                const group = dateMap[ds];
+                const empKey = c.member_name || c.invite_code || 'Unknown';
+                
+                if (!group.employeeMap[empKey]) {
+                    group.employeeMap[empKey] = { name: c.member_name || 'Unknown', completions: [] };
+                    group.employeeOrder.push(empKey);
+                }
+                
+                group.employeeMap[empKey].completions.push(c);
+            });
+            
+            // Convert to array format
+            return dateOrder.map(ds => ({
+                label: dateMap[ds].label,
+                employees: dateMap[ds].employeeOrder.map(ek => dateMap[ds].employeeMap[ek])
+            }));
+        }
+        
+        /**
+         * Attach all Team Activity listeners:
+         * - Expand/collapse completion details
+         * - Date range tab switching
+         * - Employee name click to filter
+         * - Stats bar chip click to filter
+         * - Clear filter button
+         */
+        _attachTeamActivityListeners() {
+            const section = document.getElementById('team-activity');
+            if (!section) return;
+            
+            // Delegated listener for all team activity clicks
+            section.addEventListener('click', (e) => {
+                // Expand/collapse completion details
+                const summary = e.target.closest('.ta-completion-summary');
+                if (summary) {
+                    const id = summary.dataset.completionId;
+                    if (id) {
+                        const detail = document.getElementById('ta-detail-' + id);
+                        const arrow = summary.querySelector('.ta-expand-arrow');
+                        if (detail) {
+                            const isOpen = detail.style.display !== 'none';
+                            detail.style.display = isOpen ? 'none' : 'block';
+                            if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+                        }
+                    }
+                    return;
+                }
+                
+                // Date range tabs
+                const tab = e.target.closest('.ta-tab');
+                if (tab) {
+                    const range = tab.dataset.taRange;
+                    if (range) {
+                        this._taDateRange = range;
+                        this._taEmployeeFilter = null; // Reset employee filter on range change
+                        this._updateEmployeeFilterUI();
+                        // Update active tab
+                        section.querySelectorAll('.ta-tab').forEach(t => t.classList.remove('ta-tab-active'));
+                        tab.classList.add('ta-tab-active');
+                        this._renderTeamActivityContent();
+                    }
+                    return;
+                }
+                
+                // Employee name click (in the grouped list)
+                const empName = e.target.closest('.ta-employee-clickable');
+                if (empName) {
+                    const name = empName.dataset.taEmployee;
+                    if (name) {
+                        this._taEmployeeFilter = (this._taEmployeeFilter === name) ? null : name;
+                        this._updateEmployeeFilterUI();
+                        this._renderTeamActivityContent();
+                    }
+                    return;
+                }
+                
+                // Stats bar chip click
+                const chip = e.target.closest('.ta-stat-chip');
+                if (chip) {
+                    const name = chip.dataset.taEmployee;
+                    if (name) {
+                        this._taEmployeeFilter = (this._taEmployeeFilter === name) ? null : name;
+                        this._updateEmployeeFilterUI();
+                        this._renderTeamActivityContent();
+                    }
+                    return;
+                }
+                
+                // Clear filter
+                if (e.target.closest('#ta-filter-clear')) {
+                    this._taEmployeeFilter = null;
+                    this._updateEmployeeFilterUI();
+                    this._renderTeamActivityContent();
+                    return;
+                }
+            });
+        }
+        
+        /**
+         * Show/hide the employee filter bar.
+         */
+        _updateEmployeeFilterUI() {
+            const filterEl = document.getElementById('ta-employee-filter');
+            const nameEl = document.getElementById('ta-filter-name');
+            if (!filterEl) return;
+            
+            if (this._taEmployeeFilter) {
+                filterEl.style.display = 'flex';
+                if (nameEl) nameEl.textContent = this._taEmployeeFilter;
+            } else {
+                filterEl.style.display = 'none';
+            }
+        }
+        
+        // ====================================================================
+        // TEAM MANAGEMENT
+        // ====================================================================
+        
         _renderTeamManagement() {
             return `
                 <section class="team-management-section" id="team-management">
@@ -2127,12 +2535,11 @@
                     <div class="team-panel">
                         <div class="team-invite-area">
                             <p class="team-invite-desc">Invite team members to view your Active SOPs and run checklists.</p>
-                            <button class="btn btn-primary" id="btn-create-invite">
-                                🔗 Create Invite Link
-                            </button>
-                            <div class="invite-link-area" id="invite-link-area" style="display:none;">
-                                <input type="text" class="form-input invite-link-input" id="invite-link-input" readonly />
-                                <button class="btn btn-secondary" id="btn-copy-invite">📋 Copy</button>
+                            <div class="invite-create-row">
+                                <input type="text" class="form-input invite-name-input" id="invite-name-input" placeholder="Employee name (e.g. John)" maxlength="50" />
+                                <button class="btn btn-primary" id="btn-create-invite">
+                                    🔗 Create Invite Link
+                                </button>
                             </div>
                         </div>
                         <div class="team-member-list" id="team-member-list">
@@ -2149,6 +2556,8 @@
             const members = await SupabaseClient.fetchTeamMembers();
             const listEl = document.getElementById('team-member-list');
             if (!listEl) return;
+
+            console.log('[Dashboard] Team members loaded:', members);
             
             // Filter out owner from the display list
             const displayMembers = members.filter(m => m.role !== 'owner');
@@ -2158,24 +2567,51 @@
                 return;
             }
             
-            listEl.innerHTML = displayMembers.map(m => `
+            const baseUrl = `${window.location.origin}${window.location.pathname}`;
+            
+            listEl.innerHTML = displayMembers.map(m => {
+                const isPending = m.status === 'pending';
+                const inviteLink = m.invite_code ? `${baseUrl}?invite=${m.invite_code}` : '';
+                
+                return `
                 <div class="team-member-row" data-member-id="${m.id}">
                     <div class="member-info">
-                        <span class="member-email">${this._escapeHtml(m.email || 'Pending invite')}</span>
+                        <span class="member-email">${this._escapeHtml(m.name || 'Unnamed invite')}</span>
                         <span class="member-status status-badge-${m.status}">${m.status}</span>
                     </div>
-                    <button class="btn-icon member-remove" data-member-id="${m.id}" title="Remove">🗑️</button>
+                    <div class="member-actions">
+                        ${inviteLink ? `
+                            <input type="text" class="form-input invite-link-inline" value="${inviteLink}" readonly data-invite-link />
+                            <button class="btn-icon member-copy" data-link="${inviteLink}" title="Copy link">📋</button>
+                        ` : ''}
+                        <button class="btn-icon member-remove" data-member-id="${m.id}" title="${isPending ? 'Revoke invite' : 'Remove member'}">🗑️</button>
+                    </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
+            
+            // Attach copy listeners
+            listEl.querySelectorAll('.member-copy').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const link = btn.dataset.link;
+                    navigator.clipboard.writeText(link).then(() => {
+                        this._showNotification('Link copied to clipboard', 'success');
+                    }).catch(() => {
+                        const input = btn.parentElement.querySelector('[data-invite-link]');
+                        if (input) { input.select(); document.execCommand('copy'); }
+                        this._showNotification('Link copied', 'success');
+                    });
+                });
+            });
             
             // Attach remove listeners
             listEl.querySelectorAll('.member-remove').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const memberId = e.currentTarget.dataset.memberId;
-                    if (confirm('Remove this team member?')) {
+                    if (confirm('Remove this team member / revoke invite?')) {
                         const result = await SupabaseClient.removeTeamMember(memberId);
                         if (result.success) {
-                            this._showNotification('Team member removed', 'success');
+                            this._showNotification('Removed', 'success');
                             this._loadTeamMembers();
                         } else {
                             this._showNotification('Failed to remove: ' + result.error, 'error');
@@ -2204,41 +2640,22 @@
                 createInviteBtn.disabled = true;
                 createInviteBtn.textContent = 'Creating...';
                 
-                const result = await SupabaseClient.createInvite();
+                const nameInput = document.getElementById('invite-name-input');
+                const name = nameInput ? nameInput.value.trim() : '';
+                
+                const result = await SupabaseClient.createInvite(name);
                 
                 createInviteBtn.disabled = false;
                 createInviteBtn.textContent = '🔗 Create Invite Link';
                 
                 if (result.success) {
-                    const link = `${window.location.origin}${window.location.pathname}?invite=${result.inviteCode}`;
-                    const linkArea = document.getElementById('invite-link-area');
-                    const linkInput = document.getElementById('invite-link-input');
+                    if (nameInput) nameInput.value = '';
+                    this._showNotification(`Invite link created${name ? ' for ' + name : ''}`, 'success');
                     
-                    if (linkArea && linkInput) {
-                        linkInput.value = link;
-                        linkArea.style.display = 'flex';
-                        linkInput.select();
-                    }
-                    
-                    this._showNotification('Invite link created', 'success');
-                    
-                    // Refresh member list to show new pending invite
+                    // Refresh member list — the new invite will appear with its link
                     this._loadTeamMembers();
                 } else {
                     this._showNotification('Failed: ' + result.error, 'error');
-                }
-            });
-            
-            document.getElementById('btn-copy-invite')?.addEventListener('click', () => {
-                const input = document.getElementById('invite-link-input');
-                if (input) {
-                    navigator.clipboard.writeText(input.value).then(() => {
-                        this._showNotification('Link copied to clipboard', 'success');
-                    }).catch(() => {
-                        input.select();
-                        document.execCommand('copy');
-                        this._showNotification('Link copied', 'success');
-                    });
                 }
             });
             
@@ -3463,27 +3880,31 @@
                     color: #6b7280;
                     margin-bottom: 12px;
                 }
-                .invite-link-area {
+                .invite-create-row {
                     display: flex;
                     gap: 8px;
-                    margin-top: 12px;
+                    align-items: center;
                 }
-                .invite-link-input {
+                .invite-name-input {
                     flex: 1;
-                    font-size: 12px;
-                    padding: 8px;
+                    font-size: 13px;
+                    padding: 8px 10px;
                     border: 1px solid #d1d5db;
                     border-radius: 6px;
-                    background: #fff;
+                }
+                .invite-name-input:focus {
+                    outline: none;
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
                 }
                 .team-member-list {
                     margin-top: 16px;
                 }
                 .team-member-row {
                     display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 0;
+                    flex-direction: column;
+                    gap: 6px;
+                    padding: 10px 0;
                     border-bottom: 1px solid #e5e7eb;
                 }
                 .team-member-row:last-child { border-bottom: none; }
@@ -3492,6 +3913,31 @@
                     align-items: center;
                     gap: 8px;
                 }
+                .member-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .invite-link-inline {
+                    flex: 1;
+                    font-size: 12px;
+                    padding: 4px 8px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 4px;
+                    background: #f9fafb;
+                    color: #6b7280;
+                    cursor: text;
+                }
+                .member-copy {
+                    opacity: 0.5;
+                    transition: opacity 0.15s;
+                    font-size: 16px;
+                    cursor: pointer;
+                    background: none;
+                    border: none;
+                    padding: 2px 4px;
+                }
+                .member-copy:hover { opacity: 1; }
                 .member-email {
                     font-size: 13px;
                     color: #1f2937;
@@ -3519,6 +3965,252 @@
                     font-size: 13px;
                     color: #9ca3af;
                     font-style: italic;
+                }
+                
+                /* Phase 9 — Team Activity */
+                .team-activity-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .team-activity-loading, .team-activity-empty {
+                    font-size: 13px;
+                    color: #9ca3af;
+                    font-style: italic;
+                }
+                /* Phase 10 — Controls */
+                .ta-controls {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 8px;
+                    margin-bottom: 10px;
+                    flex-wrap: wrap;
+                }
+                .ta-date-tabs {
+                    display: flex;
+                    gap: 4px;
+                }
+                .ta-tab {
+                    padding: 5px 12px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    background: #fff;
+                    color: #6b7280;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                }
+                .ta-tab:hover {
+                    border-color: #d1d5db;
+                    color: #374151;
+                }
+                .ta-tab-active {
+                    background: #4f46e5;
+                    border-color: #4f46e5;
+                    color: #fff;
+                }
+                .ta-tab-active:hover {
+                    background: #4338ca;
+                    border-color: #4338ca;
+                    color: #fff;
+                }
+                .ta-employee-filter {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 4px 10px;
+                    background: #eef2ff;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    color: #4338ca;
+                }
+                .ta-filter-label { white-space: nowrap; }
+                .ta-filter-clear {
+                    background: none;
+                    border: none;
+                    font-size: 12px;
+                    color: #6366f1;
+                    cursor: pointer;
+                    padding: 2px 4px;
+                    white-space: nowrap;
+                }
+                .ta-filter-clear:hover { color: #4338ca; text-decoration: underline; }
+                /* Phase 10 — Stats Bar */
+                .ta-stats-bar {
+                    display: flex;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                    margin-bottom: 12px;
+                }
+                .ta-stat-chip {
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 999px;
+                    background: #f9fafb;
+                    color: #374151;
+                    cursor: pointer;
+                    transition: all 0.15s;
+                }
+                .ta-stat-chip:hover {
+                    border-color: #c7d2fe;
+                    background: #eef2ff;
+                }
+                .ta-stat-chip strong {
+                    color: #4f46e5;
+                    margin-left: 2px;
+                }
+                .ta-stat-active {
+                    background: #4f46e5;
+                    border-color: #4f46e5;
+                    color: #fff;
+                }
+                .ta-stat-active:hover {
+                    background: #4338ca;
+                    border-color: #4338ca;
+                }
+                .ta-stat-active strong { color: #fff; }
+                .ta-date-group {
+                    margin-bottom: 20px;
+                }
+                .ta-date-group:last-child { margin-bottom: 0; }
+                .ta-date-label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    color: #6b7280;
+                    margin-bottom: 8px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .ta-employee-group {
+                    margin-bottom: 12px;
+                    margin-left: 4px;
+                }
+                .ta-employee-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 6px;
+                }
+                .ta-employee-name {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #1f2937;
+                }
+                .ta-employee-clickable {
+                    cursor: pointer;
+                    transition: color 0.15s;
+                }
+                .ta-employee-clickable:hover {
+                    color: #4f46e5;
+                }
+                .ta-employee-count {
+                    font-size: 12px;
+                    color: #9ca3af;
+                }
+                .ta-completion-row {
+                    margin-bottom: 4px;
+                }
+                .ta-completion-summary {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 10px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    transition: background 0.15s;
+                }
+                .ta-completion-summary:hover {
+                    background: #f9fafb;
+                }
+                .ta-check { font-size: 14px; flex-shrink: 0; }
+                .ta-sop-title {
+                    flex: 1;
+                    font-size: 13px;
+                    color: #374151;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .ta-time {
+                    font-size: 12px;
+                    color: #9ca3af;
+                    white-space: nowrap;
+                }
+                .ta-duration {
+                    font-size: 11px;
+                    color: #6366f1;
+                    background: #eef2ff;
+                    padding: 1px 6px;
+                    border-radius: 4px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }
+                .ta-expand-arrow {
+                    font-size: 10px;
+                    color: #9ca3af;
+                    flex-shrink: 0;
+                    transition: transform 0.15s;
+                }
+                .ta-step-detail {
+                    margin: 4px 0 8px 32px;
+                    padding: 8px 12px;
+                    background: #f9fafb;
+                    border: 1px solid #f3f4f6;
+                    border-radius: 6px;
+                }
+                .ta-step {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                    padding: 4px 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                }
+                .ta-step-done { color: #374151; }
+                .ta-step-num {
+                    min-width: 20px;
+                    height: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #e5e7eb;
+                    border-radius: 50%;
+                    font-size: 10px;
+                    font-weight: 600;
+                    flex-shrink: 0;
+                }
+                .ta-step-done .ta-step-num {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .ta-step-text {
+                    flex: 1;
+                    line-height: 1.4;
+                }
+                .ta-step-content {
+                    flex: 1;
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                }
+                .ta-step-note {
+                    font-size: 11px;
+                    color: #6366f1;
+                    font-style: italic;
+                    line-height: 1.4;
+                }
+                .ta-step-time {
+                    font-size: 11px;
+                    color: #9ca3af;
+                    white-space: nowrap;
+                    flex-shrink: 0;
                 }
                 
                 .modal-body {
@@ -3825,6 +4517,11 @@
                     }
                     .sop-card { flex-direction: column; }
                     .sop-card-actions { flex-direction: row; }
+                    .ta-controls { flex-direction: column; align-items: flex-start; }
+                    .ta-date-tabs { width: 100%; }
+                    .ta-tab { flex: 1; text-align: center; padding: 6px 8px; }
+                    .ta-stats-bar { gap: 4px; }
+                    .ta-completion-summary { flex-wrap: wrap; }
                 }
             `;
             

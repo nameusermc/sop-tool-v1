@@ -181,6 +181,7 @@
                 <div class="landing-template-grid">
                     ${templateCards}
                 </div>
+                <p class="landing-browse-link"><a href="/sop-templates/">Browse free checklists for your industry →</a></p>
             </section>
 
             <!-- DIFFERENTIATOR -->
@@ -214,7 +215,7 @@
             <!-- PRICING -->
             <section class="landing-section landing-pricing">
                 <h2 class="landing-section-title">Simple pricing</h2>
-                <p class="landing-section-subtitle">Start free. Upgrade when you're ready to share with your team.</p>
+                <p class="landing-section-subtitle">Start free. Upgrade when you want AI-powered SOPs and team sharing.</p>
                 <div class="landing-pricing-cards">
                     <div class="landing-price-card">
                         <h3 class="landing-price-name">Free</h3>
@@ -233,8 +234,11 @@
                         <div class="landing-price-amount">$39<span class="landing-price-period">/mo</span></div>
                         <ul class="landing-price-features">
                             <li>Everything in Free</li>
+                            <li><strong>Describe the task, AI writes the steps</strong></li>
                             <li><strong>Team access — share via link</strong></li>
-                            <li><strong>Cloud sync — access anywhere</strong></li>
+                            <li>See who completed what and when</li>
+                            <li>Morning digest email — no check-ins needed</li>
+                            <li>Cloud sync across all devices</li>
                             <li>Unlimited team members</li>
                         </ul>
                         <button class="landing-cta-primary" data-action="start-now">Start free, upgrade later</button>
@@ -254,10 +258,11 @@
             <!-- FOOTER -->
             <footer class="landing-footer">
                 <div class="landing-footer-links">
-                    <a href="/pricing.html">Pricing</a>
-                    <a href="/terms.html">Terms</a>
-                    <a href="/privacy.html">Privacy</a>
-                    <a href="/refund.html">Refund Policy</a>
+                    <a href="/sop-templates/">Templates</a>
+                    <a href="/pricing">Pricing</a>
+                    <a href="/terms">Terms</a>
+                    <a href="/privacy">Privacy</a>
+                    <a href="/refund">Refund Policy</a>
                 </div>
                 <p>© 2026 WithoutMe</p>
             </footer>
@@ -340,7 +345,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                color: #6366f1;
+                color: #4f46e5;
                 margin: 0 0 1rem 0;
             }
 
@@ -395,7 +400,7 @@
 
             .landing-cta-note {
                 font-size: 0.82rem;
-                color: #94a3b8;
+                color: #64748b;
                 margin: 0;
             }
 
@@ -430,7 +435,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
-                color: #16a34a;
+                color: #15803d;
                 background: #f0fdf4;
                 padding: 0.2rem 0.6rem;
                 border-radius: 4px;
@@ -458,7 +463,7 @@
             }
 
             .landing-preview-step.done {
-                color: #94a3b8;
+                color: #64748b;
                 text-decoration: line-through;
                 text-decoration-color: #cbd5e1;
             }
@@ -509,7 +514,7 @@
 
             .landing-section-subtitle {
                 text-align: center;
-                color: #64748b;
+                color: #475569;
                 font-size: 1.05rem;
                 margin: 0 0 2.5rem 0;
                 max-width: 560px;
@@ -641,6 +646,20 @@
                 box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
             }
 
+            .landing-browse-link {
+                text-align: center;
+                margin: 1.25rem 0 0;
+                font-size: 0.9rem;
+            }
+            .landing-browse-link a {
+                color: #4f46e5;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .landing-browse-link a:hover {
+                text-decoration: underline;
+            }
+
             .landing-template-icon {
                 font-size: 1.3rem;
                 flex-shrink: 0;
@@ -660,7 +679,7 @@
 
             .landing-template-desc {
                 font-size: 0.78rem;
-                color: #94a3b8;
+                color: #64748b;
             }
 
             /* ---- DIFFERENTIATOR ---- */
@@ -722,7 +741,7 @@
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.06em;
-                color: #64748b;
+                color: #475569;
                 margin-bottom: 0.25rem;
             }
 
@@ -821,7 +840,7 @@
             .landing-pricing-note {
                 text-align: center;
                 font-size: 0.82rem;
-                color: #94a3b8;
+                color: #64748b;
                 margin: 1.25rem 0 0;
             }
 
@@ -874,7 +893,7 @@
                 text-align: center;
                 padding: 2rem;
                 border-top: 1px solid #e2e8f0;
-                color: #94a3b8;
+                color: #64748b;
                 font-size: 0.85rem;
             }
 

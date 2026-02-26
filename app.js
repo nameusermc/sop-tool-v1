@@ -513,6 +513,9 @@
             return;  // Team link view is self-contained, skip normal init
         }
         
+        // Not a team link session — clear any stale invite code
+        localStorage.removeItem('withoutme_team_invite_code');
+        
         // Check for required modules
         const modulesLoaded = {
             Dashboard: typeof Dashboard === 'function',
@@ -559,6 +562,16 @@
                             localStorage.setItem('withoutme_business_type', bizType);
                         }
                     } catch (e) { /* ignore */ }
+                    
+                    // Sync digest opt-out from Supabase → localStorage
+                    try {
+                        const digestOptOut = await SupabaseClient.getDigestOptOut();
+                        if (digestOptOut) {
+                            localStorage.setItem('withoutme_digest_optout', '1');
+                        } else {
+                            localStorage.removeItem('withoutme_digest_optout');
+                        }
+                    } catch (e) { /* ignore */ }
                 }
             } else {
                 console.log('👤 Running in local-only mode');
@@ -568,6 +581,41 @@
         // Initialize Paddle billing
         if (typeof PaddleBilling !== 'undefined') {
             PaddleBilling.init();
+        }
+        
+        // Check if arriving from a template page with ?import= param
+        const importParams = new URLSearchParams(window.location.search);
+        const importData = importParams.get('import');
+        if (importData) {
+            try {
+                const decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(importData)))));
+                console.log('📄 Importing template from URL:', decoded.title);
+                
+                // Clean URL immediately
+                history.replaceState(null, '', '/');
+                
+                // Mark as onboarded so landing doesn't show next time
+                localStorage.setItem('sop_tool_onboarded', '1');
+                
+                // Initialize dashboard (needed for editor callbacks)
+                showDashboard();
+                injectAuthUI();
+                
+                // Open editor with the imported template data
+                showEditor(null, {
+                    title: decoded.title || '',
+                    description: decoded.description || '',
+                    steps: (decoded.steps || []).map(s => ({ text: s.text || '', note: '' })),
+                    folderId: 'general',
+                    tags: decoded.tags || []
+                });
+                
+                AppState.initialized = true;
+                return;
+            } catch (e) {
+                console.warn('⚠️ Failed to decode import data:', e);
+                // Fall through to normal init
+            }
         }
         
         // Check if this is a new visitor who should see the landing page
@@ -595,6 +643,14 @@
     function shouldShowLanding() {
         // Don't show landing if the module isn't loaded
         if (typeof Landing !== 'function') return false;
+        
+        // Always show if ?home param is present (returning visitor wants to see landing)
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('home')) {
+            // Clean URL so bookmarking doesn't force landing every time
+            history.replaceState(null, '', window.location.pathname);
+            return true;
+        }
         
         // Don't show if user is logged in
         if (StorageAdapter?.Auth?.isAuthenticated?.()) return false;
@@ -750,6 +806,10 @@
             
             // Store invite code for potential refresh
             AppState.activeInviteCode = inviteCode;
+            
+            // Phase 9: Store invite code in localStorage so checklist module
+            // can use it for completion write-back (fire-and-forget to Supabase)
+            localStorage.setItem('withoutme_team_invite_code', inviteCode);
             
             // Write team SOPs to localStorage so checklist module can find them
             // (checklist._getSOP reads from localStorage)
@@ -1054,6 +1114,43 @@
                 }
                 .account-signin-btn:hover {
                     background: #4338ca;
+                }
+                .account-toggle {
+                    position: relative;
+                    display: inline-block;
+                    width: 40px;
+                    height: 22px;
+                    flex-shrink: 0;
+                    cursor: pointer;
+                }
+                .account-toggle input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .account-toggle-slider {
+                    position: absolute;
+                    inset: 0;
+                    background: #d1d5db;
+                    border-radius: 22px;
+                    transition: background 0.2s;
+                }
+                .account-toggle-slider::before {
+                    content: '';
+                    position: absolute;
+                    width: 16px;
+                    height: 16px;
+                    left: 3px;
+                    bottom: 3px;
+                    background: #fff;
+                    border-radius: 50%;
+                    transition: transform 0.2s;
+                }
+                .account-toggle input:checked + .account-toggle-slider {
+                    background: #4f46e5;
+                }
+                .account-toggle input:checked + .account-toggle-slider::before {
+                    transform: translateX(18px);
                 }
                 .account-panel-footer {
                     padding: 1rem 1.25rem;
@@ -1414,10 +1511,12 @@
         footer.id = 'app-footer';
         footer.className = 'app-footer';
         footer.innerHTML = `
-            <a href="/pricing.html">Pricing</a>
-            <a href="/terms.html">Terms</a>
-            <a href="/privacy.html">Privacy</a>
-            <a href="/refund.html">Refund Policy</a>
+            <a href="/?home">Home</a>
+            <a href="/sop-templates/">Templates</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/refund">Refund Policy</a>
             <span class="app-footer-sep">·</span>
             <span>© 2026 WithoutMe</span>
         `;
@@ -1602,7 +1701,7 @@
                         Upgrade to Pro — $39/mo
                     </button>
                     <p style="font-size:0.78rem;color:#94a3b8;margin:0;text-align:center;">
-                        Team access, cloud sync, unlimited members
+                        AI-powered SOPs, team sharing with completion tracking, daily digest email, cloud sync
                     </p>
                 `}
 
@@ -1619,6 +1718,23 @@
                         <button id="account-save-biz-type" class="account-save-btn">Save</button>
                     </div>
                     <span id="account-biz-type-hint" style="font-size:0.72rem;color:${(function(){ try { return localStorage.getItem('withoutme_business_type') ? '#059669' : '#94a3b8'; } catch(e) { return '#94a3b8'; } })()};">${(function(){ try { const v = localStorage.getItem('withoutme_business_type'); return v ? '✓ Saved — AI will tailor suggestions for "' + v + '"' : 'Used by AI to tailor step suggestions to your business.'; } catch(e) { return 'Used by AI to tailor step suggestions to your business.'; } })()}</span>
+                </div>
+
+                <hr class="account-divider">
+                ` : ''}
+
+                ${isPro ? `
+                <div class="account-section">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+                        <div>
+                            <span class="account-label" style="margin-bottom:2px;">Daily team digest</span>
+                            <span style="font-size:0.72rem;color:#94a3b8;display:block;">Morning email with yesterday's team activity</span>
+                        </div>
+                        <label class="account-toggle" for="account-digest-toggle">
+                            <input type="checkbox" id="account-digest-toggle" ${(function(){ try { return localStorage.getItem('withoutme_digest_optout') === '1' ? '' : 'checked'; } catch(e) { return 'checked'; } })()} />
+                            <span class="account-toggle-slider"></span>
+                        </label>
+                    </div>
                 </div>
 
                 <hr class="account-divider">
@@ -1696,6 +1812,24 @@
                     }
                 } finally {
                     if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
+                }
+            });
+
+            // Daily digest toggle — save opt-out to localStorage + Supabase
+            body.querySelector('#account-digest-toggle')?.addEventListener('change', async (e) => {
+                const enabled = e.target.checked;  // checked = ON (receives emails)
+                const optedOut = !enabled;
+                
+                // Save to localStorage for immediate UI state
+                if (optedOut) {
+                    localStorage.setItem('withoutme_digest_optout', '1');
+                } else {
+                    localStorage.removeItem('withoutme_digest_optout');
+                }
+                
+                // Save to Supabase user_metadata (read by server-side digest query)
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    await SupabaseClient.setDigestOptOut(optedOut);
                 }
             });
 
@@ -1898,6 +2032,16 @@
                         const bizType = await SupabaseClient.getBusinessType();
                         if (bizType) {
                             localStorage.setItem('withoutme_business_type', bizType);
+                        }
+                    } catch (e) { /* ignore */ }
+                    
+                    // Sync digest opt-out from Supabase → localStorage
+                    try {
+                        const digestOptOut = await SupabaseClient.getDigestOptOut();
+                        if (digestOptOut) {
+                            localStorage.setItem('withoutme_digest_optout', '1');
+                        } else {
+                            localStorage.removeItem('withoutme_digest_optout');
                         }
                     } catch (e) { /* ignore */ }
                 }
