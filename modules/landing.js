@@ -236,6 +236,8 @@
                             <li>Everything in Free</li>
                             <li><strong>Describe the task, AI writes the steps</strong></li>
                             <li><strong>Team access — share via link</strong></li>
+                            <li>See who completed what and when</li>
+                            <li>Morning digest email — no check-ins needed</li>
                             <li>Cloud sync across all devices</li>
                             <li>Unlimited team members</li>
                         </ul>

@@ -1701,7 +1701,7 @@
                         Upgrade to Pro — $39/mo
                     </button>
                     <p style="font-size:0.78rem;color:#94a3b8;margin:0;text-align:center;">
-                        AI-powered SOPs, team sharing, cloud sync, no per-seat fees
+                        AI-powered SOPs, team sharing with completion tracking, daily digest email, cloud sync
                     </p>
                 `}
 
