@@ -839,6 +839,9 @@
             // Set up callbacks for team member actions (checklist + print)
             setupDashboardCallbacks();
             
+            // Phase 12F: Load assignments for this team member
+            loadTeamMemberAssignments(inviteCode);
+            
             AppState.initialized = true;
             console.log('✅ Team link view initialized');
             
@@ -854,6 +857,74 @@
         }
     }
     
+    /**
+     * Phase 12F: Load and render assignments for team member view.
+     */
+    async function loadTeamMemberAssignments(inviteCode) {
+        if (!SupabaseClient) return;
+        try {
+            const result = await SupabaseClient.fetchAssignmentsByInviteCode(inviteCode);
+            if (!result?.success || !result.assignments?.length) return;
+
+            const assignments = result.assignments;
+            const today = new Date().toISOString().split('T')[0];
+            const section = document.getElementById('team-assignments-section');
+            if (!section) return;
+
+            // Store assignments globally so checklist can reference them
+            AppState.teamAssignments = assignments;
+            window._teamAssignments = assignments;
+
+            let html = `<section class="team-assignments-banner">
+                <div class="section-header"><h3>📌 Assigned to You</h3></div>
+                <div class="team-assignments-list">`;
+
+            assignments.forEach(a => {
+                const isOverdue = a.due_date < today;
+                const due = new Date(a.due_date + 'T00:00:00');
+                const diffDays = Math.round((due - new Date(today + 'T00:00:00')) / 86400000);
+                let dueLabel = '';
+                if (diffDays === 0) dueLabel = 'Due today';
+                else if (diffDays === 1) dueLabel = 'Due tomorrow';
+                else if (diffDays === -1) dueLabel = '1 day overdue';
+                else if (diffDays < -1) dueLabel = `${Math.abs(diffDays)} days overdue`;
+                else if (diffDays <= 7) dueLabel = `Due in ${diffDays} days`;
+                else dueLabel = `Due ${due.toLocaleDateString()}`;
+
+                html += `<div class="team-assign-card ${isOverdue ? 'overdue' : ''}" data-sop-id="${a.sop_id}" data-assignment-id="${a.id}">
+                    <div class="team-assign-title">${escapeHtml(a.sop_title)}</div>
+                    <div class="team-assign-due ${isOverdue ? 'due-overdue' : ''}">${isOverdue ? '⚠️' : '📅'} ${dueLabel}</div>
+                </div>`;
+            });
+
+            html += '</div></section>';
+            section.innerHTML = html;
+            section.style.display = 'block';
+
+            // Click to scroll to SOP or run checklist
+            section.querySelectorAll('.team-assign-card').forEach(card => {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => {
+                    const sopId = card.dataset.sopId;
+                    const sopCard = document.querySelector(`.sop-card[data-sop-id="${sopId}"]`);
+                    if (sopCard) {
+                        sopCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        sopCard.style.outline = '2px solid #6366f1';
+                        setTimeout(() => { sopCard.style.outline = ''; }, 2000);
+                    }
+                });
+            });
+        } catch (e) {
+            console.error('[App] loadTeamMemberAssignments error:', e);
+        }
+    }
+
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+
     /**
      * Check the current user's team role and update AppState.
      * Used for authenticated users (owner/manager tier — future expansion).

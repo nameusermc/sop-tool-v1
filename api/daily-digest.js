@@ -116,8 +116,24 @@ export default async function handler(req, res) {
                 }
             } catch (e) { /* non-critical — skip feedback count */ }
 
-            const subject = buildSubject(completions, feedbackCount);
-            const html = buildEmailHtml(team, completions, dateStr, feedbackCount);
+            // Check for overdue assignments (Phase 12F)
+            let overdueAssignments = [];
+            try {
+                const odUrl = `${SUPABASE_URL}/rest/v1/task_assignments?team_id=eq.${team.team_id}&status=eq.assigned&due_date=lt.${dateStr}&select=member_name,sop_title,due_date`;
+                const odRes = await fetch(odUrl, {
+                    headers: {
+                        'apikey': SUPABASE_SERVICE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+                    }
+                });
+                if (odRes.ok) {
+                    const odData = await odRes.json();
+                    overdueAssignments = Array.isArray(odData) ? odData : [];
+                }
+            } catch (e) { /* non-critical — skip overdue count */ }
+
+            const subject = buildSubject(completions, feedbackCount, overdueAssignments.length);
+            const html = buildEmailHtml(team, completions, dateStr, feedbackCount, overdueAssignments);
 
             try {
                 const emailRes = await fetch('https://api.postmarkapp.com/email', {
@@ -166,10 +182,11 @@ export default async function handler(req, res) {
 /**
  * Build the email subject line.
  */
-function buildSubject(completions, feedbackCount = 0) {
+function buildSubject(completions, feedbackCount = 0, overdueCount = 0) {
     const count = completions.length;
     const parts = [`Your team completed ${count} checklist${count !== 1 ? 's' : ''} yesterday`];
     if (feedbackCount > 0) parts.push(`+ ${feedbackCount} new feedback`);
+    if (overdueCount > 0) parts.push(`+ ${overdueCount} overdue`);
     return parts.join(' ');
 }
 
@@ -177,7 +194,7 @@ function buildSubject(completions, feedbackCount = 0) {
  * Build the HTML email body.
  * Lightweight, scannable, links back to the app dashboard.
  */
-function buildEmailHtml(team, completions, dateStr, feedbackCount = 0) {
+function buildEmailHtml(team, completions, dateStr, feedbackCount = 0, overdueAssignments = []) {
     // Group completions by employee
     const byEmployee = {};
     const employeeOrder = [];
@@ -260,6 +277,17 @@ function buildEmailHtml(team, completions, dateStr, feedbackCount = 0) {
         <div style="background:#fafafe;border:1px solid #e5e7eb;border-left:3px solid #6366f1;border-radius:8px;padding:16px;margin-bottom:24px;">
             <div style="font-size:14px;font-weight:600;color:#1f2937;">🚩 ${feedbackCount} new issue${feedbackCount !== 1 ? 's' : ''} flagged</div>
             <div style="font-size:13px;color:#6b7280;margin-top:4px;">Your team flagged issues on SOPs yesterday. View details in your dashboard.</div>
+        </div>
+        ` : ''}
+
+        ${overdueAssignments.length > 0 ? `
+        <!-- Overdue Assignments -->
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:8px;padding:16px;margin-bottom:24px;">
+            <div style="font-size:14px;font-weight:600;color:#991b1b;">⚠️ ${overdueAssignments.length} overdue assignment${overdueAssignments.length !== 1 ? 's' : ''}</div>
+            ${overdueAssignments.map(a => {
+                const daysOverdue = Math.ceil((new Date(dateStr + 'T00:00:00Z') - new Date(a.due_date + 'T00:00:00Z')) / 86400000);
+                return `<div style="font-size:13px;color:#6b7280;margin-top:6px;">• ${escapeHtml(a.member_name)} — ${escapeHtml(a.sop_title)} (${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue)</div>`;
+            }).join('')}
         </div>
         ` : ''}
 

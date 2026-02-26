@@ -787,6 +787,9 @@
                             <span class="team-banner-icon">👥</span>
                             <span class="team-banner-text">${this._escapeHtml(teamName)}</span>
                         </div>
+                        
+                        <!-- Assigned to You (Phase 12F) -->
+                        <div id="team-assignments-section" style="display:none;"></div>
                         ` : ''}
                         
                         <!-- Header -->
@@ -863,6 +866,9 @@
                         <!-- Team Activity (Phase 9 — owner sees team completions) -->
                         ${isTeamOwner ? this._renderTeamActivity() : ''}
                         
+                        <!-- Assigned Tasks (Phase 12F) -->
+                        ${isTeamOwner ? this._renderAssignedTasks() : ''}
+                        
                         <!-- Team Feedback (Phase 12E — owner sees team issues) -->
                         ${isTeamOwner ? this._renderTeamFeedback() : ''}
                         
@@ -929,6 +935,31 @@
                     </div>
                 </div>
                 
+                <!-- Assign Task Modal (Phase 12F) -->
+                <div class="modal-overlay" id="assign-modal" style="display: none;">
+                    <div class="modal-content" style="max-width:400px;">
+                        <div class="modal-header">
+                            <h3>📌 Assign Task</h3>
+                            <button class="btn-close" id="btn-close-assign">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="assign-sop-title" id="assign-sop-title"></div>
+                            <div class="form-group">
+                                <label>Team Member</label>
+                                <select class="form-input" id="assign-member"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Due Date</label>
+                                <input type="date" class="form-input" id="assign-due-date" />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" id="btn-cancel-assign">Cancel</button>
+                            <button class="btn btn-primary" id="btn-submit-assign">Assign</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Mobile Folder Manager -->
                 <div class="modal-overlay" id="mobile-folder-manager" style="display: none;">
                     <div class="mobile-fm-sheet">
@@ -1406,6 +1437,11 @@
                         <button class="action-btn edit-btn" data-action="edit" data-sop-id="${sop.id}" title="Edit SOP">
                             ✏️ Edit
                         </button>
+                        ${this.options.teamRole?.role === 'owner' ? `
+                        <button class="action-btn assign-btn" data-action="assign" data-sop-id="${sop.id}" title="Assign to team member">
+                            📌
+                        </button>
+                        ` : ''}
                         <button class="action-btn duplicate-btn" data-action="duplicate" data-sop-id="${sop.id}" title="Duplicate SOP">
                             📋
                         </button>
@@ -1773,6 +1809,7 @@
             if (role === 'owner') {
                 this._loadTeamCompletions();
                 this._loadTeamFeedback();
+                this._loadAssignments();
                 this._attachTeamActivityListeners();
             }
         }
@@ -1846,6 +1883,10 @@
                     
                 case 'print':
                     this._printSop(sop);
+                    break;
+                
+                case 'assign':
+                    this._showAssignModal(sop);
                     break;
                     
                 default:
@@ -2531,6 +2572,215 @@
             }
         }
         
+        // ====================================================================
+        // TASK ASSIGNMENTS (Phase 12F)
+        // ====================================================================
+
+        _renderAssignedTasks() {
+            return `
+                <section class="assigned-tasks-section" id="assigned-tasks">
+                    <div class="section-header">
+                        <h3>📌 Assigned Tasks <span class="assigned-badge" id="assigned-badge" style="display:none;"></span></h3>
+                    </div>
+                    <div class="assigned-tasks-content" id="assigned-tasks-content">
+                        <p class="team-activity-loading">Loading assignments...</p>
+                    </div>
+                </section>
+            `;
+        }
+
+        async _loadAssignments() {
+            if (!window.SupabaseClient) return;
+            try {
+                const teamMembers = await window.SupabaseClient.fetchTeamMembers();
+                this._teamMembersCache = teamMembers || [];
+
+                const teamId = teamMembers?.[0]?.team_id;
+                if (!teamId) {
+                    const el = document.getElementById('assigned-tasks-content');
+                    if (el) el.innerHTML = '<p class="team-activity-empty">No team set up yet.</p>';
+                    return;
+                }
+                const result = await window.SupabaseClient.fetchTeamAssignments(teamId);
+                this._assignmentsData = result?.success ? (result.assignments || []) : [];
+                this._renderAssignedTasksContent();
+            } catch (e) {
+                console.error('[Dashboard] _loadAssignments error:', e);
+            }
+        }
+
+        _renderAssignedTasksContent() {
+            const el = document.getElementById('assigned-tasks-content');
+            if (!el) return;
+
+            const assignments = this._assignmentsData || [];
+            const today = new Date().toISOString().split('T')[0];
+
+            // Split into open (assigned) and recently completed
+            const open = assignments.filter(a => a.status === 'assigned');
+            const completed = assignments.filter(a => a.status === 'completed').slice(0, 10);
+
+            // Count overdue
+            const overdue = open.filter(a => a.due_date < today);
+            const badge = document.getElementById('assigned-badge');
+            if (badge) {
+                if (overdue.length > 0) {
+                    badge.textContent = `${overdue.length} overdue`;
+                    badge.style.display = 'inline';
+                    badge.style.background = '#ef4444';
+                    badge.style.color = '#fff';
+                    badge.style.padding = '2px 8px';
+                    badge.style.borderRadius = '10px';
+                    badge.style.fontSize = '12px';
+                    badge.style.marginLeft = '8px';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+
+            if (open.length === 0 && completed.length === 0) {
+                el.innerHTML = '<p class="team-activity-empty">No assignments yet. Use the 📌 button on any SOP to assign it to a team member.</p>';
+                return;
+            }
+
+            let html = '';
+
+            if (open.length > 0) {
+                html += '<div class="assigned-list">';
+                open.forEach(a => {
+                    const isOverdue = a.due_date < today;
+                    const dueLabel = this._formatDueDate(a.due_date, today);
+                    html += `
+                        <div class="assigned-item ${isOverdue ? 'overdue' : ''}">
+                            <div class="assigned-item-main">
+                                <span class="assigned-member">${this._escapeHtml(a.member_name)}</span>
+                                <span class="assigned-sop">${this._escapeHtml(a.sop_title)}</span>
+                                <span class="assigned-due ${isOverdue ? 'due-overdue' : ''}">${dueLabel}</span>
+                            </div>
+                            <button class="btn-sm btn-cancel-assign" data-assignment-id="${a.id}" title="Cancel assignment">✕</button>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            if (completed.length > 0) {
+                html += '<div class="assigned-completed-header">Recently completed</div>';
+                html += '<div class="assigned-list assigned-completed">';
+                completed.forEach(a => {
+                    const doneDate = new Date(a.completed_at).toLocaleDateString();
+                    html += `
+                        <div class="assigned-item completed">
+                            <div class="assigned-item-main">
+                                <span class="assigned-member">${this._escapeHtml(a.member_name)}</span>
+                                <span class="assigned-sop">${this._escapeHtml(a.sop_title)}</span>
+                                <span class="assigned-due">✅ ${doneDate}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            el.innerHTML = html;
+
+            // Cancel assignment listeners
+            el.querySelectorAll('.btn-cancel-assign').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = e.target.dataset.assignmentId;
+                    if (!confirm('Cancel this assignment?')) return;
+                    const ok = await window.SupabaseClient.deleteAssignment(id);
+                    if (ok) {
+                        this._assignmentsData = this._assignmentsData.filter(a => a.id !== id);
+                        this._renderAssignedTasksContent();
+                        this._showNotification('Assignment cancelled', 'success');
+                    }
+                });
+            });
+        }
+
+        _formatDueDate(dueDateStr, todayStr) {
+            if (dueDateStr === todayStr) return '📅 Due today';
+            const due = new Date(dueDateStr + 'T00:00:00');
+            const today = new Date(todayStr + 'T00:00:00');
+            const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+            if (diffDays === 1) return '📅 Due tomorrow';
+            if (diffDays === -1) return '⚠️ 1 day overdue';
+            if (diffDays < -1) return `⚠️ ${Math.abs(diffDays)} days overdue`;
+            if (diffDays <= 7) return `📅 Due in ${diffDays} days`;
+            return `📅 Due ${due.toLocaleDateString()}`;
+        }
+
+        async _showAssignModal(sop) {
+            const modal = document.getElementById('assign-modal');
+            if (!modal) return;
+
+            // Populate SOP title
+            document.getElementById('assign-sop-title').textContent = sop.title;
+
+            // Populate member dropdown
+            const select = document.getElementById('assign-member');
+            const members = this._teamMembersCache || [];
+            select.innerHTML = members.length === 0
+                ? '<option value="">No team members yet</option>'
+                : '<option value="">Select a team member...</option>' +
+                  members.map(m => `<option value="${this._escapeHtml(m.invite_code)}" data-name="${this._escapeHtml(m.name || 'Unnamed')}">${this._escapeHtml(m.name || 'Unnamed')} (${m.status})</option>`).join('');
+
+            // Default due date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('assign-due-date').value = tomorrow.toISOString().split('T')[0];
+
+            // Store SOP reference
+            this._assigningSop = sop;
+
+            modal.style.display = 'flex';
+
+            // Listeners (remove old, add fresh)
+            const closeBtn = document.getElementById('btn-close-assign');
+            const cancelBtn = document.getElementById('btn-cancel-assign');
+            const submitBtn = document.getElementById('btn-submit-assign');
+
+            const hide = () => { modal.style.display = 'none'; this._assigningSop = null; };
+
+            closeBtn.onclick = hide;
+            cancelBtn.onclick = hide;
+            modal.onclick = (e) => { if (e.target === modal) hide(); };
+
+            submitBtn.onclick = async () => {
+                const inviteCode = select.value;
+                const memberName = select.selectedOptions[0]?.dataset?.name || '';
+                const dueDate = document.getElementById('assign-due-date').value;
+
+                if (!inviteCode) { this._showNotification('Select a team member', 'error'); return; }
+                if (!dueDate) { this._showNotification('Select a due date', 'error'); return; }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Assigning...';
+
+                const teamId = this._teamMembersCache?.[0]?.team_id;
+                const result = await window.SupabaseClient.createAssignment({
+                    teamId,
+                    sopId: sop.id,
+                    sopTitle: sop.title,
+                    inviteCode,
+                    memberName,
+                    dueDate
+                });
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Assign';
+
+                if (result.success) {
+                    hide();
+                    this._showNotification(`Assigned to ${memberName}`, 'success');
+                    this._loadAssignments(); // Refresh
+                } else {
+                    this._showNotification('Failed to assign: ' + (result.error || 'unknown'), 'error');
+                }
+            };
+        }
+
         // ====================================================================
         // TEAM FEEDBACK (Phase 12E)
         // ====================================================================
@@ -3949,6 +4199,148 @@
                 .team-banner-icon { font-size: 18px; }
                 .team-banner-text { font-size: 14px; font-weight: 600; color: #4338ca; }
                 
+                /* Assigned Tasks (Phase 12F) */
+                .assigned-tasks-section {
+                    margin-top: 24px;
+                    padding-top: 24px;
+                    border-top: 1px solid #e5e7eb;
+                }
+                .assigned-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                }
+                .assigned-item {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 10px 12px;
+                    background: #fff;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                }
+                .assigned-item.overdue {
+                    border-left: 3px solid #ef4444;
+                    background: #fef2f2;
+                }
+                .assigned-item.completed {
+                    opacity: 0.6;
+                }
+                .assigned-item-main {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 8px;
+                    flex: 1;
+                    min-width: 0;
+                }
+                .assigned-member {
+                    font-weight: 600;
+                    font-size: 14px;
+                    color: #1f2937;
+                }
+                .assigned-sop {
+                    font-size: 13px;
+                    color: #4b5563;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    max-width: 200px;
+                }
+                .assigned-due {
+                    font-size: 12px;
+                    color: #6b7280;
+                    white-space: nowrap;
+                }
+                .assigned-due.due-overdue {
+                    color: #ef4444;
+                    font-weight: 600;
+                }
+                .btn-cancel-assign {
+                    background: none;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                    font-size: 12px;
+                    color: #9ca3af;
+                    flex-shrink: 0;
+                }
+                .btn-cancel-assign:hover {
+                    background: #fee2e2;
+                    color: #ef4444;
+                    border-color: #fca5a5;
+                }
+                .assigned-completed-header {
+                    font-size: 12px;
+                    color: #9ca3af;
+                    margin-top: 12px;
+                    margin-bottom: 4px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .assign-sop-title {
+                    font-weight: 600;
+                    font-size: 15px;
+                    color: #1f2937;
+                    margin-bottom: 12px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                .assign-btn {
+                    font-size: 14px !important;
+                }
+                .team-assignments-banner {
+                    background: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 10px;
+                    padding: 16px;
+                    margin-bottom: 16px;
+                }
+                .team-assignments-banner .section-header h3 {
+                    font-size: 16px;
+                    margin: 0 0 10px 0;
+                    color: #1e40af;
+                }
+                .team-assignments-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .team-assign-card {
+                    background: #fff;
+                    border: 1px solid #dbeafe;
+                    border-radius: 8px;
+                    padding: 10px 14px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 12px;
+                }
+                .team-assign-card.overdue {
+                    border-left: 3px solid #ef4444;
+                    background: #fef2f2;
+                }
+                .team-assign-title {
+                    font-weight: 600;
+                    font-size: 14px;
+                    color: #1f2937;
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .team-assign-due {
+                    font-size: 12px;
+                    color: #6b7280;
+                    white-space: nowrap;
+                }
+                .team-assign-due.due-overdue {
+                    color: #ef4444;
+                    font-weight: 600;
+                }
+
                 /* Team Feedback (Phase 12E) */
                 .team-feedback-section {
                     margin-top: 24px;

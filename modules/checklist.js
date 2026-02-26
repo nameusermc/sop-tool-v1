@@ -758,6 +758,32 @@
             }).catch(err => {
                 console.warn('[Checklist] Team completion recording failed:', err);
             });
+
+            // Phase 12F: Auto-complete matching assignment (fire-and-forget)
+            this._completeMatchingAssignment(inviteCode, checklist.sopId);
+        }
+
+        /**
+         * Phase 12F: If this SOP has an active assignment for this invite code, mark it complete.
+         */
+        _completeMatchingAssignment(inviteCode, sopId) {
+            // Check window._teamAssignments if available (set by app.js)
+            const assignments = window._teamAssignments || [];
+            const match = assignments.find(a => a.sop_id === sopId && a.status === 'assigned');
+            if (!match) return;
+
+            if (typeof SupabaseClient === 'undefined' || !SupabaseClient) return;
+
+            console.log('[Checklist] Completing assignment:', match.id);
+            SupabaseClient.completeAssignment(match.id, inviteCode).then(result => {
+                if (result.success) {
+                    console.log('[Checklist] Assignment marked complete');
+                    // Update local state so it doesn't fire again
+                    match.status = 'completed';
+                }
+            }).catch(err => {
+                console.warn('[Checklist] Assignment completion failed:', err);
+            });
         }
         
         _resetAll() {
