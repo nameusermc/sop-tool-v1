@@ -537,6 +537,9 @@
         _sopHasHashtag(sop, hashtag) {
             const hashtagLower = hashtag.toLowerCase();
             
+            // Check tags array (keywords)
+            if (sop.tags?.some(tag => tag.toLowerCase() === hashtagLower)) return true;
+            
             // Check title
             const titleHashtags = this._extractHashtags(sop.title);
             if (titleHashtags.includes(hashtagLower)) return true;
