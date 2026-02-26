@@ -190,8 +190,16 @@ function buildEmailHtml(team, completions, dateStr) {
                 hour12: true,
                 timeZone: 'America/New_York'
             });
+            // Render tech notes if present (RPC caps at 3 per completion)
+            const notes = c.notes || [];
+            const notesHtml = notes.length > 0
+                ? `<div style="margin:4px 0 2px 4px;">${notes.map(n =>
+                    `<div style="font-size:12px;color:#6b7280;padding:2px 0;">📝 Step ${n.step_number}: ${escapeHtml(n.note_text)}</div>`
+                  ).join('')}</div>`
+                : '';
             return `<li style="padding:4px 0;color:#374151;font-size:14px;">
                 ✅ ${escapeHtml(c.sop_title)} <span style="color:#9ca3af;font-size:12px;">— ${time} ET</span>
+                ${notesHtml}
             </li>`;
         }).join('');
 
