@@ -2595,7 +2595,7 @@
                 const teamMembers = await window.SupabaseClient.fetchTeamMembers();
                 this._teamMembersCache = teamMembers || [];
 
-                const teamId = teamMembers?.[0]?.team_id;
+                const teamId = this.options.teamRole?.teamId || teamMembers?.[0]?.team_id;
                 if (!teamId) {
                     const el = document.getElementById('assigned-tasks-content');
                     if (el) el.innerHTML = '<p class="team-activity-empty">No team set up yet.</p>';
