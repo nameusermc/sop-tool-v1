@@ -2602,7 +2602,11 @@
 
             // Build CSV rows
             const csvEscape = (val) => {
-                const s = String(val || '');
+                let s = String(val || '');
+                // Prevent CSV formula injection (Excel/Sheets treat =, +, -, @, \t, \r as formulas)
+                if (s.length > 0 && '=+-@\t\r'.includes(s[0])) {
+                    s = "'" + s;
+                }
                 if (s.includes(',') || s.includes('"') || s.includes('\n')) {
                     return '"' + s.replace(/"/g, '""') + '"';
                 }
