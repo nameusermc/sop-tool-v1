@@ -2758,7 +2758,8 @@
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Assigning...';
 
-                const teamId = this._teamMembersCache?.[0]?.team_id;
+                const teamId = this.options.teamRole?.teamId || this._teamMembersCache?.[0]?.team_id;
+                if (!teamId) { this._showNotification('Team not found', 'error'); return; }
                 const result = await window.SupabaseClient.createAssignment({
                     teamId,
                     sopId: sop.id,
