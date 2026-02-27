@@ -238,6 +238,8 @@
                             <li><strong>Team access — share via link</strong></li>
                             <li>See who completed what and when</li>
                             <li>Morning digest email — no check-ins needed</li>
+                            <li>Assign SOPs to team members with due dates</li>
+                            <li>Add photos to any step</li>
                             <li>Cloud sync across all devices</li>
                             <li>Unlimited team members</li>
                         </ul>

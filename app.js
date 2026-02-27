@@ -1065,7 +1065,7 @@
                     overflow-y: auto;
                 }
                 .help-section {
-                    margin-bottom: 24px;
+                    margin-bottom: 8px;
                 }
                 .help-section-title {
                     font-size: 0.82rem;
@@ -1073,9 +1073,8 @@
                     color: #1f2937;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
-                    margin-bottom: 10px;
-                    padding-bottom: 6px;
-                    border-bottom: 1px solid #f3f4f6;
+                    margin-bottom: 0;
+                    padding-bottom: 0;
                 }
                 .help-item {
                     margin-bottom: 10px;
@@ -1108,6 +1107,39 @@
                     font-size: 0.75rem;
                     color: #9ca3af;
                     flex-shrink: 0;
+                }
+                .help-section-toggle {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    cursor: pointer;
+                    padding: 8px 0;
+                    user-select: none;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .help-section-toggle:hover .help-section-title {
+                    color: #4338ca;
+                }
+                .help-section-arrow {
+                    font-size: 0.85rem;
+                    color: #9ca3af;
+                    transition: transform 0.15s;
+                }
+                .help-section-content {
+                    max-height: 0;
+                    overflow: hidden;
+                    transition: max-height 0.25s ease;
+                }
+                .help-section-content.open {
+                    max-height: 600px;
+                }
+                .help-footer-line {
+                    text-align: center;
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    padding: 16px 0 4px;
+                    border-top: 1px solid #f3f4f6;
+                    margin-top: 12px;
                 }
                 .account-btn.signed-in {
                     border-color: #4338ca;
@@ -1913,13 +1945,33 @@
 
         panel.querySelector('#help-panel-close-btn').addEventListener('click', closeHelpPanel);
 
+        // Accordion: toggle sections, only one open at a time
+        panel.querySelectorAll('.help-section-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const target = toggle.dataset.target;
+                const content = document.getElementById('help-content-' + target);
+                const arrow = toggle.querySelector('.help-section-arrow');
+                const isOpen = content.classList.contains('open');
+
+                // Close all sections
+                panel.querySelectorAll('.help-section-content').forEach(c => c.classList.remove('open'));
+                panel.querySelectorAll('.help-section-arrow').forEach(a => a.textContent = '▸');
+
+                // Open clicked section (if it wasn't already open)
+                if (!isOpen) {
+                    content.classList.add('open');
+                    arrow.textContent = '▾';
+                }
+            });
+        });
+
         requestAnimationFrame(() => {
             overlay.classList.add('visible');
             panel.classList.add('open');
         });
     }
 
-    function closeHelpPanel() {
+    function closeHelpPanel(){
         const panel = document.getElementById('help-panel');
         const overlay = document.getElementById('help-panel-overlay');
         if (panel) {
@@ -1934,97 +1986,107 @@
 
     function getHelpPanelContent() {
         return `
-            <div class="help-section">
-                <div class="help-section-title">Getting Started</div>
-                <div class="help-item">
-                    <div class="help-item-title">Create an SOP</div>
-                    <div class="help-item-desc">Add a title, description, and step-by-step instructions for any task your team needs to follow.</div>
+            <div class="help-section" data-section="getting-started">
+                <div class="help-section-toggle" data-target="getting-started">
+                    <span class="help-section-title">Getting Started</span>
+                    <span class="help-section-arrow">▾</span>
                 </div>
-                <div class="help-item">
-                    <div class="help-item-title">Templates</div>
-                    <div class="help-item-desc">Start from one of 18 industry-specific templates instead of a blank page.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Checklists</div>
-                    <div class="help-item-desc">Run any SOP as a step-by-step checklist. Check off steps as you go, add notes along the way.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Print / PDF</div>
-                    <div class="help-item-desc">Export any SOP for offline use or to post in your workspace.</div>
-                </div>
-            </div>
-
-            <div class="help-section">
-                <div class="help-section-title">📷 Editor Tools</div>
-                <div class="help-item">
-                    <div class="help-item-title">Images in steps</div>
-                    <div class="help-item-desc">Add photos or diagrams to any step. Images appear in checklists and print exports.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Version history</div>
-                    <div class="help-item-desc">View and restore previous versions of any SOP. Click the 🕐 button when editing.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Tags</div>
-                    <div class="help-item-desc">Add keyword tags to organize your SOPs. Click any tag badge to filter your list.</div>
+                <div class="help-section-content open" id="help-content-getting-started">
+                    <div class="help-item">
+                        <div class="help-item-title">Create an SOP</div>
+                        <div class="help-item-desc">Click + New SOP on the dashboard. Add a title, steps, and save.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Templates</div>
+                        <div class="help-item-desc">Start from one of 18 industry-specific templates instead of a blank page.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Checklists</div>
+                        <div class="help-item-desc">Click Use on any SOP to run it as a checklist. Check off steps, add notes as you go.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Print / PDF</div>
+                        <div class="help-item-desc">Export any SOP for offline use or to post in your workspace.</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="help-section">
-                <div class="help-section-title">👥 Team Features <span class="help-pro-badge">Pro</span></div>
-                <div class="help-item">
-                    <div class="help-item-title">Invite links</div>
-                    <div class="help-item-desc">Share SOPs with your team using a link. No signup or app download needed on their end.</div>
+            <div class="help-section" data-section="editor-tools">
+                <div class="help-section-toggle" data-target="editor-tools">
+                    <span class="help-section-title">📷 Editor Tools</span>
+                    <span class="help-section-arrow">▸</span>
                 </div>
-                <div class="help-item">
-                    <div class="help-item-title">Task assignments</div>
-                    <div class="help-item-desc">Assign specific SOPs to team members with due dates. Click 📌 on any SOP card.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Team feedback</div>
-                    <div class="help-item-desc">Your team can flag issues on any SOP while running checklists. You'll see them in your dashboard.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Completion tracking</div>
-                    <div class="help-item-desc">See who completed which checklist, when they finished, and how long it took.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Activity dashboard</div>
-                    <div class="help-item-desc">Filter team completions by date range or employee. Export to CSV anytime.</div>
+                <div class="help-section-content" id="help-content-editor-tools">
+                    <div class="help-item">
+                        <div class="help-item-title">Images in steps</div>
+                        <div class="help-item-desc">Add photos or diagrams to any step. Shows in checklists and print exports too.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Version history</div>
+                        <div class="help-item-desc">View and restore previous versions of any SOP. Click the 🕐 button when editing.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Tags</div>
+                        <div class="help-item-desc">Add tags to organize SOPs. Click any tag badge on the dashboard to filter.</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="help-section">
-                <div class="help-section-title">⚡ Automation <span class="help-pro-badge">Pro</span></div>
-                <div class="help-item">
-                    <div class="help-item-title">AI-powered steps</div>
-                    <div class="help-item-desc">Describe the task, AI writes the steps. Set your business type in Account settings for tailored results.</div>
+            <div class="help-section" data-section="team-features">
+                <div class="help-section-toggle" data-target="team-features">
+                    <span class="help-section-title">👥 Team Features <span class="help-pro-badge">Pro</span></span>
+                    <span class="help-section-arrow">▸</span>
                 </div>
-                <div class="help-item">
-                    <div class="help-item-title">AI clarity</div>
-                    <div class="help-item-desc">Already have steps? AI rewrites them so a first-day employee could follow along.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Daily digest</div>
-                    <div class="help-item-desc">Every morning, get an email summarizing yesterday's team activity. Manage in Account settings.</div>
-                </div>
-                <div class="help-item">
-                    <div class="help-item-title">Webhooks</div>
-                    <div class="help-item-desc">Send completion data to Zapier, Make, or Slack automatically. Set your webhook URL in Account settings.</div>
+                <div class="help-section-content" id="help-content-team-features">
+                    <div class="help-item">
+                        <div class="help-item-title">Invite links</div>
+                        <div class="help-item-desc">Share a link — your team sees SOPs instantly. No signup or download needed on their end.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Task assignments</div>
+                        <div class="help-item-desc">Assign specific SOPs to team members with due dates. Click 📌 on any SOP card.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Team feedback</div>
+                        <div class="help-item-desc">Team members flag issues while running checklists. Flagged items appear in your dashboard with unread badges.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Completion tracking</div>
+                        <div class="help-item-desc">See who completed which checklist, when they finished, and how long it took.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Activity dashboard</div>
+                        <div class="help-item-desc">Filter team completions by date range or employee. Export to CSV anytime.</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="help-section">
-                <div class="help-section-title">Account & Settings</div>
-                <div class="help-item">
-                    <div class="help-item-title">Cloud sync</div>
-                    <div class="help-item-desc">Sign in to access your SOPs from any device. Your data is always saved locally too.</div>
+            <div class="help-section" data-section="automation">
+                <div class="help-section-toggle" data-target="automation">
+                    <span class="help-section-title">⚡ Automation <span class="help-pro-badge">Pro</span></span>
+                    <span class="help-section-arrow">▸</span>
                 </div>
-                <div class="help-item">
-                    <div class="help-item-title">Works offline</div>
-                    <div class="help-item-desc">No internet? No problem. Everything works locally and syncs when you're back online.</div>
+                <div class="help-section-content" id="help-content-automation">
+                    <div class="help-item">
+                        <div class="help-item-title">AI-powered steps</div>
+                        <div class="help-item-desc">Describe the task, AI writes the steps. Tailored to your business type if set in Account.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">AI clarity</div>
+                        <div class="help-item-desc">Already have steps? AI rewrites them so a first-day employee could follow along.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Daily digest</div>
+                        <div class="help-item-desc">Morning email with yesterday's completions, grouped by employee. Toggle on/off in Account.</div>
+                    </div>
+                    <div class="help-item">
+                        <div class="help-item-title">Webhooks</div>
+                        <div class="help-item-desc">Send completion data to Zapier, Make, or Slack. Set your URL in Account.</div>
+                    </div>
                 </div>
             </div>
+
+            <div class="help-footer-line">Works offline · Sign in for cloud sync</div>
         `;
     }
 
@@ -2066,7 +2128,7 @@
                         Upgrade to Pro — $39/mo
                     </button>
                     <p style="font-size:0.78rem;color:#94a3b8;margin:0;text-align:center;">
-                        AI-powered SOPs, team sharing with completion tracking, daily digest email, cloud sync
+                        AI-powered SOPs, team sharing with completion tracking, task assignments, daily digest, cloud sync
                     </p>
                 `}
 
