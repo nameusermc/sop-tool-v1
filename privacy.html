@@ -68,20 +68,30 @@
 
     <div class="policy-container">
         <h1>Privacy Policy</h1>
-        <p class="policy-updated">Last updated: February 20, 2026</p>
+        <p class="policy-updated">Last updated: February 27, 2026</p>
 
         <h2>1. Overview</h2>
         <p>This Privacy Policy explains how WithoutMe, operated by Michael Cardin, sole proprietor ("we," "us," or "our"), collects, uses, and protects your information when you use our Service at withoutme.app. We are committed to protecting your privacy and handling your data responsibly.</p>
 
         <h2>2. Information We Collect</h2>
-        <p><strong>Free Plan (No Account):</strong> When you use WithoutMe without an account, all data — including SOPs, steps, and checklist progress — is stored locally on your device using your browser's localStorage. We do not collect, transmit, or store any of this data on our servers.</p>
+        <p><strong>Free Plan (No Account):</strong> When you use WithoutMe without an account, all data — including SOPs, steps, checklist progress, and SOP version history — is stored locally on your device using your browser's localStorage. We do not collect, transmit, or store any of this data on our servers.</p>
 
         <p><strong>With an Account (Pro Plan):</strong> When you create an account, we collect:</p>
         <ul>
-            <li><strong>Email address</strong> — used for authentication and account-related communications</li>
+            <li><strong>Email address</strong> — used for authentication, account-related communications, and daily digest emails</li>
             <li><strong>Password</strong> — stored securely as a hashed value (we never store plaintext passwords)</li>
-            <li><strong>SOP content</strong> — synced to our cloud database (Supabase) to enable cross-device access and team sharing</li>
+            <li><strong>SOP content</strong> — including titles, descriptions, steps, tags, and images attached to steps — synced to our cloud database (Supabase) to enable cross-device access and team sharing</li>
+            <li><strong>Account preferences</strong> — including business type, digest email settings, and webhook URL, stored as account metadata</li>
         </ul>
+
+        <p><strong>Team Member Data (Pro Plan):</strong> When a team owner creates invite links, we store the team member's name as provided by the owner. When team members complete checklists, we collect:</p>
+        <ul>
+            <li>The team member's name (as assigned by the team owner)</li>
+            <li>Which SOP was completed, with per-step timestamps</li>
+            <li>Any notes the team member added to individual steps</li>
+            <li>Any feedback or issues flagged by the team member on SOPs</li>
+        </ul>
+        <p>Team members do not need accounts. Their identity is tied to the invite link provided by the team owner, not to any personal account or email address.</p>
 
         <p><strong>Payment Information:</strong> When you subscribe to a paid plan, payment is processed by Paddle (Paddle.com Market Limited), who acts as our Merchant of Record. We do not collect, store, or have access to your credit card number or payment details. Please refer to <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener">Paddle's Privacy Policy</a> for details on how they handle payment data.</p>
 
@@ -92,47 +102,67 @@
             <li>Authenticate your identity and manage your account</li>
             <li>Synchronize your SOPs across devices (Pro plan)</li>
             <li>Enable team access to your shared SOPs (Pro plan)</li>
+            <li>Track team member checklist completions and display them on your activity dashboard (Pro plan)</li>
+            <li>Send daily digest emails summarizing your team's activity (Pro plan, opt-out available)</li>
+            <li>Process SOP content through AI to generate or improve steps when you use AI features (Pro plan)</li>
+            <li>Deliver webhook notifications to external URLs you configure (Pro plan)</li>
             <li>Communicate with you about your account or the Service</li>
         </ul>
 
-        <h2>4. Data Storage and Security</h2>
+        <h2>4. AI Features</h2>
+        <p>Pro plan users can use AI-powered features to generate SOP steps or improve existing steps. When you use these features, the SOP title, description, existing steps, and your business type setting are sent to our AI provider (Anthropic) for processing. This data is used solely to generate the requested output and is not stored by Anthropic for training or any other purpose beyond fulfilling the request. AI features are optional — they are only triggered when you explicitly click the AI buttons in the editor.</p>
+
+        <h2>5. Data Storage and Security</h2>
         <p>Account data and synced SOPs are stored using Supabase, a cloud database platform with industry-standard security practices including encryption at rest and in transit. Authentication is handled by Supabase Auth with secure password hashing.</p>
+        <p>Images attached to SOP steps are stored as part of your SOP data in the same cloud database. Images are re-encoded on upload to remove metadata such as GPS coordinates, device information, and embedded scripts.</p>
         <p>We take reasonable measures to protect your data, but no method of transmission or storage is 100% secure. We cannot guarantee absolute security.</p>
 
-        <h2>5. Data Sharing</h2>
-        <p>We do not sell, rent, or share your personal information with third parties for marketing purposes. We share data only with:</p>
+        <h2>6. Data Sharing</h2>
+        <p>We do not sell, rent, or share your personal information with third parties for marketing purposes. We share data only with the following service providers, solely to operate the Service:</p>
         <ul>
-            <li><strong>Supabase</strong> — our cloud infrastructure provider, for data storage and authentication</li>
-            <li><strong>Paddle</strong> — our payment processor, for subscription billing</li>
-            <li><strong>Vercel</strong> — our hosting provider, for serving the application</li>
+            <li><strong>Supabase</strong> — cloud infrastructure for data storage and authentication</li>
+            <li><strong>Paddle</strong> — payment processing for subscription billing</li>
+            <li><strong>Vercel</strong> — hosting provider for serving the application and serverless functions</li>
+            <li><strong>Postmark</strong> — email delivery for daily digest emails</li>
+            <li><strong>Anthropic</strong> — AI provider for SOP step generation and improvement (Pro plan, only when you use AI features)</li>
         </ul>
         <p>We may also disclose information if required by law, regulation, or legal process.</p>
 
-        <h2>6. Team Access and Shared Data</h2>
-        <p>When you share SOPs with your team via invite links, team members can view and run checklists for your Active SOPs. Team members do not need accounts — their checklist progress is stored locally on their own devices. Team members cannot access your drafts, archived SOPs, or account information.</p>
+        <h2>7. Team Access and Shared Data</h2>
+        <p>When you share SOPs with your team via invite links, team members can view your Active SOPs and run them as checklists. Team members cannot access your drafts, archived SOPs, or account information.</p>
+        <p>When team members complete checklists, their completion records — including step-by-step timestamps and any notes they add — are stored on our servers and visible to the team owner through the activity dashboard. Team members can also flag issues on SOPs, which are visible to the team owner.</p>
+        <p>Team owners can assign specific SOPs to team members with due dates. Assignment status is visible to both the assigned team member and the team owner.</p>
 
-        <h2>7. Data Retention</h2>
-        <p>We retain your account data and synced SOPs for as long as your account is active. If you delete your account, we will delete your data from our servers within 30 days. Local data stored on your device is not affected by account deletion — you control that through your browser settings.</p>
+        <h2>8. Webhooks and External Data Sharing</h2>
+        <p>Pro plan users can configure a webhook URL in their account settings to receive real-time notifications when team members complete checklists. When configured, completion data — including the SOP title, team member name, completion timestamp, and any step notes — is sent to the URL you specify. We are not responsible for how third-party services at your configured webhook URL handle this data. You are responsible for ensuring your webhook destination complies with applicable privacy laws.</p>
 
-        <h2>8. Your Rights</h2>
+        <h2>9. Daily Digest Emails</h2>
+        <p>Pro plan users receive a daily email summarizing their team's activity from the previous day. These emails are sent via Postmark and include team member names, completed SOP titles, timestamps, step notes, feedback counts, and overdue assignment alerts. You can opt out of digest emails at any time in your account settings. No emails are sent on days with no team activity.</p>
+
+        <h2>10. Data Retention</h2>
+        <p>We retain your account data, synced SOPs, team completion records, feedback, and assignment history for as long as your account is active. If you delete your account, we will delete your data from our servers within 30 days. Local data stored on your device is not affected by account deletion — you control that through your browser settings.</p>
+        <p>SOP version history is stored locally on your device only and is not synced to our servers.</p>
+
+        <h2>11. Your Rights</h2>
         <p>You have the right to:</p>
         <ul>
-            <li><strong>Access</strong> your data — all your SOPs are visible in the app at all times</li>
-            <li><strong>Export</strong> your data — use the PDF export feature for any SOP</li>
+            <li><strong>Access</strong> your data — all your SOPs, team activity, and feedback are visible in the app at all times</li>
+            <li><strong>Export</strong> your data — use PDF export for SOPs and CSV export for team activity records</li>
             <li><strong>Delete</strong> your data — delete individual SOPs or request full account deletion</li>
             <li><strong>Withdraw consent</strong> — stop using the Service at any time; your local data remains yours</li>
+            <li><strong>Opt out</strong> of digest emails via your account settings</li>
         </ul>
 
-        <h2>9. Cookies and Tracking</h2>
+        <h2>12. Cookies and Tracking</h2>
         <p>WithoutMe uses browser localStorage for core application functionality (storing SOPs, preferences, and session state). We use Google Analytics 4 to understand how visitors find and use our site — this helps us improve the product. Google Analytics collects anonymized usage data such as pages visited, traffic source, and session duration. You can learn more about how Google handles this data at https://policies.google.com/privacy. Our payment processor, Paddle, may set cookies related to checkout and fraud prevention. We do not use cookies for advertising or ad personalization.</p>
 
-        <h2>10. Children's Privacy</h2>
+        <h2>13. Children's Privacy</h2>
         <p>The Service is not intended for individuals under the age of 16. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us and we will delete it.</p>
 
-        <h2>11. Changes to This Policy</h2>
+        <h2>14. Changes to This Policy</h2>
         <p>We may update this Privacy Policy from time to time. We will post the updated policy on this page with a revised "Last updated" date. Your continued use of the Service after any changes constitutes acceptance of the updated policy.</p>
 
-        <h2>12. Contact</h2>
+        <h2>15. Contact</h2>
         <p>If you have questions about this Privacy Policy or your data, please contact us at <a href="mailto:support@withoutme.app">support@withoutme.app</a>.</p>
     </div>
 
