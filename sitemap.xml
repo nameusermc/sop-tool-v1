@@ -2,59 +2,74 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://withoutme.app/</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://withoutme.app/pricing</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <!-- Template hub -->
   <url>
-    <loc>https://withoutme.app/sop-templates/</loc>
+    <loc>https://withoutme.app/sop-templates</loc>
     <lastmod>2026-02-22</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.8</priority>
   </url>
+  <!-- Category positioning -->
+  <url>
+    <loc>https://withoutme.app/simple-sop-software</loc>
+    <lastmod>2026-02-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- About -->
+  <url>
+    <loc>https://withoutme.app/about</loc>
+    <lastmod>2026-02-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <!-- Industry template pages -->
   <url>
     <loc>https://withoutme.app/sop-templates/hvac</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://withoutme.app/sop-templates/cleaning</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://withoutme.app/sop-templates/plumbing</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://withoutme.app/sop-templates/electrical</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://withoutme.app/sop-templates/landscaping</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://withoutme.app/sop-templates/pest-control</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
-  <!-- New template pages -->
   <url>
     <loc>https://withoutme.app/sop-templates/moving</loc>
     <lastmod>2026-02-22</lastmod>
@@ -152,33 +167,23 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
-  <url>
-    <loc>https://withoutme.app/simple-sop-software</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
+  <!-- Policy pages -->
   <url>
     <loc>https://withoutme.app/terms</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-27</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://withoutme.app/privacy</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-27</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://withoutme.app/refund</loc>
-    <lastmod>2026-02-21</lastmod>
+    <lastmod>2026-02-20</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://withoutme.app/about</loc>
-    <lastmod>2026-02-28</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
   </url>
 </urlset>
