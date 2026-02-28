@@ -3073,6 +3073,7 @@
                 if (result.success) {
                     if (nameInput) nameInput.value = '';
                     this._showNotification(`Invite link created${name ? ' for ' + name : ''}`, 'success');
+                    if (typeof gtag === 'function') gtag('event', 'team_invite_created');
                     
                     // Refresh member list — the new invite will appear with its link
                     this._loadTeamMembers();

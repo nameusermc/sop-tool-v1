@@ -12,15 +12,76 @@
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', 'https://withoutme.app');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
     if (!ANTHROPIC_API_KEY) {
         console.error('[ai] Missing ANTHROPIC_API_KEY');
         return res.status(500).json({ error: 'Server misconfigured' });
+    }
+
+    // ---- Auth: verify Supabase JWT and Pro subscription ----
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+        console.error('[ai] Missing Supabase env vars for auth check');
+        return res.status(500).json({ error: 'Server misconfigured' });
+    }
+
+    const token = authHeader.slice(7);
+    let userEmail;
+    try {
+        const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            headers: {
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!userRes.ok) {
+            return res.status(401).json({ error: 'Invalid or expired session' });
+        }
+        const userData = await userRes.json();
+        userEmail = userData.email;
+        if (!userEmail) {
+            return res.status(401).json({ error: 'Could not resolve user' });
+        }
+    } catch (e) {
+        console.error('[ai] Auth verification failed:', e);
+        return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    // Check Pro subscription
+    try {
+        const subRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/subscriptions?customer_email=eq.${encodeURIComponent(userEmail.toLowerCase().trim())}&status=eq.active&select=id`,
+            {
+                headers: {
+                    'apikey': SUPABASE_SERVICE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+                }
+            }
+        );
+        if (subRes.ok) {
+            const subs = await subRes.json();
+            if (!subs || subs.length === 0) {
+                return res.status(403).json({ error: 'Pro subscription required' });
+            }
+        } else {
+            console.error('[ai] Subscription check failed:', subRes.status);
+            return res.status(500).json({ error: 'Subscription check failed' });
+        }
+    } catch (e) {
+        console.error('[ai] Subscription check error:', e);
+        return res.status(500).json({ error: 'Subscription check failed' });
     }
 
     const { action, title, description, steps, businessType } = req.body || {};

@@ -105,7 +105,38 @@ export default async function handler(req, res) {
             team_id: record.team_id
         };
 
-        // 4. POST to owner's webhook URL (fire-and-forget style, but log result)
+        // 4. Validate webhook URL to prevent SSRF
+        try {
+            const urlObj = new URL(webhookUrl);
+            if (urlObj.protocol !== 'https:') {
+                console.warn('[webhook-relay] Rejected non-HTTPS webhook URL');
+                return res.status(200).json({ skipped: true, reason: 'non-https url' });
+            }
+            const hostname = urlObj.hostname.toLowerCase();
+            // Block localhost, private IPs, and cloud metadata endpoints
+            const blocked = [
+                'localhost', '127.0.0.1', '0.0.0.0', '[::1]',
+                '169.254.169.254', 'metadata.google.internal'
+            ];
+            if (blocked.includes(hostname)) {
+                console.warn(`[webhook-relay] Blocked private/internal hostname: ${hostname}`);
+                return res.status(200).json({ skipped: true, reason: 'blocked hostname' });
+            }
+            // Block private IP ranges (10.x, 172.16-31.x, 192.168.x)
+            const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+            if (ipMatch) {
+                const [, a, b] = ipMatch.map(Number);
+                if (a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 169) {
+                    console.warn(`[webhook-relay] Blocked private IP: ${hostname}`);
+                    return res.status(200).json({ skipped: true, reason: 'private ip' });
+                }
+            }
+        } catch (urlErr) {
+            console.warn('[webhook-relay] Invalid webhook URL:', urlErr.message);
+            return res.status(200).json({ skipped: true, reason: 'invalid url' });
+        }
+
+        // 5. POST to owner's webhook URL (fire-and-forget style, but log result)
         console.log(`[webhook-relay] Sending to ${webhookUrl}`);
         const webhookRes = await fetch(webhookUrl, {
             method: 'POST',

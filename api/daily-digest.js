@@ -37,12 +37,14 @@ export default async function handler(req, res) {
 
     // ---- Auth: verify this is a legitimate cron call ----
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret) {
-        const authHeader = req.headers['authorization'];
-        if (authHeader !== `Bearer ${cronSecret}`) {
-            console.warn('[daily-digest] Unauthorized cron call');
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
+    if (!cronSecret) {
+        console.error('[daily-digest] Missing CRON_SECRET env var');
+        return res.status(500).json({ error: 'Server misconfigured' });
+    }
+    const authHeader = req.headers['authorization'];
+    if (authHeader !== `Bearer ${cronSecret}`) {
+        console.warn('[daily-digest] Unauthorized cron call');
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const SUPABASE_URL = process.env.SUPABASE_URL;

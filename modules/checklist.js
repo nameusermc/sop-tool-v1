@@ -722,6 +722,13 @@
         
         _showCompletionCelebration() {
             this._showNotification('🎉 Checklist completed!', 'success');
+            
+            // GA4: Track checklist completion
+            if (typeof gtag === 'function') {
+                const isTeam = !!localStorage.getItem('withoutme_team_invite_code');
+                gtag('event', 'checklist_completed', { context: isTeam ? 'team' : 'owner' });
+            }
+            
             setTimeout(() => {
                 this._render();
                 this._attachEventListeners();

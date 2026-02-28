@@ -1184,9 +1184,20 @@
                     generateBtn.textContent = '⏳ Generating...';
                 }
                 
+                // Get auth token for server-side verification
+                let authHeaders = { 'Content-Type': 'application/json' };
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    try {
+                        const { session } = await SupabaseClient.getSession();
+                        if (session?.access_token) {
+                            authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+                        }
+                    } catch (e) { /* proceed without auth — server will reject */ }
+                }
+
                 const response = await fetch('/api/ai', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         action: 'suggest',
                         title: title,
@@ -1240,6 +1251,7 @@
                 const tagMsg = tagsAdded > 0 ? ` + ${tagsAdded} keywords added.` : '.';
                 this._showNotification(`✨ ${data.steps.length} steps generated${tagMsg} Review and edit as needed.`, 'success');
                 this._showAIPastedNotice();
+                if (typeof gtag === 'function') gtag('event', 'ai_suggest_used', { step_count: data.steps.length });
                 
             } catch (e) {
                 console.error('[AI Suggest] Error:', e);
@@ -1276,9 +1288,20 @@
                     improveBtn.textContent = '⏳ Improving...';
                 }
                 
+                // Get auth token for server-side verification
+                let improveHeaders = { 'Content-Type': 'application/json' };
+                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+                    try {
+                        const { session } = await SupabaseClient.getSession();
+                        if (session?.access_token) {
+                            improveHeaders['Authorization'] = `Bearer ${session.access_token}`;
+                        }
+                    } catch (e) { /* proceed without auth — server will reject */ }
+                }
+
                 const response = await fetch('/api/ai', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: improveHeaders,
                     body: JSON.stringify({
                         action: 'improve',
                         title: this.formState.title?.trim() || '',
@@ -1301,6 +1324,7 @@
                 // Store improved steps and show clarity preview
                 this._improvedSteps = data.steps;
                 this._showClarityPreview();
+                if (typeof gtag === 'function') gtag('event', 'ai_improve_used', { step_count: data.steps.length });
                 
             } catch (e) {
                 console.error('[AI Improve] Error:', e);
@@ -1785,7 +1809,13 @@
             this._saveSOPs(sops);
             this._clearDraft();
             
-            this._showNotification(this.options.mode === 'edit' ? 'SOP updated!' : 'SOP created!', 'success');
+            const isNewSop = !(this.options.mode === 'edit' && this.currentSOP);
+            this._showNotification(isNewSop ? 'SOP created!' : 'SOP updated!', 'success');
+            
+            // GA4: Track new SOP creation (not edits)
+            if (isNewSop && typeof gtag === 'function') {
+                gtag('event', 'sop_created', { step_count: sopData.steps.length });
+            }
             
             if (this.callbacks.onSave) {
                 setTimeout(() => this.callbacks.onSave(sopData), 300);

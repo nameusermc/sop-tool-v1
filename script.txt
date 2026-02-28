@@ -1,4 +1,0 @@
-“This is a tool I’m working on.
-Pretend you run a business and pick one task you do often.
-Try to document it here.
-Don’t ask me questions — just tell me where it felt confusing.”

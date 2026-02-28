@@ -544,7 +544,7 @@
             
             if (StorageAdapter.Auth.isAuthenticated()) {
                 const user = StorageAdapter.Auth.getUser();
-                console.log('✅ Logged in as:', user?.email);
+                console.log('✅ User authenticated');
                 
                 // Check team role for authenticated users
                 await checkTeamRole();
@@ -596,6 +596,9 @@
             try {
                 const decoded = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(importData)))));
                 console.log('📄 Importing template from URL:', decoded.title);
+                
+                // GA4: Track template import
+                if (typeof gtag === 'function') gtag('event', 'template_imported', { template_title: decoded.title || 'unknown' });
                 
                 // Clean URL immediately
                 history.replaceState(null, '', '/');
@@ -2526,6 +2529,11 @@
                 }
                 overlay.remove();
                 
+                // GA4: Track auth event
+                if (typeof gtag === 'function') {
+                    gtag('event', currentTab === 'signin' ? 'sign_in' : 'sign_up', { method: 'email' });
+                }
+                
                 // Update account button immediately
                 updateAccountButton(document.getElementById('account-btn'));
                 
@@ -2594,6 +2602,8 @@
             errorDiv.style.display = 'none';
             try {
                 await SupabaseClient.signInWithGoogle();
+                // GA4: Track Google auth initiation (browser redirects after this)
+                if (typeof gtag === 'function') gtag('event', 'sign_in', { method: 'google' });
                 // Browser will redirect to Google — no code runs after this
             } catch (err) {
                 errorDiv.textContent = err.message || 'Google sign-in failed';
