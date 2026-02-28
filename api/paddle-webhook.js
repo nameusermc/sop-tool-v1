@@ -55,12 +55,10 @@ function verifySignature(rawBody, signatureHeader, secret) {
             .digest('hex');
 
         // Constant-time comparison
-        const match = crypto.timingSafeEqual(
+        return crypto.timingSafeEqual(
             Buffer.from(h1),
             Buffer.from(expectedSignature)
         );
-        console.log('[paddle-webhook] VERIFY h1:', h1?.substring(0, 16), 'expected:', expectedSignature?.substring(0, 16), 'match:', match);
-        return match;
     } catch (e) {
         console.error('[paddle-webhook] Signature verification error:', e);
         return false;
@@ -156,11 +154,12 @@ export default async function handler(req, res) {
     }
 
     const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET;
+    const PADDLE_API_KEY = process.env.PADDLE_API_KEY;
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
     // Validate env vars
-    if (!PADDLE_WEBHOOK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    if (!PADDLE_WEBHOOK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_KEY || !PADDLE_API_KEY) {
         console.error('[paddle-webhook] Missing environment variables');
         return res.status(500).json({ error: 'Server misconfigured' });
     }
@@ -168,12 +167,6 @@ export default async function handler(req, res) {
     // Read raw body from stream (body parser is disabled)
     const rawBody = await getRawBody(req);
     const signature = req.headers['paddle-signature'];
-
-    // DEBUG — remove after fixing
-    console.log('[paddle-webhook] SECRET loaded:', !!PADDLE_WEBHOOK_SECRET, 'length:', PADDLE_WEBHOOK_SECRET?.length);
-    console.log('[paddle-webhook] SIGNATURE header:', signature || 'MISSING');
-    console.log('[paddle-webhook] RAW BODY length:', rawBody?.length, 'starts:', rawBody?.substring(0, 50));
-    console.log('[paddle-webhook] RAW BODY type:', typeof rawBody);
 
     // Verify webhook signature
     if (!verifySignature(rawBody, signature, PADDLE_WEBHOOK_SECRET)) {
@@ -206,18 +199,32 @@ export default async function handler(req, res) {
     }
 
     // Extract subscription info
-    const customerEmail = data.customer_email_address || data.customer?.email;
     const subscriptionId = data.id;
     const customerId = data.customer_id;
     const currentPeriodEnd = data.current_billing_period?.ends_at || null;
 
-    // DEBUG — remove after fixing
-    console.log('[paddle-webhook] DATA keys:', Object.keys(data).join(', '));
-    console.log('[paddle-webhook] customer_email_address:', data.customer_email_address);
-    console.log('[paddle-webhook] customer:', JSON.stringify(data.customer)?.substring(0, 200));
+    if (!customerId) {
+        console.error('[paddle-webhook] No customer_id in event data');
+        return res.status(400).json({ error: 'Missing customer_id' });
+    }
+
+    // Fetch customer email from Paddle API (v2 subscription events don't include email)
+    let customerEmail;
+    try {
+        const customerRes = await fetch(`https://api.paddle.com/customers/${customerId}`, {
+            headers: {
+                'Authorization': `Bearer ${PADDLE_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const customerData = await customerRes.json();
+        customerEmail = customerData.data?.email;
+    } catch (e) {
+        console.error('[paddle-webhook] Failed to fetch customer from Paddle:', e);
+    }
 
     if (!customerEmail) {
-        console.error('[paddle-webhook] No customer email in event data');
+        console.error('[paddle-webhook] Could not resolve customer email for:', customerId);
         return res.status(400).json({ error: 'Missing customer email' });
     }
 
