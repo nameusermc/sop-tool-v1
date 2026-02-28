@@ -211,6 +211,11 @@ export default async function handler(req, res) {
     const customerId = data.customer_id;
     const currentPeriodEnd = data.current_billing_period?.ends_at || null;
 
+    // DEBUG — remove after fixing
+    console.log('[paddle-webhook] DATA keys:', Object.keys(data).join(', '));
+    console.log('[paddle-webhook] customer_email_address:', data.customer_email_address);
+    console.log('[paddle-webhook] customer:', JSON.stringify(data.customer)?.substring(0, 200));
+
     if (!customerEmail) {
         console.error('[paddle-webhook] No customer email in event data');
         return res.status(400).json({ error: 'Missing customer email' });
