@@ -55,10 +55,12 @@ function verifySignature(rawBody, signatureHeader, secret) {
             .digest('hex');
 
         // Constant-time comparison
-        return crypto.timingSafeEqual(
+        const match = crypto.timingSafeEqual(
             Buffer.from(h1),
             Buffer.from(expectedSignature)
         );
+        console.log('[paddle-webhook] VERIFY h1:', h1?.substring(0, 16), 'expected:', expectedSignature?.substring(0, 16), 'match:', match);
+        return match;
     } catch (e) {
         console.error('[paddle-webhook] Signature verification error:', e);
         return false;
@@ -166,6 +168,12 @@ export default async function handler(req, res) {
     // Read raw body from stream (body parser is disabled)
     const rawBody = await getRawBody(req);
     const signature = req.headers['paddle-signature'];
+
+    // DEBUG — remove after fixing
+    console.log('[paddle-webhook] SECRET loaded:', !!PADDLE_WEBHOOK_SECRET, 'length:', PADDLE_WEBHOOK_SECRET?.length);
+    console.log('[paddle-webhook] SIGNATURE header:', signature || 'MISSING');
+    console.log('[paddle-webhook] RAW BODY length:', rawBody?.length, 'starts:', rawBody?.substring(0, 50));
+    console.log('[paddle-webhook] RAW BODY type:', typeof rawBody);
 
     // Verify webhook signature
     if (!verifySignature(rawBody, signature, PADDLE_WEBHOOK_SECRET)) {
