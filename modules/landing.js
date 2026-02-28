@@ -267,6 +267,7 @@
                     <a href="/refund">Refund Policy</a>
                 </div>
                 <p>© 2026 WithoutMe</p>
+                <p style="margin:0.25rem 0 0;font-size:0.75rem;color:#94a3b8;">WithoutMe is a product by MC Tools</p>
             </footer>
 
         </div>
