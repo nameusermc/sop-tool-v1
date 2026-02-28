@@ -101,6 +101,7 @@ async function upsertSubscription(supabaseUrl, supabaseKey, data) {
                 paddle_subscription_id: data.paddle_subscription_id,
                 paddle_customer_id: data.paddle_customer_id,
                 status: data.status,
+                current_period_end: data.current_period_end,
                 updated_at: new Date().toISOString()
             })
         });
@@ -121,11 +122,25 @@ async function upsertSubscription(supabaseUrl, supabaseKey, data) {
                 paddle_customer_id: data.paddle_customer_id,
                 status: data.status,
                 plan: 'pro',
+                current_period_end: data.current_period_end,
                 updated_at: new Date().toISOString()
             })
         });
         return { success: res.ok, action: 'inserted' };
     }
+}
+
+// ========================================================================
+// RAW BODY READER
+// ========================================================================
+
+function getRawBody(req) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        req.on('error', reject);
+    });
 }
 
 // ========================================================================
@@ -148,8 +163,8 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server misconfigured' });
     }
 
-    // Get raw body for signature verification
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    // Read raw body from stream (body parser is disabled)
+    const rawBody = await getRawBody(req);
     const signature = req.headers['paddle-signature'];
 
     // Verify webhook signature
@@ -158,8 +173,8 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // Parse event
-    const event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    // Parse event from raw body
+    const event = JSON.parse(rawBody);
     const eventType = event.event_type;
     const data = event.data;
 
@@ -186,6 +201,7 @@ export default async function handler(req, res) {
     const customerEmail = data.customer_email_address || data.customer?.email;
     const subscriptionId = data.id;
     const customerId = data.customer_id;
+    const currentPeriodEnd = data.current_billing_period?.ends_at || null;
 
     if (!customerEmail) {
         console.error('[paddle-webhook] No customer email in event data');
@@ -225,7 +241,8 @@ export default async function handler(req, res) {
             customer_email: customerEmail.toLowerCase().trim(),
             paddle_subscription_id: subscriptionId,
             paddle_customer_id: customerId,
-            status
+            status,
+            current_period_end: currentPeriodEnd
         });
 
         console.log(`[paddle-webhook] Supabase ${result.action}: ${customerEmail} → ${status}`);
@@ -236,12 +253,9 @@ export default async function handler(req, res) {
     }
 }
 
-// Vercel config: need raw body for signature verification
+// Vercel config: disable body parser to get raw body for signature verification
 export const config = {
     api: {
-        bodyParser: {
-            // Keep raw body available for signature verification
-            sizeLimit: '1mb'
-        }
+        bodyParser: false
     }
 };
