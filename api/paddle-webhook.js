@@ -102,6 +102,7 @@ async function upsertSubscription(supabaseUrl, supabaseKey, data) {
                 paddle_customer_id: data.paddle_customer_id,
                 status: data.status,
                 current_period_end: data.current_period_end,
+                scheduled_cancel_at: data.scheduled_cancel_at,
                 updated_at: new Date().toISOString()
             })
         });
@@ -123,6 +124,7 @@ async function upsertSubscription(supabaseUrl, supabaseKey, data) {
                 status: data.status,
                 plan: 'pro',
                 current_period_end: data.current_period_end,
+                scheduled_cancel_at: data.scheduled_cancel_at,
                 updated_at: new Date().toISOString()
             })
         });
@@ -202,6 +204,7 @@ export default async function handler(req, res) {
     const subscriptionId = data.id;
     const customerId = data.customer_id;
     const currentPeriodEnd = data.current_billing_period?.ends_at || null;
+    const scheduledCancelAt = data.scheduled_change?.action === 'cancel' ? data.scheduled_change.effective_at : null;
 
     if (!customerId) {
         console.error('[paddle-webhook] No customer_id in event data');
@@ -262,7 +265,8 @@ export default async function handler(req, res) {
             paddle_subscription_id: subscriptionId,
             paddle_customer_id: customerId,
             status,
-            current_period_end: currentPeriodEnd
+            current_period_end: currentPeriodEnd,
+            scheduled_cancel_at: scheduledCancelAt
         });
 
         console.log(`[paddle-webhook] Supabase ${result.action}: ${customerEmail} → ${status}`);

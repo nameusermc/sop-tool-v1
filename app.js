@@ -2142,6 +2142,8 @@
         const user = StorageAdapter?.Auth?.getUser?.();
         const hasPaddle = typeof PaddleBilling !== 'undefined';
         const isPro = hasPaddle && PaddleBilling.isPro();
+        const isCanceling = hasPaddle && PaddleBilling.isCanceling();
+        const cancelDate = hasPaddle ? PaddleBilling.getFormattedCancelDate() : null;
 
         if (isAuth && user) {
             // Signed in view
@@ -2155,14 +2157,15 @@
                     <span class="account-label">Plan</span>
                     <div class="account-plan-row">
                         <span class="account-plan-badge ${isPro ? 'pro' : 'free'}">${isPro ? 'Pro' : 'Free'}</span>
-                        ${isPro ? '<span style="font-size:0.82rem;color:#64748b;">$39/mo</span>' : ''}
+                        ${isPro && !isCanceling ? '<span style="font-size:0.82rem;color:#64748b;">$39/mo</span>' : ''}
                     </div>
+                    ${isCanceling ? `<p style="font-size:0.82rem;color:#e67e22;margin:0.4rem 0 0;">Cancels ${cancelDate} — access continues until then</p>` : ''}
                 </div>
 
                 ${isPro ? `
                     <button class="account-link" id="account-manage-billing">
                         <span class="account-link-icon">💳</span>
-                        Manage billing
+                        ${isCanceling ? 'Reactivate or manage billing' : 'Manage billing'}
                     </button>
                 ` : `
                     <button class="account-upgrade-btn" id="account-upgrade">
