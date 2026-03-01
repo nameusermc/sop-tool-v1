@@ -2569,12 +2569,15 @@
             errorDiv.style.display = 'none';
 
             try {
+                // Close modal and show full-screen loading immediately
+                overlay.remove();
+                showAuthLoading(currentTab === 'signin' ? 'Signing in...' : 'Creating your account...');
+
                 if (currentTab === 'signin') {
                     await StorageAdapter.Auth.signIn(email, password);
                 } else {
                     await StorageAdapter.Auth.signUp(email, password);
                 }
-                overlay.remove();
                 
                 // GA4: Track auth event
                 if (typeof gtag === 'function') {
@@ -2584,8 +2587,9 @@
                 // Update account button immediately
                 updateAccountButton(document.getElementById('account-btn'));
                 
-                // Show loading overlay while syncing
-                showAuthLoading('Syncing your account...');
+                // Update loading message for sync phase
+                const loadingText = document.getElementById('auth-loading-text');
+                if (loadingText) loadingText.textContent = 'Loading your account...';
                 
                 // Run all sync calls in parallel
                 await syncAfterAuth(email);
@@ -2599,10 +2603,17 @@
                 console.log('[app.js] Auth success - refreshing dashboard');
                 showDashboard();
             } catch (err) {
-                errorDiv.textContent = err.message || 'Authentication failed';
-                errorDiv.style.display = 'block';
-                submitBtn.disabled = false;
-                submitBtn.textContent = currentTab === 'signin' ? 'Sign In' : 'Sign Up';
+                hideAuthLoading();
+                // Re-show the auth modal with error
+                showAuthModal();
+                // Wait a tick for modal to render, then show error
+                setTimeout(() => {
+                    const newError = document.getElementById('auth-error');
+                    if (newError) {
+                        newError.textContent = err.message || 'Authentication failed';
+                        newError.style.display = 'block';
+                    }
+                }, 50);
             }
         };
 
