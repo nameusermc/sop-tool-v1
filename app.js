@@ -91,18 +91,18 @@
         const tasks = [];
 
         // Team role check
-        tasks.push(checkTeamRole().catch(e => console.warn('Team role sync failed:', e)));
+        tasks.push(checkTeamRole().then(() => console.log('[TIMING] checkTeamRole done')).catch(e => console.warn('Team role sync failed:', e)));
 
         // Subscription sync
         if (typeof PaddleBilling !== 'undefined' && email) {
-            tasks.push(PaddleBilling.syncFromServer(email).catch(e => console.warn('Paddle sync failed:', e)));
+            tasks.push(PaddleBilling.syncFromServer(email).then(() => console.log('[TIMING] PaddleBilling.syncFromServer done')).catch(e => console.warn('Paddle sync failed:', e)));
         }
 
         // Supabase settings sync (biz type, digest, webhook)
         if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
             tasks.push(
                 SupabaseClient.getBusinessType()
-                    .then(v => { if (v) localStorage.setItem('withoutme_business_type', v); })
+                    .then(v => { if (v) localStorage.setItem('withoutme_business_type', v); console.log('[TIMING] getBusinessType done'); })
                     .catch(() => {})
             );
             tasks.push(
@@ -110,12 +110,13 @@
                     .then(v => {
                         if (v) localStorage.setItem('withoutme_digest_optout', '1');
                         else localStorage.removeItem('withoutme_digest_optout');
+                        console.log('[TIMING] getDigestOptOut done');
                     })
                     .catch(() => {})
             );
             tasks.push(
                 SupabaseClient.getWebhookUrl()
-                    .then(v => localStorage.setItem('withoutme_webhook_url', v || ''))
+                    .then(v => { localStorage.setItem('withoutme_webhook_url', v || ''); console.log('[TIMING] getWebhookUrl done'); })
                     .catch(() => {})
             );
         }
@@ -2585,6 +2586,7 @@
                 overlay.remove();
                 showAuthLoading(currentTab === 'signin' ? 'Signing in...' : 'Creating your account...');
 
+                console.time('[TIMING] full login flow');
                 if (currentTab === 'signin') {
                     await StorageAdapter.Auth.signIn(email, password);
                 } else {
@@ -2604,7 +2606,10 @@
                 if (loadingText) loadingText.textContent = 'Loading your account...';
                 
                 // Run all sync calls in parallel
+                console.time('[TIMING] syncAfterAuth');
                 await syncAfterAuth(email);
+                console.timeEnd('[TIMING] syncAfterAuth');
+                console.timeEnd('[TIMING] full login flow');
                 
                 hideAuthLoading();
                 
