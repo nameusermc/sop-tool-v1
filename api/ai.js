@@ -87,6 +87,10 @@ export default async function handler(req, res) {
     const { action, title, description, steps, businessType } = req.body || {};
     const cleanBizType = (businessType || '').trim().slice(0, 100) || 'small service business';
 
+    // Log usage for monitoring (check Vercel Dashboard → Logs)
+    const maskedEmail = userEmail.replace(/^(.{3}).*(@.*)$/, '$1***$2');
+    console.log(`[ai] Usage: ${maskedEmail} | ${action || 'unknown'}`);
+
     if (action === 'suggest') {
         return handleSuggest(res, ANTHROPIC_API_KEY, title, description, cleanBizType);
     } else if (action === 'improve') {

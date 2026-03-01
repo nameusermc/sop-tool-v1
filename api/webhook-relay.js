@@ -154,6 +154,6 @@ export default async function handler(req, res) {
 
     } catch (e) {
         console.error('[webhook-relay] Error:', e.message);
-        return res.status(200).json({ error: e.message });
+        return res.status(200).json({ error: 'Relay failed' });
     }
 }
