@@ -2239,6 +2239,13 @@
                     <span class="account-link-icon">↩</span>
                     Sign out
                 </button>
+
+                <hr class="account-divider">
+
+                <button class="account-link" id="account-delete-account" style="color:#dc2626;font-size:0.82rem;opacity:0.7;">
+                    <span class="account-link-icon">🗑️</span>
+                    Delete account and all data
+                </button>
             `;
 
             // Wire up actions
@@ -2267,6 +2274,11 @@
                 if (confirm('Sign out? Your data will remain on this device.')) {
                     signOut();
                 }
+            });
+
+            body.querySelector('#account-delete-account')?.addEventListener('click', () => {
+                closeAccountPanel();
+                showDeleteAccountModal();
             });
 
             // Business type — save on button click
@@ -2615,6 +2627,151 @@
 
         // Focus email input
         document.getElementById('auth-email').focus();
+    }
+
+    /**
+     * Show Delete Account confirmation modal
+     * Two-step: first confirm, then type DELETE
+     */
+    function showDeleteAccountModal() {
+        // Remove existing if any
+        document.getElementById('delete-account-modal-overlay')?.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'delete-account-modal-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:12px;max-width:440px;width:100%;padding:2rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                <h3 style="margin:0 0 0.75rem;color:#dc2626;font-size:1.1rem;">Delete your account?</h3>
+                <p style="margin:0 0 0.5rem;color:#334155;font-size:0.9rem;line-height:1.5;">
+                    This will <strong>permanently</strong> delete:
+                </p>
+                <ul style="margin:0 0 1rem;padding-left:1.25rem;color:#475569;font-size:0.85rem;line-height:1.7;">
+                    <li>All your SOPs, folders, and checklists</li>
+                    <li>Your team, members, and completion history</li>
+                    <li>Your Pro subscription (canceled immediately)</li>
+                    <li>Your account and login</li>
+                </ul>
+                <p style="margin:0 0 0.75rem;color:#dc2626;font-size:0.85rem;font-weight:600;">
+                    This cannot be undone.
+                </p>
+                <label style="display:block;margin:0 0 0.5rem;color:#475569;font-size:0.82rem;">
+                    Type <strong>DELETE</strong> to confirm:
+                </label>
+                <input type="text" id="delete-account-confirm-input" autocomplete="off" spellcheck="false"
+                    style="width:100%;padding:0.6rem 0.75rem;border:2px solid #e2e8f0;border-radius:8px;font-size:0.95rem;box-sizing:border-box;margin-bottom:1rem;"
+                    placeholder="Type DELETE here" />
+                <div style="display:flex;gap:0.75rem;">
+                    <button id="delete-account-cancel" style="flex:1;padding:0.65rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#475569;font-size:0.9rem;cursor:pointer;">
+                        Cancel
+                    </button>
+                    <button id="delete-account-submit" disabled style="flex:1;padding:0.65rem;border:none;border-radius:8px;background:#e5e7eb;color:#9ca3af;font-size:0.9rem;cursor:not-allowed;font-weight:600;">
+                        Delete everything
+                    </button>
+                </div>
+                <p id="delete-account-status" style="margin:0.75rem 0 0;font-size:0.82rem;color:#64748b;text-align:center;display:none;"></p>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const input = document.getElementById('delete-account-confirm-input');
+        const submitBtn = document.getElementById('delete-account-submit');
+        const cancelBtn = document.getElementById('delete-account-cancel');
+        const statusEl = document.getElementById('delete-account-status');
+
+        // Enable button only when "DELETE" is typed
+        input.addEventListener('input', () => {
+            const match = input.value.trim() === 'DELETE';
+            submitBtn.disabled = !match;
+            submitBtn.style.background = match ? '#dc2626' : '#e5e7eb';
+            submitBtn.style.color = match ? '#fff' : '#9ca3af';
+            submitBtn.style.cursor = match ? 'pointer' : 'not-allowed';
+        });
+
+        cancelBtn.addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+
+        submitBtn.addEventListener('click', async () => {
+            if (input.value.trim() !== 'DELETE') return;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Deleting...';
+            submitBtn.style.background = '#94a3b8';
+            input.disabled = true;
+            cancelBtn.disabled = true;
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'Deleting your account and all data...';
+
+            try {
+                await executeAccountDeletion(statusEl);
+            } catch (err) {
+                statusEl.style.color = '#dc2626';
+                statusEl.textContent = 'Something went wrong. Please try again or contact support@withoutme.app';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Delete everything';
+                submitBtn.style.background = '#dc2626';
+                input.disabled = false;
+                cancelBtn.disabled = false;
+            }
+        });
+
+        input.focus();
+    }
+
+    /**
+     * Execute account deletion — calls server endpoint, clears local data, reloads
+     */
+    async function executeAccountDeletion(statusEl) {
+        // Get access token
+        if (typeof SupabaseClient === 'undefined' || !SupabaseClient) {
+            throw new Error('Not connected to server');
+        }
+        const { session } = await SupabaseClient.getSession();
+        const token = session?.access_token;
+
+        if (!token) {
+            throw new Error('No active session');
+        }
+
+        statusEl.textContent = 'Canceling subscription and removing data...';
+
+        const response = await fetch('/api/delete-account', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ confirmation: 'DELETE' })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Deletion failed');
+        }
+
+        statusEl.textContent = 'Account deleted. Clearing local data...';
+
+        // Clear all WithoutMe localStorage
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('withoutme_') || key.startsWith('sop_tool_'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+
+        statusEl.style.color = '#059669';
+        statusEl.textContent = 'Done. Your account has been permanently deleted.';
+
+        // Reload after brief pause so user sees the confirmation
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
     }
 
     /**

@@ -84,19 +84,114 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Subscription check failed' });
     }
 
+    // ---- Rate limiting: 100 AI calls per user per day ----
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const emailKey = userEmail.toLowerCase().trim();
+    let currentCount = 0;
+
+    try {
+        const usageRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/ai_usage?user_email=eq.${encodeURIComponent(emailKey)}&usage_date=eq.${today}&select=count`,
+            {
+                headers: {
+                    'apikey': SUPABASE_SERVICE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+                }
+            }
+        );
+        if (usageRes.ok) {
+            const rows = await usageRes.json();
+            currentCount = rows?.[0]?.count || 0;
+        }
+    } catch (e) {
+        console.warn('[ai] Rate limit check failed, allowing request:', e);
+    }
+
+    if (currentCount >= 100) {
+        return res.status(429).json({ error: 'Daily AI limit reached (100/day). Resets at midnight UTC.' });
+    }
+
     const { action, title, description, steps, businessType } = req.body || {};
+
+    // ---- Input validation ----
+    if (!action || typeof action !== 'string' || !['suggest', 'improve'].includes(action)) {
+        return res.status(400).json({ error: 'Invalid action. Use "suggest" or "improve".' });
+    }
+
+    if (action === 'suggest') {
+        if (!title || typeof title !== 'string' || title.trim().length === 0) {
+            return res.status(400).json({ error: 'Title is required' });
+        }
+        if (title.length > 500) {
+            return res.status(400).json({ error: 'Title too long (max 500 characters)' });
+        }
+        if (description && typeof description === 'string' && description.length > 2000) {
+            return res.status(400).json({ error: 'Description too long (max 2000 characters)' });
+        }
+    }
+
+    if (action === 'improve') {
+        if (!steps || !Array.isArray(steps) || steps.length === 0) {
+            return res.status(400).json({ error: 'Steps array is required' });
+        }
+        if (steps.length > 50) {
+            return res.status(400).json({ error: 'Too many steps (max 50)' });
+        }
+        for (const s of steps) {
+            const text = typeof s === 'string' ? s : s?.text || '';
+            if (text.length > 2000) {
+                return res.status(400).json({ error: 'Step text too long (max 2000 characters per step)' });
+            }
+        }
+    }
+
+    if (businessType && typeof businessType === 'string' && businessType.length > 200) {
+        return res.status(400).json({ error: 'Business type too long (max 200 characters)' });
+    }
+
     const cleanBizType = (businessType || '').trim().slice(0, 100) || 'small service business';
 
     // Log usage for monitoring (check Vercel Dashboard → Logs)
     const maskedEmail = userEmail.replace(/^(.{3}).*(@.*)$/, '$1***$2');
-    console.log(`[ai] Usage: ${maskedEmail} | ${action || 'unknown'}`);
+    console.log(`[ai] Usage: ${maskedEmail} | ${action} | ${currentCount + 1}/100`);
 
     if (action === 'suggest') {
-        return handleSuggest(res, ANTHROPIC_API_KEY, title, description, cleanBizType);
+        const result = await handleSuggest(res, ANTHROPIC_API_KEY, title, description, cleanBizType);
+        // Increment usage count on success (fire-and-forget)
+        incrementAIUsage(SUPABASE_URL, SUPABASE_SERVICE_KEY, emailKey, today, currentCount);
+        return result;
     } else if (action === 'improve') {
-        return handleImprove(res, ANTHROPIC_API_KEY, title, steps, cleanBizType);
-    } else {
-        return res.status(400).json({ error: 'Invalid action. Use "suggest" or "improve".' });
+        const result = await handleImprove(res, ANTHROPIC_API_KEY, title, steps, cleanBizType);
+        // Increment usage count on success (fire-and-forget)
+        incrementAIUsage(SUPABASE_URL, SUPABASE_SERVICE_KEY, emailKey, today, currentCount);
+        return result;
+    }
+}
+
+/**
+ * Increment AI usage counter (fire-and-forget, non-blocking)
+ */
+async function incrementAIUsage(supabaseUrl, serviceKey, email, date, currentCount) {
+    try {
+        await fetch(
+            `${supabaseUrl}/rest/v1/ai_usage`,
+            {
+                method: 'POST',
+                headers: {
+                    'apikey': serviceKey,
+                    'Authorization': `Bearer ${serviceKey}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({
+                    user_email: email,
+                    usage_date: date,
+                    count: currentCount + 1
+                })
+            }
+        );
+    } catch (e) {
+        console.warn('[ai] Usage increment failed:', e);
     }
 }
 
