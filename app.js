@@ -1817,6 +1817,18 @@
             }
         });
         
+        // Listen for background sync completion (after non-blocking sign-in)
+        if (StorageAdapter?.Sync?.onDataChange) {
+            StorageAdapter.Sync.onDataChange((event) => {
+                if (event === 'sync_complete') {
+                    console.log('[app.js] Background sync complete — refreshing dashboard');
+                    if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
+                        AppState.modules.dashboard.refresh();
+                    }
+                }
+            });
+        }
+        
         // Inject persistent app footer (policy links — visible on all views)
         injectAppFooter();
     }
