@@ -102,6 +102,7 @@
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  (function(){var c=document.cookie,eu=c.indexOf('geo-consent-required=1')!==-1,ok=c.indexOf('cookie-consent=accepted')!==-1;gtag('consent','default',{'analytics_storage':(!eu||ok)?'granted':'denied','ad_storage':'denied'});})();
   gtag('js', new Date());
   gtag('config', 'G-MLMRRNMZMN');
 </script>
@@ -233,5 +234,6 @@
         <p style="margin:0.25rem 0 0;font-size:0.75rem;color:#94a3b8;">WithoutMe is a product by MC Tools</p>
     </footer>
     <script src="/sop-templates/template-import.js"></script>
+<script src="/cookie-consent.js" defer></script>
 </body>
 </html>
