@@ -91,18 +91,18 @@
         const tasks = [];
 
         // Team role check
-        tasks.push(checkTeamRole().then(() => console.log('[TIMING] checkTeamRole done')).catch(e => console.warn('Team role sync failed:', e)));
+        tasks.push(checkTeamRole().catch(e => console.warn('Team role sync failed:', e)));
 
         // Subscription sync
         if (typeof PaddleBilling !== 'undefined' && email) {
-            tasks.push(PaddleBilling.syncFromServer(email).then(() => console.log('[TIMING] PaddleBilling.syncFromServer done')).catch(e => console.warn('Paddle sync failed:', e)));
+            tasks.push(PaddleBilling.syncFromServer(email).catch(e => console.warn('Paddle sync failed:', e)));
         }
 
         // Supabase settings sync (biz type, digest, webhook)
         if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
             tasks.push(
                 SupabaseClient.getBusinessType()
-                    .then(v => { if (v) localStorage.setItem('withoutme_business_type', v); console.log('[TIMING] getBusinessType done'); })
+                    .then(v => { if (v) localStorage.setItem('withoutme_business_type', v); })
                     .catch(() => {})
             );
             tasks.push(
@@ -110,13 +110,12 @@
                     .then(v => {
                         if (v) localStorage.setItem('withoutme_digest_optout', '1');
                         else localStorage.removeItem('withoutme_digest_optout');
-                        console.log('[TIMING] getDigestOptOut done');
                     })
                     .catch(() => {})
             );
             tasks.push(
                 SupabaseClient.getWebhookUrl()
-                    .then(v => { localStorage.setItem('withoutme_webhook_url', v || ''); console.log('[TIMING] getWebhookUrl done'); })
+                    .then(v => localStorage.setItem('withoutme_webhook_url', v || ''))
                     .catch(() => {})
             );
         }
@@ -608,13 +607,14 @@
                 const user = StorageAdapter.Auth.getUser();
                 console.log('✅ User authenticated');
                 
-                // Show loading overlay while syncing (visible on Google OAuth return)
-                showAuthLoading('Loading your account...');
-                
-                // Run all sync calls in parallel
-                await syncAfterAuth(user?.email);
-                
-                hideAuthLoading();
+                // Sync settings in background — don't block app load
+                syncAfterAuth(user?.email).then(() => {
+                    updateAccountButton(document.getElementById('account-btn'));
+                    updateAccountPanelContent();
+                    if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
+                        AppState.modules.dashboard.refresh();
+                    }
+                }).catch(e => console.warn('Background sync failed:', e));
             } else {
                 console.log('👤 Running in local-only mode');
             }
@@ -2586,7 +2586,6 @@
                 overlay.remove();
                 showAuthLoading(currentTab === 'signin' ? 'Signing in...' : 'Creating your account...');
 
-                console.time('[TIMING] full login flow');
                 if (currentTab === 'signin') {
                     await StorageAdapter.Auth.signIn(email, password);
                 } else {
@@ -2601,24 +2600,24 @@
                 // Update account button immediately
                 updateAccountButton(document.getElementById('account-btn'));
                 
-                // Update loading message for sync phase
-                const loadingText = document.getElementById('auth-loading-text');
-                if (loadingText) loadingText.textContent = 'Loading your account...';
-                
-                // Run all sync calls in parallel
-                console.time('[TIMING] syncAfterAuth');
-                await syncAfterAuth(email);
-                console.timeEnd('[TIMING] syncAfterAuth');
-                console.timeEnd('[TIMING] full login flow');
-                
                 hideAuthLoading();
                 
                 // Force dashboard recreation so team mode takes effect
                 AppState.modules.dashboard = null;
                 
-                // CRITICAL: Refresh dashboard to show synced data
-                console.log('[app.js] Auth success - refreshing dashboard');
+                // Show dashboard immediately with local data
+                console.log('[app.js] Auth success - showing dashboard');
                 showDashboard();
+                
+                // Sync settings in background — don't block the UI
+                syncAfterAuth(email).then(() => {
+                    // Refresh dashboard after sync in case Pro status or team role changed
+                    updateAccountButton(document.getElementById('account-btn'));
+                    updateAccountPanelContent();
+                    if (AppState.currentView === 'dashboard' && AppState.modules.dashboard) {
+                        AppState.modules.dashboard.refresh();
+                    }
+                }).catch(e => console.warn('Background sync failed:', e));
             } catch (err) {
                 hideAuthLoading();
                 // Re-show the auth modal with error
