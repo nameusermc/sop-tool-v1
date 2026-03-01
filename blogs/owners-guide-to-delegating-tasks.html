@@ -70,7 +70,7 @@
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
-  (function(){var c=document.cookie,eu=c.indexOf('geo-consent-required=1')!==-1,ok=c.indexOf('cookie-consent=accepted')!==-1;gtag('consent','default',{'analytics_storage':(!eu||ok)?'granted':'denied','ad_storage':'denied'});})();
+  (function(){var c=document.cookie,nonEu=c.indexOf('geo-consent-required=0')!==-1,ok=c.indexOf('cookie-consent=accepted')!==-1;gtag('consent','default',{'analytics_storage':(nonEu||ok)?'granted':'denied','ad_storage':'denied'});})();
   gtag('js', new Date());
   gtag('config', 'G-MLMRRNMZMN');
 </script>
