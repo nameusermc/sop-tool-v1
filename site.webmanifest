@@ -2,11 +2,16 @@
   "name": "WithoutMe",
   "short_name": "WithoutMe",
   "description": "SOPs your team can follow without you",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "icons": [
     { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "theme_color": "#4338ca",
   "background_color": "#f9fafb",
-  "display": "standalone"
+  "display": "standalone",
+  "orientation": "any",
+  "categories": ["business", "productivity"]
 }

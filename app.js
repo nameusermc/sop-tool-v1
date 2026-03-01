@@ -63,6 +63,67 @@
     };
 
     // ========================================================================
+    // AUTH LOADING OVERLAY
+    // ========================================================================
+
+    function showAuthLoading(message) {
+        if (document.getElementById('auth-loading-overlay')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'auth-loading-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;';
+        overlay.innerHTML = `
+            <div style="width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            <p id="auth-loading-text" style="color:#475569;font-size:0.95rem;margin:0;">${message || 'Signing in...'}</p>
+            <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        `;
+        document.body.appendChild(overlay);
+    }
+
+    function hideAuthLoading() {
+        document.getElementById('auth-loading-overlay')?.remove();
+    }
+
+    /**
+     * Run all post-auth sync calls in parallel instead of sequentially.
+     * Cuts login wait from ~5-10s to ~1-2s.
+     */
+    async function syncAfterAuth(email) {
+        const tasks = [];
+
+        // Team role check
+        tasks.push(checkTeamRole().catch(e => console.warn('Team role sync failed:', e)));
+
+        // Subscription sync
+        if (typeof PaddleBilling !== 'undefined' && email) {
+            tasks.push(PaddleBilling.syncFromServer(email).catch(e => console.warn('Paddle sync failed:', e)));
+        }
+
+        // Supabase settings sync (biz type, digest, webhook)
+        if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
+            tasks.push(
+                SupabaseClient.getBusinessType()
+                    .then(v => { if (v) localStorage.setItem('withoutme_business_type', v); })
+                    .catch(() => {})
+            );
+            tasks.push(
+                SupabaseClient.getDigestOptOut()
+                    .then(v => {
+                        if (v) localStorage.setItem('withoutme_digest_optout', '1');
+                        else localStorage.removeItem('withoutme_digest_optout');
+                    })
+                    .catch(() => {})
+            );
+            tasks.push(
+                SupabaseClient.getWebhookUrl()
+                    .then(v => localStorage.setItem('withoutme_webhook_url', v || ''))
+                    .catch(() => {})
+            );
+        }
+
+        await Promise.all(tasks);
+    }
+
+    // ========================================================================
     // VIEW MANAGEMENT
     // ========================================================================
 
@@ -546,39 +607,13 @@
                 const user = StorageAdapter.Auth.getUser();
                 console.log('✅ User authenticated');
                 
-                // Check team role for authenticated users
-                await checkTeamRole();
+                // Show loading overlay while syncing (visible on Google OAuth return)
+                showAuthLoading('Loading your account...');
                 
-                // Sync subscription state from server (restores Pro even if localStorage was cleared)
-                if (typeof PaddleBilling !== 'undefined' && user?.email) {
-                    await PaddleBilling.syncFromServer(user.email);
-                }
+                // Run all sync calls in parallel
+                await syncAfterAuth(user?.email);
                 
-                // Sync business type from Supabase → localStorage
-                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
-                    try {
-                        const bizType = await SupabaseClient.getBusinessType();
-                        if (bizType) {
-                            localStorage.setItem('withoutme_business_type', bizType);
-                        }
-                    } catch (e) { /* ignore */ }
-                    
-                    // Sync digest opt-out from Supabase → localStorage
-                    try {
-                        const digestOptOut = await SupabaseClient.getDigestOptOut();
-                        if (digestOptOut) {
-                            localStorage.setItem('withoutme_digest_optout', '1');
-                        } else {
-                            localStorage.removeItem('withoutme_digest_optout');
-                        }
-                    } catch (e) { /* ignore */ }
-
-                    // Sync webhook URL from Supabase → localStorage (Phase 12G)
-                    try {
-                        const wUrl = await SupabaseClient.getWebhookUrl();
-                        localStorage.setItem('withoutme_webhook_url', wUrl || '');
-                    } catch (e) { /* ignore */ }
-                }
+                hideAuthLoading();
             } else {
                 console.log('👤 Running in local-only mode');
             }
@@ -2549,47 +2584,13 @@
                 // Update account button immediately
                 updateAccountButton(document.getElementById('account-btn'));
                 
-                // Show sync status briefly
-                const syncStatus = document.getElementById('sync-status');
-                if (syncStatus) {
-                    syncStatus.textContent = '✓ Synced';
-                    syncStatus.style.display = 'block';
-                    setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
-                }
+                // Show loading overlay while syncing
+                showAuthLoading('Syncing your account...');
                 
-                // Check team role (owner, member, or solo)
-                await checkTeamRole();
+                // Run all sync calls in parallel
+                await syncAfterAuth(email);
                 
-                // Sync subscription state from server (restores Pro if they have an active subscription)
-                if (typeof PaddleBilling !== 'undefined') {
-                    await PaddleBilling.syncFromServer(email);
-                }
-                
-                // Sync business type from Supabase → localStorage
-                if (typeof SupabaseClient !== 'undefined' && SupabaseClient) {
-                    try {
-                        const bizType = await SupabaseClient.getBusinessType();
-                        if (bizType) {
-                            localStorage.setItem('withoutme_business_type', bizType);
-                        }
-                    } catch (e) { /* ignore */ }
-                    
-                    // Sync digest opt-out from Supabase → localStorage
-                    try {
-                        const digestOptOut = await SupabaseClient.getDigestOptOut();
-                        if (digestOptOut) {
-                            localStorage.setItem('withoutme_digest_optout', '1');
-                        } else {
-                            localStorage.removeItem('withoutme_digest_optout');
-                        }
-                    } catch (e) { /* ignore */ }
-
-                    // Sync webhook URL from Supabase → localStorage (Phase 12G)
-                    try {
-                        const wUrl = await SupabaseClient.getWebhookUrl();
-                        localStorage.setItem('withoutme_webhook_url', wUrl || '');
-                    } catch (e) { /* ignore */ }
-                }
+                hideAuthLoading();
                 
                 // Force dashboard recreation so team mode takes effect
                 AppState.modules.dashboard = null;

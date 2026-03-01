@@ -282,5 +282,12 @@
     <!-- Main Application Script (MUST be loaded last) -->
     <script src="app.js"></script>
 <script src="/cookie-consent.js" defer></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+}
+</script>
 </body>
 </html>
