@@ -9,7 +9,7 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com https://browser.sentry-cdn.com https://www.googletagmanager.com https://cdn.paddle.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://zzsndvvaihnflrglvtnj.supabase.co https://*.google-analytics.com https://www.googletagmanager.com https://*.paddle.com https://*.sentry.io; frame-src https://*.paddle.com https://accounts.google.com; font-src 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com https://browser.sentry-cdn.com https://www.googletagmanager.com https://cdn.paddle.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.paddle.com; img-src 'self' data: blob:; connect-src 'self' https://zzsndvvaihnflrglvtnj.supabase.co https://*.google-analytics.com https://www.googletagmanager.com https://*.paddle.com https://*.sentry.io https://browser.sentry-cdn.com https://cdn.jsdelivr.net; frame-src https://*.paddle.com https://accounts.google.com; font-src 'self'" }
       ]
     }
   ],
